@@ -197,6 +197,46 @@ public partial class Model3DViewModel(SettingsService settingsService) : ViewMod
         }
     }
 
+    /// <summary>True while the view's Connect / Disconnect button is working.</summary>
+    [ObservableProperty] public partial bool IsChangingConnection { get; set; }
+
+    /// <summary>
+    /// Connects or disconnects this view's server (the button next to the coordinates).
+    /// After a disconnect the view stops polling until it is connected again.
+    /// </summary>
+    public async Task ToggleConnectionAsync()
+    {
+        var server = Server;
+        if (server is null || IsChangingConnection) return;
+
+        IsChangingConnection = true;
+        try
+        {
+            if (server.IsConnected)
+            {
+                StatusText = $"Disconnecting from {server.ServerName}...";
+                await AlpacaConnector.DisconnectAsync(server);
+                StatusText = "Disconnected";
+            }
+            else
+            {
+                StatusText = $"Connecting to {server.ServerName}...";
+                var connected = await AlpacaConnector.ConnectAsync(server);
+                _mountInfoRead = false; // read the mount type and latitude again
+                StatusText = connected ? "Connected" : "Could not connect";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusText = server.IsConnected ? $"Disconnect failed: {ex.Message}" : $"Connect failed: {ex.Message}";
+        }
+        finally
+        {
+            IsChangingConnection = false;
+        }
+        ConnectionChanged?.Invoke();
+    }
+
     private async Task AutoConnectAsync(CancellationToken token)
     {
         var server = Server;

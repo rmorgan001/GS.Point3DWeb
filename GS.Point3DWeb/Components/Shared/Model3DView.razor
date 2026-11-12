@@ -63,6 +63,21 @@
             {
                 <span class="coord" title="Local sidereal time"><span class="label">Lst</span><span class="value">@ViewModel.Lst</span></span>
             }
+            @if (Server is not null)
+            {
+                var connected = Server.IsConnected;
+                <button type="button" class="connect-btn @(connected ? "connected" : null)"
+                        disabled="@ViewModel.IsChangingConnection"
+                        title="@(connected ? $"Disconnect from {Server.ServerName}" : $"Connect to {Server.ServerName}")"
+                        @onclick="ViewModel.ToggleConnectionAsync">
+                    <Icon Kind="Connection" Size="14" />
+                    <span>
+                        @(ViewModel.IsChangingConnection
+                            ? (connected ? "Disconnecting…" : "Connecting…")
+                            : (connected ? "Disconnect" : "Connect"))
+                    </span>
+                </button>
+            }
         </div>
 
         @if (_overlay is not null)

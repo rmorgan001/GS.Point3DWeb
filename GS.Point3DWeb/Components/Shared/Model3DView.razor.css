@@ -136,6 +136,49 @@
         user-select: none;
     }
 
+/* Connect / Disconnect, at the end of the coordinates readout. */
+.connect-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .2rem .65rem;
+    border: 1px solid var(--green);
+    border-radius: var(--radius-sm);
+    background: var(--green);
+    color: var(--green-ink);
+    font: inherit;
+    font-size: .78rem;
+    font-weight: 600;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background .15s, border-color .15s, color .15s;
+}
+
+    .connect-btn:hover:not(:disabled) {
+        background: var(--green-hover);
+        border-color: var(--green-hover);
+    }
+
+    /* When connected it's the quieter action: dark, turning red on hover. */
+    .connect-btn.connected {
+        border-color: rgba(52, 71, 79, .8);
+        background: rgba(7, 11, 14, .72);
+        color: var(--moon);
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+    }
+
+        .connect-btn.connected:hover:not(:disabled) {
+            border-color: rgba(239, 100, 97, .6);
+            background: rgba(239, 100, 97, .15);
+            color: var(--red);
+        }
+
+    .connect-btn:disabled {
+        opacity: .6;
+        cursor: progress;
+    }
+
 /* Start-up / error message in the middle of the scene. */
 .overlay {
     position: absolute;

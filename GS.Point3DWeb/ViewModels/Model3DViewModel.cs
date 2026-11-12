@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GS.Alpaca.Shared;
 using GS.Alpaca.Support;
+using GS.Point3DWeb.Dialogs;
 using GS.Point3DWeb.Models;
 using GS.Point3DWeb.Services;
 using GS.Point3DWeb.Support;
@@ -14,9 +15,11 @@ namespace GS.Point3DWeb.ViewModels;
 /// <see cref="Server"/>, polls its device state and turns it into mount rotations for the Babylon.js viewer.
 /// The view owns the JavaScript side and listens to <see cref="RotationChanged"/>.
 /// </summary>
-public partial class Model3DViewModel(SettingsService settingsService) : ViewModelBase, IDisposable
+public partial class Model3DViewModel(SettingsService settingsService, DialogService dialogService)
+    : ViewModelBase, IDisposable
 {
     private readonly SettingsService _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+    private readonly DialogService _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
     private CancellationTokenSource? _cts;
     private Stopwatch? _timer;
     private double _lastRaHours;
@@ -208,6 +211,21 @@ public partial class Model3DViewModel(SettingsService settingsService) : ViewMod
     {
         var server = Server;
         if (server is null || IsChangingConnection) return;
+
+        if (server.IsConnected)
+        {
+            // Disconnecting acts on the mount's Alpaca device, so ask first.
+            var confirm = new ConfirmDialogViewModel
+            {
+                Title = "Disconnect",
+                Message = $"Disconnect from {server.ServerName}? Its views stop updating, and other programs " +
+                          "using this mount's Alpaca device are disconnected too.",
+                AcceptText = "Disconnect",
+                CancelText = "Cancel"
+            };
+            await _dialogService.ShowDialog(confirm);
+            if (!confirm.Confirmed || !server.IsConnected) return;
+        }
 
         IsChangingConnection = true;
         try

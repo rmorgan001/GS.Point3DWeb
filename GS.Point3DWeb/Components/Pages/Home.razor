@@ -1,5 +1,6 @@
 ﻿@page "/"
 @inherits MvvmComponentBase<HomeViewModel>
+@inject NavigationManager Navigation
 
 <PageTitle>GS Point3D Web</PageTitle>
 
@@ -8,54 +9,64 @@
         <div class="brand">
             <span class="brand-mark" aria-hidden="true"></span>
             <span>GS Point3D Web</span>
-            <span class="brand-sub">Alpaca mount viewer</span>
+            <span class="brand-sub">@L.T("Alpaca mount viewer")</span>
         </div>
 
         <div class="header-tools">
-            <span class="connected-count" title="Servers connected">
+            <span class="connected-count" title="@L.T("Servers connected")">
                 <span class="dot @(ConnectedCount > 0 ? "on" : null)"></span>
-                @ConnectedCount of @ViewModel.Count connected
+                @L.T("{0} of {1} connected", ConnectedCount, ViewModel.Count)
             </span>
 
             <button type="button" class="key-button @(ViewModel.IsLicensed ? "licensed" : null)"
-                    title="@(ViewModel.IsLicensed ? "Feature key installed" : "Free version: add a feature key for more views and servers")"
+                    title="@(ViewModel.IsLicensed ? L.T("Feature key installed") : L.T("Free version: add a feature key for more views and servers"))"
                     @onclick="() => ViewModel.FeatureKeyCommand.ExecuteAsync(null)">
                 <Icon Kind="@(ViewModel.IsLicensed ? "Key" : "Lock")" Size="16" />
-                <span>@(ViewModel.IsLicensed ? "Unlocked" : "Free")</span>
+                <span>@(ViewModel.IsLicensed ? L.T("Unlocked") : L.T("Free"))</span>
             </button>
 
-            <div class="views" role="group" aria-label="Number of 3D views">
-                <span class="views-label">Views</span>
+            <div class="views" role="group" aria-label="@L.T("Number of 3D views")">
+                <span class="views-label">@L.T("Views")</span>
                 <div class="segmented">
                     @for (var n = 1; n <= ViewModel.Quadrants.Length; n++)
                     {
                         var count = n;
                         var locked = count > ViewModel.MaxViews;
                         <button type="button" class="@(ViewModel.ViewCount == count ? "selected" : null) @(locked ? "locked" : null)"
-                                title="@(locked ? $"{count} views need a feature key" : $"Show {count} 3D view{(count == 1 ? "" : "s")}")"
+                                title="@ViewsTitle(count, locked)"
                                 aria-pressed="@(ViewModel.ViewCount == count)"
                                 @onclick="() => ViewModel.ViewCount = count">@count</button>
                     }
                 </div>
             </div>
+
+            <label class="language" title="@L.T("Language")">
+                <Icon Kind="Translate" Size="16" />
+                <select aria-label="@L.T("Language")" value="@Languages.Current.Code" @onchange="ChangeLanguage">
+                    @foreach (var language in Languages.All)
+                    {
+                        <option value="@language.Code" lang="@language.Code">@language.NativeName</option>
+                    }
+                </select>
+            </label>
         </div>
     </header>
 
     <div class="workspace">
     <aside class="sidebar" @ondragenter="() => _hoverQuadrant = -1">
         <div class="sidebar-header">
-            <h2>Servers</h2>
-            <span class="count" title="Servers in the list">
+            <h2>@L.T("Servers")</h2>
+            <span class="count" title="@L.T("Servers in the list")">
                 @ViewModel.Count@(ViewModel.IsLicensed ? "" : $" / {FeatureKeyService.FreeMaxServers}")
             </span>
         </div>
 
-        <div class="toolbar" role="toolbar" aria-label="Server commands">
-            <button type="button" class="icon-btn" title="Add" aria-label="Add"
+        <div class="toolbar" role="toolbar" aria-label="@L.T("Server commands")">
+            <button type="button" class="icon-btn" title="@L.T("Add")" aria-label="@L.T("Add")"
                     @onclick="() => ViewModel.AddCommand.Execute(null)">
                 <Icon Kind="Plus" />
             </button>
-            <button type="button" class="icon-btn" title="Search the network" aria-label="Search the network"
+            <button type="button" class="icon-btn" title="@L.T("Search the network")" aria-label="@L.T("Search the network")"
                     @onclick="() => ViewModel.DiscoveryCommand.ExecuteAsync(null)">
                 <Icon Kind="Search" />
             </button>
@@ -64,19 +75,19 @@
                     @onclick="() => ViewModel.ConnectCommand.ExecuteAsync(null)">
                 <Icon Kind="Connection" />
             </button>
-            <button type="button" class="icon-btn" title="Save" aria-label="Save"
+            <button type="button" class="icon-btn" title="@L.T("Save")" aria-label="@L.T("Save")"
                     @onclick="() => ViewModel.SaveCommand.ExecuteAsync(null)">
                 <Icon Kind="ContentSave" />
             </button>
             <span class="toolbar-spacer"></span>
-            <button type="button" class="icon-btn danger" title="Delete" aria-label="Delete"
+            <button type="button" class="icon-btn danger" title="@L.T("Delete")" aria-label="@L.T("Delete")"
                     disabled="@(ViewModel.SelectedAlpacaServer is null)"
                     @onclick="() => ViewModel.DeleteCommand.ExecuteAsync(ViewModel.SelectedAlpacaServer)">
                 <Icon Kind="Delete" />
             </button>
         </div>
 
-        <nav class="server-nav" aria-label="Servers">
+        <nav class="server-nav" aria-label="@L.T("Servers")">
             <ul class="server-list">
                 @foreach (var server in ViewModel.AlpacaServers)
                 {
@@ -84,7 +95,7 @@
                     <li>
                         <button type="button"
                                 class="server-item @(server == ViewModel.SelectedAlpacaServer ? "selected" : null) @(allowed ? null : "locked")"
-                                title="@(allowed ? ServerTooltip(server) : $"{server.Url}\nNeeds a feature key (free version: {FeatureKeyService.FreeMaxServers} servers)")"
+                                title="@(allowed ? ServerTooltip(server) : LockedTooltip(server))"
                                 draggable="@(allowed ? "true" : "false")"
                                 data-server-id="@server.IdGuid"
                                 @ondragstart="() => ViewModel.StartDrag(server)"
@@ -93,14 +104,14 @@
                                 @ondblclick="() => ViewModel.EditServerCommand.ExecuteAsync(server)"
                                 @onkeydown="e => OnServerKeyDown(e, server)">
                             <span class="status @(server.IsConnected ? "connected" : null)"
-                                  title="@(server.IsConnected ? "Connected" : "Not connected")"></span>
+                                  title="@(server.IsConnected ? L.T("Connected") : L.T("Not connected"))"></span>
                             <span class="server-text">
                                 <span class="name">@server.ServerName</span>
                                 <span class="address">@ServerAddress(server)</span>
                             </span>
                             @if (!allowed)
                             {
-                                <span class="lock" aria-label="Needs a feature key"><Icon Kind="Lock" Size="14" /></span>
+                                <span class="lock" aria-label="@L.T("Needs a feature key")"><Icon Kind="Lock" Size="14" /></span>
                             }
                         </button>
                     </li>
@@ -109,11 +120,11 @@
         </nav>
 
         <p class="sidebar-hint">
-            Drag a server onto a view to show its mount. Double-click a server (or press F2) to edit it.
+            @L.T("Drag a server onto a view to show its mount. Double-click a server (or press F2) to edit it.")
         </p>
     </aside>
 
-    <section class="model-panel views-@ViewModel.ViewCount @(ViewModel.DragServer is not null ? "dragging" : null)" aria-label="3D models">
+    <section class="model-panel views-@ViewModel.ViewCount @(ViewModel.DragServer is not null ? "dragging" : null)" aria-label="@L.T("3D models")">
         @for (var i = 0; i < ViewModel.ViewCount; i++)
         {
             var index = i;
@@ -130,7 +141,7 @@
                     <div class="quadrant-empty">
                         <span class="empty-mark" aria-hidden="true"><Icon Kind="Lock" Size="22" /></span>
                         <p class="empty-title">@lockedServer.ServerName</p>
-                        <p>Needs a feature key (free version: @FeatureKeyService.FreeMaxServers servers)</p>
+                        <p>@L.T("Needs a feature key (free version: {0} servers)", FeatureKeyService.FreeMaxServers)</p>
                     </div>
                 }
                 else if (quadrant.Server is { } server)
@@ -157,15 +168,15 @@
                 {
                     <div class="quadrant-empty">
                         <span class="empty-mark" aria-hidden="true"><Icon Kind="Connection" Size="22" /></span>
-                        <p class="empty-title">View @(index + 1)</p>
-                        <p>Drag a server here</p>
+                        <p class="empty-title">@L.T("View {0}", index + 1)</p>
+                        <p>@L.T("Drag a server here")</p>
                     </div>
                 }
 
                 @if (ViewModel.DragServer is not null)
                 {
                     <div class="drop-zone @(_hoverQuadrant == index ? "over" : null)">
-                        <span>Show @ViewModel.DragServer.ServerName</span>
+                        <span>@L.T("Show {0}", ViewModel.DragServer.ServerName)</span>
                     </div>
                 }
             </div>
@@ -208,11 +219,29 @@
         ViewModel.DropOnQuadrant(index);
     }
 
-    private string ConnectText => ViewModel.SelectedAlpacaServer?.IsConnected == true ? "Disconnect" : "Connect";
+    private string ConnectText => ViewModel.SelectedAlpacaServer?.IsConnected == true ? L.T("Disconnect") : L.T("Connect");
+
+    private static string ViewsTitle(int count, bool locked)
+        => locked ? L.T("{0} views need a feature key", count)
+            : count == 1 ? L.T("Show 1 3D view") : L.T("Show {0} 3D views", count);
+
+    private static string LockedTooltip(AlpacaServer server)
+        => $"{server.Url}\n{L.T("Needs a feature key (free version: {0} servers)", FeatureKeyService.FreeMaxServers)}";
+
+    /// <summary>Saves the language in the culture cookie and reloads the page in it.</summary>
+    private void ChangeLanguage(ChangeEventArgs e)
+    {
+        var code = e.Value?.ToString();
+        if (Languages.Find(code) is not { } language || language == Languages.Current) return;
+        var returnUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
+        Navigation.NavigateTo(
+            $"culture/set?culture={Uri.EscapeDataString(language.Code)}&redirectUri={Uri.EscapeDataString("/" + returnUrl)}",
+            forceLoad: true);
+    }
 
     private int ConnectedCount => ViewModel.AlpacaServers.Count(s => s.IsConnected);
 
-    private static string ServerTooltip(AlpacaServer server) => $"{server.Url}\nDouble-click (or F2) to edit";
+    private static string ServerTooltip(AlpacaServer server) => $"{server.Url}\n{L.T("Double-click (or F2) to edit")}";
 
     /// <summary>Short address for the list: host:port and device number.</summary>
     private static string ServerAddress(AlpacaServer server)
@@ -220,7 +249,7 @@
         if (!Uri.TryCreate(server.Url, UriKind.Absolute, out var uri)) return server.Url;
         var device = uri.Segments.LastOrDefault()?.Trim('/');
         return int.TryParse(device, out var number)
-            ? $"{uri.Authority} · telescope {number}"
+            ? $"{uri.Authority} · {L.T("telescope {0}", number)}"
             : uri.Authority;
     }
 

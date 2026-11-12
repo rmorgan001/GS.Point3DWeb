@@ -1,3 +1,4 @@
+using GS.Point3DWeb.Localization;
 using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -26,9 +27,9 @@ public partial class EditServerDialogViewModel : DialogViewModel
         ClientTransactionId = server.ClientTransactionId;
     }
 
-    [ObservableProperty] public partial string Title { get; set; } = "Edit Server";
-    [ObservableProperty] public partial string AcceptText { get; set; } = "Accept";
-    [ObservableProperty] public partial string CancelText { get; set; } = "Cancel";
+    [ObservableProperty] public partial string Title { get; set; } = L.T("Edit Server");
+    [ObservableProperty] public partial string AcceptText { get; set; } = L.T("Accept");
+    [ObservableProperty] public partial string CancelText { get; set; } = L.T("Cancel");
 
     public string IdGuid { get; }
     public double ClientTransactionId { get; }
@@ -54,7 +55,7 @@ public partial class EditServerDialogViewModel : DialogViewModel
 
     private void ValidatePollSeconds(double value)
         => PollSecondsError = double.IsNaN(value) || value < AlpacaServer.MinPollSeconds || value > AlpacaServer.MaxPollSeconds
-            ? $"{AlpacaServer.MinPollSeconds:0.0} to {AlpacaServer.MaxPollSeconds:0.0} seconds"
+            ? L.T("{0} to {1} seconds", AlpacaServer.MinPollSeconds.ToString("0.0"), AlpacaServer.MaxPollSeconds.ToString("0.0"))
             : null;
 
     partial void OnServerNameChanged(string value) => ValidateServerName(value);
@@ -98,25 +99,25 @@ public partial class EditServerDialogViewModel : DialogViewModel
     }
 
     private void ValidateServerName(string? value)
-        => ServerNameError = string.IsNullOrWhiteSpace(value) ? "Required" : null;
+        => ServerNameError = string.IsNullOrWhiteSpace(value) ? L.T("Required") : null;
 
     private void ValidateUrl(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            UrlError = "Required";
+            UrlError = L.T("Required");
             return;
         }
 
         if (!Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri) ||
             !(uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
         {
-            UrlError = "Invalid";
+            UrlError = L.T("Invalid");
             return;
         }
 
         UrlError = TelescopePath.IsMatch(uri.AbsolutePath)
             ? null
-            : "Invalid Path (expected …/api/v1/telescope/{n}/)";
+            : L.T("Invalid path (expected …/api/v1/telescope/{n}/)");
     }
 }

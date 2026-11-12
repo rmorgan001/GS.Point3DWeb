@@ -1,3 +1,4 @@
+using GS.Point3DWeb.Localization;
 using GS.Alpaca.Shared;
 
 namespace GS.Point3DWeb.Support;
@@ -131,22 +132,22 @@ public static class Model3D
     public static bool UseNorthCompass(AlignmentModes mode, double latitude)
         => latitude >= 0 || mode == AlignmentModes.algAltAz;
 
-    public static string GetDisplayName(Model3DType modelType) => modelType switch
+    public static string GetDisplayName(Model3DType modelType) => L.T(modelType switch
     {
         Model3DType.SchmidtCassegrain => "Schmidt-Cassegrain",
         Model3DType.RitcheyChretien => "Ritchey-Chrétien",
         Model3DType.RitcheyChretienTruss => "Ritchey-Chrétien Truss",
         Model3DType.DualTelescope => "Dual Telescope",
         _ => modelType.ToString()
-    };
+    });
 
-    public static string GetDisplayName(AlignmentModes mode) => mode switch
+    public static string GetDisplayName(AlignmentModes mode) => L.T(mode switch
     {
         AlignmentModes.algAltAz => "Alt-Az",
         AlignmentModes.algPolar => "Polar (fork)",
         AlignmentModes.algGermanPolar => "German polar",
         _ => "Unknown"
-    };
+    });
 
     public static double ClampOffset(double value) => Math.Clamp(Math.Round(value), MinOffset, MaxOffset);
 }

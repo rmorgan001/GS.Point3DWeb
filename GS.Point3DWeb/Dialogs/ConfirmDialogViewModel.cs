@@ -1,3 +1,4 @@
+using GS.Point3DWeb.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -8,10 +9,10 @@ namespace GS.Point3DWeb.Dialogs;
 /// </summary>
 public partial class ConfirmDialogViewModel : DialogViewModel
 {
-    [ObservableProperty] public partial string Title { get; set; } = "Confirm";
-    [ObservableProperty] public partial string Message { get; set; } = "Are you sure?";
-    [ObservableProperty] public partial string AcceptText { get; set; } = "Accept";
-    [ObservableProperty] public partial string CancelText { get; set; } = "Cancel";
+    [ObservableProperty] public partial string Title { get; set; } = L.T("Confirm");
+    [ObservableProperty] public partial string Message { get; set; } = L.T("Are you sure?");
+    [ObservableProperty] public partial string AcceptText { get; set; } = L.T("Accept");
+    [ObservableProperty] public partial string CancelText { get; set; } = L.T("Cancel");
     [ObservableProperty] public partial string StatusText { get; set; } = "";
     [ObservableProperty] public partial string ProgressText { get; set; } = "";
     [ObservableProperty] public partial bool CancelVisible { get; set; } = true;
@@ -33,7 +34,7 @@ public partial class ConfirmDialogViewModel : DialogViewModel
 
         Busy = true;
         StatusText = "";
-        ProgressText = "Processing...";
+        ProgressText = L.T("Processing…");
 
         var result = await OnConfirm(this);
 

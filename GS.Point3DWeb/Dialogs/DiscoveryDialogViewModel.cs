@@ -1,3 +1,4 @@
+using GS.Point3DWeb.Localization;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,10 +11,10 @@ namespace GS.Point3DWeb.Dialogs;
 /// </summary>
 public partial class DiscoveryDialogViewModel : DialogViewModel
 {
-    [ObservableProperty] public partial string Title { get; set; } = "Alpaca Discovery";
-    [ObservableProperty] public partial string Message { get; set; } = "Click Search...";
-    [ObservableProperty] public partial string AcceptText { get; set; } = "Accept";
-    [ObservableProperty] public partial string CancelText { get; set; } = "Cancel";
+    [ObservableProperty] public partial string Title { get; set; } = L.T("Alpaca Discovery");
+    [ObservableProperty] public partial string Message { get; set; } = L.T("Click Search…");
+    [ObservableProperty] public partial string AcceptText { get; set; } = L.T("Accept");
+    [ObservableProperty] public partial string CancelText { get; set; } = L.T("Cancel");
     [ObservableProperty] public partial string StatusText { get; set; } = "";
     [ObservableProperty] public partial string ProgressText { get; set; } = "";
     [ObservableProperty] public partial bool CancelVisible { get; set; } = true;
@@ -39,7 +40,7 @@ public partial class DiscoveryDialogViewModel : DialogViewModel
 
         Busy = true;
         StatusText = "";
-        Message = "Discovering...";
+        Message = L.T("Discovering…");
         Devices = [];
         SelectedDevice = null;
 
@@ -54,11 +55,11 @@ public partial class DiscoveryDialogViewModel : DialogViewModel
                     DeviceUrl = scope.DeviceUrl,
                 });
             }
-            Message = telescopes.Count > 0 ? "Select an Alpaca Telescope Server.." : "Nothing found...";
+            Message = telescopes.Count > 0 ? L.T("Select an Alpaca telescope server.") : L.T("Nothing found.");
         }
         catch (Exception e)
         {
-            Message = "Nothing found...";
+            Message = L.T("Nothing found.");
             StatusText = e.Message;
         }
         finally
@@ -74,7 +75,7 @@ public partial class DiscoveryDialogViewModel : DialogViewModel
 
         Busy = true;
         StatusText = "";
-        ProgressText = "Processing...";
+        ProgressText = L.T("Processing…");
 
         var result = await OnConfirm(this);
 

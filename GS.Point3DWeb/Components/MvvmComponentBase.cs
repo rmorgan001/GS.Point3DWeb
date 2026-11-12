@@ -8,7 +8,7 @@ namespace GS.Point3DWeb.Components;
 /// Base class for views bound to a view model. The view model is resolved from DI,
 /// and the view re-renders whenever the view model raises PropertyChanged.
 /// </summary>
-public abstract class MvvmComponentBase<TViewModel> : ComponentBase, IDisposable
+public abstract class MvvmComponentBase<TViewModel> : LocalizedComponentBase, IDisposable
     where TViewModel : ViewModelBase
 {
     [Inject]

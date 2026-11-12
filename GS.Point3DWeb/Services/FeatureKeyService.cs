@@ -1,3 +1,4 @@
+using GS.Point3DWeb.Localization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -69,7 +70,7 @@ public sealed class FeatureKeyService
         if (info is null) return false;
         if (info.IsExpired(DateOnly.FromDateTime(DateTime.Now)))
         {
-            error = $"This key expired on {info.Expires:yyyy-MM-dd}.";
+            error = L.T("This key expired on {0}.", info.Expires?.ToString("yyyy-MM-dd"));
             return false;
         }
 
@@ -101,7 +102,7 @@ public sealed class FeatureKeyService
         var parts = (keyText ?? "").Trim().Split('.');
         if (parts.Length != 3 || parts[0] != Prefix)
         {
-            error = "That isn't a GS Point3D Web feature key.";
+            error = L.T("That isn't a GS Point3D Web feature key.");
             return null;
         }
 
@@ -114,7 +115,7 @@ public sealed class FeatureKeyService
             ecdsa.ImportFromPem(PublicKeyPem);
             if (!ecdsa.VerifyData(payload, signature, HashAlgorithmName.SHA256))
             {
-                error = "This key isn't valid.";
+                error = L.T("This key isn't valid.");
                 return null;
             }
 
@@ -130,7 +131,7 @@ public sealed class FeatureKeyService
         catch (Exception ex) when (ex is FormatException or JsonException or CryptographicException
                                        or KeyNotFoundException or InvalidOperationException)
         {
-            error = "This key isn't valid.";
+            error = L.T("This key isn't valid.");
             return null;
         }
     }

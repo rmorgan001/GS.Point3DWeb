@@ -3,7 +3,7 @@
 <form class="edit-form" @onsubmit="() => ViewModel.ConfirmCommand.ExecuteAsync(null)" novalidate>
     <div class="field-row">
         <label class="field field-grow">
-            <span class="field-label">Server Name</span>
+            <span class="field-label">@L.T("Server Name")</span>
             <input type="text" autofocus
                    class="@(ViewModel.ServerNameError is null ? null : "has-error")"
                    aria-invalid="@(ViewModel.ServerNameError is not null)"
@@ -14,9 +14,9 @@
             }
         </label>
         <label class="field field-poll">
-            <span class="field-label">Polling (seconds)</span>
+            <span class="field-label">@L.T("Polling (seconds)")</span>
             <input type="number" min="@AlpacaServer.MinPollSeconds" max="@AlpacaServer.MaxPollSeconds" step="0.1"
-                   title="How often the server is asked for its position (0.5 to 5.0 seconds)"
+                   title="@L.T("How often the server is asked for its position (0.5 to 5.0 seconds)")"
                    class="@(ViewModel.PollSecondsError is null ? null : "has-error")"
                    aria-invalid="@(ViewModel.PollSecondsError is not null)"
                    @bind="ViewModel.PollSeconds" @bind:event="oninput" />
@@ -29,7 +29,7 @@
 
     <div class="field-row">
         <label class="field field-grow">
-            <span class="field-label">Url</span>
+            <span class="field-label">@L.T("Url")</span>
             <input type="url" spellcheck="false"
                    class="@(ViewModel.UrlError is null ? null : "has-error")"
                    aria-invalid="@(ViewModel.UrlError is not null)"
@@ -43,32 +43,32 @@
 
     <div class="field-row">
         <label class="field field-grow">
-            <span class="field-label">User Name</span>
+            <span class="field-label">@L.T("User Name")</span>
             <input type="text" autocomplete="off" @bind="ViewModel.UserName" @bind:event="oninput" />
         </label>
         <label class="field field-grow">
-            <span class="field-label">Password</span>
+            <span class="field-label">@L.T("Password")</span>
             <span class="password">
                 <input type="@(_showPassword ? "text" : "password")" autocomplete="new-password"
                        @bind="ViewModel.Password" @bind:event="oninput" />
                 <button type="button" class="reveal"
-                        title="@(_showPassword ? "Hide password" : "Show password")"
-                        aria-label="@(_showPassword ? "Hide password" : "Show password")"
+                        title="@(_showPassword ? L.T("Hide password") : L.T("Show password"))"
+                        aria-label="@(_showPassword ? L.T("Hide password") : L.T("Show password"))"
                         @onclick="() => _showPassword = !_showPassword">
-                    @(_showPassword ? "Hide" : "Show")
+                    @(_showPassword ? L.T("Hide") : L.T("Show"))
                 </button>
             </span>
         </label>
     </div>
 
     @* Read-only identifiers, kept together below the editable settings. *@
-    <div class="field-row field-row-info" role="group" aria-label="Server details (read-only)">
+    <div class="field-row field-row-info" role="group" aria-label="@L.T("Server details (read-only)")">
         <label class="field field-grow">
-            <span class="field-label">ID</span>
+            <span class="field-label">@L.T("ID")</span>
             <input type="text" value="@ViewModel.IdGuid" readonly />
         </label>
         <label class="field field-txn">
-            <span class="field-label">Client Transaction ID</span>
+            <span class="field-label">@L.T("Client Transaction ID")</span>
             <input type="text" value="@ViewModel.ClientTransactionId" readonly />
         </label>
     </div>

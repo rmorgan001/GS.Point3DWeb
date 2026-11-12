@@ -2,29 +2,29 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<section class="model3d" aria-label="3D model">
+<section class="model3d" aria-label="@L.T("3D model")">
     <header class="model3d-header">
         <span class="conn @(Server?.IsConnected == true ? "connected" : null)"
-              title="@(Server?.IsConnected == true ? "Connected" : "Not connected")"></span>
+              title="@(Server?.IsConnected == true ? L.T("Connected") : L.T("Not connected"))"></span>
         <div class="titles">
             <h2 title="@Server?.Url">@ViewModel.DeviceName</h2>
             @if (Server is not null)
             {
-                <span class="mount-tag" title="Model and mount type (read from the mount)">
+                <span class="mount-tag" title="@L.T("Model and mount type (read from the mount)")">
                     @Model3D.GetDisplayName(Server.ModelType) · @Model3D.GetDisplayName(Server.AlignmentMode)
                 </span>
             }
         </div>
         @if (OnSettings.HasDelegate)
         {
-            <button type="button" class="icon-btn" title="View settings" aria-label="View settings"
+            <button type="button" class="icon-btn" title="@L.T("View settings")" aria-label="@L.T("View settings")"
                     @onclick="OnSettings">
                 <Icon Kind="Cog" Size="18" />
             </button>
         }
         @if (OnClose.HasDelegate)
         {
-            <button type="button" class="icon-btn close" title="Remove from this view" aria-label="Remove from this view"
+            <button type="button" class="icon-btn close" title="@L.T("Remove from this view")" aria-label="@L.T("Remove from this view")"
                     @onclick="OnClose">
                 <Icon Kind="Close" Size="18" />
             </button>
@@ -35,10 +35,10 @@
         <canvas @ref="_canvas" class="render-canvas"></canvas>
 
         @* Coordinates float over the top of the scene; which ones show is chosen on the back of the card. *@
-        <div class="coords" aria-label="Mount coordinates">
+        <div class="coords" aria-label="@L.T("Mount coordinates")">
             @if (Server?.ShowRa != false)
             {
-                <span class="coord ra" title="Double-click to switch between hours and degrees"
+                <span class="coord ra" title="@L.T("Double-click to switch between hours and degrees")"
                       @ondblclick="ToggleRaUnitsAsync">
                     <span class="label">Ra</span><span class="value">@ViewModel.Ra</span>
                 </span>
@@ -61,20 +61,20 @@
             }
             @if (Server?.ShowLst != false)
             {
-                <span class="coord" title="Local sidereal time"><span class="label">Lst</span><span class="value">@ViewModel.Lst</span></span>
+                <span class="coord" title="@L.T("Local sidereal time")"><span class="label">Lst</span><span class="value">@ViewModel.Lst</span></span>
             }
             @if (Server is not null)
             {
                 var connected = Server.IsConnected;
                 <button type="button" class="connect-btn @(connected ? "connected" : null)"
                         disabled="@ViewModel.IsChangingConnection"
-                        title="@(connected ? $"Disconnect from {Server.ServerName}" : $"Connect to {Server.ServerName}")"
+                        title="@(connected ? L.T("Disconnect from {0}", Server.ServerName) : L.T("Connect to {0}", Server.ServerName))"
                         @onclick="ViewModel.ToggleConnectionAsync">
                     <Icon Kind="Connection" Size="14" />
                     <span>
                         @(ViewModel.IsChangingConnection
-                            ? (connected ? "Disconnecting…" : "Connecting…")
-                            : (connected ? "Disconnect" : "Connect"))
+                            ? (connected ? L.T("Disconnecting…") : L.T("Connecting…"))
+                            : (connected ? L.T("Disconnect") : L.T("Connect")))
                     </span>
                 </button>
             }
@@ -90,7 +90,7 @@
     </div>
 
     <footer class="model3d-status">
-        <span class="axes" title="Mount axes (X, Y) and tilt (Z), as in GSServer">
+        <span class="axes" title="@L.T("Mount axes (X, Y) and tilt (Z), as in GSServer")">
             <span><span class="label">X</span> @ViewModel.PrimaryAxis.ToString("F4")°</span>
             <span><span class="label">Y</span> @ViewModel.SecondaryAxis.ToString("F4")°</span>
             <span><span class="label">Z</span> @ViewModel.Tilt.ToString("F2")°</span>
@@ -155,7 +155,7 @@
     private ElementReference _canvas;
     private IJSObjectReference? _module;
     private IJSObjectReference? _viewer;
-    private string? _overlay = "Initializing ...";
+    private string? _overlay = L.T("Initializing…");
     private bool _overlayIsError;
     private bool _modelLoaded;
     private int _rotationPending;
@@ -254,17 +254,17 @@
         try
         {
             _modelLoaded = false;
-            ViewModel.StatusText = $"Loading {ViewModel.ModelName} model...";
+            ViewModel.StatusText = L.T("Loading {0} model…", ViewModel.ModelName);
             _loadedModelKey = ModelKey;
             var result = await _module.InvokeAsync<string>("loadModel", _viewer, ViewModel.ModelUrl, ViewModel.MountInfo);
             if (result.Contains("Error", StringComparison.OrdinalIgnoreCase))
             {
-                ViewModel.StatusText = $"Failed to load model: {result}";
+                ViewModel.StatusText = L.T("Failed to load model: {0}", result);
                 return;
             }
 
             _modelLoaded = true;
-            ViewModel.StatusText = $"Telescope loaded: {ViewModel.ModelName}";
+            ViewModel.StatusText = L.T("Telescope loaded: {0}", ViewModel.ModelName);
             await ApplyCurrentRotationAsync();
         }
         catch (JSDisconnectedException)
@@ -272,7 +272,7 @@
         }
         catch (JSException ex)
         {
-            ViewModel.StatusText = $"Failed to load model: {ex.Message}";
+            ViewModel.StatusText = L.T("Failed to load model: {0}", ex.Message);
         }
     }
 
@@ -286,7 +286,7 @@
 
         try
         {
-            ViewModel.StatusText = "Initializing 3D viewer...";
+            ViewModel.StatusText = L.T("Initializing 3D viewer…");
             _module = await JS.InvokeAsync<IJSObjectReference>("import", "./model3d/model3d.js");
             _viewer = await _module.InvokeAsync<IJSObjectReference>("create", _canvas, new
             {
@@ -312,7 +312,7 @@
         {
             _overlay = ex.Message;
             _overlayIsError = true;
-            ViewModel.StatusText = $"Initialization error: {ex.Message}";
+            ViewModel.StatusText = L.T("Initialization error: {0}", ex.Message);
         }
 
         StateHasChanged();

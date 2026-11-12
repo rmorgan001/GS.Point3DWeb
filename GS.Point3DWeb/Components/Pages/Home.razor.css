@@ -160,6 +160,32 @@
             background: var(--green-soft);
         }
 
+/* Language dropdown. */
+.language {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    color: var(--mare);
+}
+
+    .language select {
+        height: 2rem;
+        padding: 0 1.6rem 0 .6rem;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-sm);
+        background-color: var(--panel);
+        color: var(--moon);
+        font: inherit;
+        font-size: .85rem;
+        cursor: pointer;
+    }
+
+        .language select:hover,
+        .language select:focus-visible {
+            border-color: var(--green);
+            outline: none;
+        }
+
 /* View counts that need a key. */
 .segmented button.locked {
     color: var(--line-strong);

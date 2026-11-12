@@ -1,4 +1,7 @@
+using System.Globalization;
 using GS.Point3DWeb.Components;
+using GS.Point3DWeb.Localization;
+using Microsoft.AspNetCore.Localization;
 using GS.Point3DWeb.Services;
 using GS.Point3DWeb.ViewModels;
 
@@ -17,6 +20,9 @@ builder.Services.AddSingleton<FeatureKeyService>();
 // Dialogs: one per browser connection (circuit).
 builder.Services.AddScoped<DialogService>();
 
+// Each browser connection's UI language, so renders triggered by other connections keep it.
+builder.Services.AddScoped<CircuitCulture>();
+
 // View models: transient so each view gets its own instance.
 builder.Services.AddTransient<HomeViewModel>();
 builder.Services.AddTransient<Model3DViewModel>();
@@ -33,9 +39,39 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 
+// UI language: the culture cookie (set by /culture/set from the header dropdown), else the browser's
+// Accept-Language, else English. Only the UI culture changes; number and date formats stay the
+// server's, so values sent to mounts and saved to JSON are never affected.
+var serverCulture = CultureInfo.CurrentCulture;
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new RequestCulture(serverCulture, CultureInfo.GetCultureInfo(Languages.DefaultCode)),
+    SupportedCultures = [serverCulture],
+    SupportedUICultures = [.. Languages.All.Select(l => CultureInfo.GetCultureInfo(l.Code))]
+});
+
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+
+// Header language dropdown: remember the choice for a year, then reload the page in it.
+app.MapGet("/culture/set", (string? culture, string? redirectUri, HttpContext context) =>
+{
+    if (Languages.Find(culture) is { } language)
+    {
+        context.Response.Cookies.Append(
+            CookieRequestCultureProvider.DefaultCookieName,
+            // c= is not a supported culture, so the server's number formats stay; uic= picks the language.
+            CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(language.Code)),
+            new CookieOptions { Expires = DateTimeOffset.UtcNow.AddYears(1), IsEssential = true, SameSite = SameSiteMode.Lax, Path = "/" });
+    }
+
+    // Only redirect within this app.
+    var target = redirectUri is { Length: > 0 } && redirectUri[0] == '/' && !redirectUri.StartsWith("//") && !redirectUri.StartsWith("/\\")
+        ? redirectUri
+        : "/";
+    return Results.LocalRedirect(target);
+});
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

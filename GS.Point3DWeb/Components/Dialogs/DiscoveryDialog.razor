@@ -37,7 +37,7 @@ else
 {
     <div class="dialog-buttons">
         <button type="button" class="dialog-button" @onclick="() => ViewModel.SearchCommand.ExecuteAsync(null)">
-            Search
+            @L.T("Search")
         </button>
         <button type="button" class="dialog-button" @onclick="() => ViewModel.ConfirmCommand.ExecuteAsync(null)">
             @ViewModel.AcceptText

@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GS.Point3DWeb.Dialogs;
+using GS.Point3DWeb.Localization;
 using GS.Point3DWeb.Models;
 using GS.Point3DWeb.Services;
 
@@ -74,17 +75,21 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     {
         var limit = new ConfirmDialogViewModel
         {
-            Title = "Feature key needed",
+            Title = L.T("Feature key needed"),
             Message = message,
-            AcceptText = "Enter a key",
-            CancelText = "Close"
+            AcceptText = L.T("Enter a key"),
+            CancelText = L.T("Close")
         };
         await _dialogService.ShowDialog(limit);
         if (limit.Confirmed) await ShowFeatureKeyDialogAsync(message);
     }
 
     private string ServerLimitMessage =>
-        $"The free version allows up to {FeatureKeyService.FreeMaxServers} servers. A feature key unlocks more.";
+        L.T("The free version allows up to {0} servers. A feature key unlocks more.", FeatureKeyService.FreeMaxServers);
+
+    private static string BeyondLimitMessage(AlpacaServer server) =>
+        L.T("{0} is beyond the free version's {1} servers. A feature key unlocks it.",
+            server.ServerName, FeatureKeyService.FreeMaxServers);
 
     public void Dispose()
     {
@@ -184,7 +189,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         {
             await _dialogService.ShowDialog(new ConfirmDialogViewModel
             {
-                Message = "Nothing Selected",
+                Message = L.T("Nothing selected"),
                 CancelVisible = false
             });
             return;
@@ -192,8 +197,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
         if (!server.IsConnected && !IsServerAllowed(server))
         {
-            await ShowLimitAsync($"{server.ServerName} is beyond the free version's {FeatureKeyService.FreeMaxServers} servers. " +
-                                 "A feature key unlocks it.");
+            await ShowLimitAsync(BeyondLimitMessage(server));
             return;
         }
 
@@ -201,9 +205,8 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         var confirmViewModel = new ConfirmDialogViewModel
         {
             Message = disconnecting
-                ? $"Disconnect from {server.ServerName}? Its views stop updating, and other programs using " +
-                  "this mount's Alpaca device may be disconnected too."
-                : $"Connect to {server.ServerName}?"
+                ? L.T("Disconnect from {0}? Its views stop updating, and other programs using this mount's Alpaca device may be disconnected too.", server.ServerName)
+                : L.T("Connect to {0}?", server.ServerName)
         };
         await _dialogService.ShowDialog(confirmViewModel);
         // Skip if the state changed while the dialog was open (a view connected or lost it).
@@ -218,7 +221,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
                 {
                     await _dialogService.ShowDialog(new ConfirmDialogViewModel
                     {
-                        Message = $"{server.ServerName} is still connected: the server kept the connection open.",
+                        Message = L.T("{0} is still connected: the server kept the connection open.", server.ServerName),
                         CancelVisible = false
                     });
                 }
@@ -234,8 +237,8 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
             await _dialogService.ShowDialog(new ConfirmDialogViewModel
             {
                 Message = isConnected
-                    ? $"Connected to {server.ServerName}."
-                    : $"Could not connect to {server.ServerName}.",
+                    ? L.T("Connected to {0}.", server.ServerName)
+                    : L.T("Could not connect to {0}.", server.ServerName),
                 CancelVisible = false
             });
         }
@@ -247,8 +250,8 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
             await _dialogService.ShowDialog(new ConfirmDialogViewModel
             {
                 Message = disconnecting
-                    ? $"Disconnect from {server.ServerName} failed: {e.Message}"
-                    : $"Connect to {server.ServerName} failed: {e.Message}",
+                    ? L.T("Disconnect from {0} failed: {1}", server.ServerName, e.Message)
+                    : L.T("Connect to {0} failed: {1}", server.ServerName, e.Message),
                 CancelVisible = false
             });
         }
@@ -262,7 +265,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task SaveAsync()
     {
-        var confirmViewModel = new ConfirmDialogViewModel { Message = "Save the server list?" };
+        var confirmViewModel = new ConfirmDialogViewModel { Message = L.T("Save the server list?") };
         await _dialogService.ShowDialog(confirmViewModel);
         if (!confirmViewModel.Confirmed) return;
 
@@ -285,7 +288,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         {
             await _dialogService.ShowDialog(new ConfirmDialogViewModel
             {
-                Message = $"Could not save: {e.Message}",
+                Message = L.T("Could not save: {0}", e.Message),
                 CancelVisible = false
             });
         }
@@ -297,7 +300,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     {
         if (connection is null) return;
 
-        var confirmViewModel = new ConfirmDialogViewModel { Message = $"Delete {connection.ServerName}?" };
+        var confirmViewModel = new ConfirmDialogViewModel { Message = L.T("Delete {0}?", connection.ServerName) };
         await _dialogService.ShowDialog(confirmViewModel);
         if (!confirmViewModel.Confirmed) return;
 
@@ -331,8 +334,8 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         {
             if (value > MaxViews)
             {
-                _ = ShowLimitAsync($"The free version shows {FeatureKeyService.FreeMaxViews} view. " +
-                                   $"A feature key unlocks up to {FeatureKeyService.LicensedMaxViews}.");
+                _ = ShowLimitAsync(L.T("The free version shows {0} view. A feature key unlocks up to {1}.",
+                    FeatureKeyService.FreeMaxViews, FeatureKeyService.LicensedMaxViews));
                 return;
             }
             if (_settingsService.ViewCount == Math.Clamp(value, 1, Quadrants.Length)) return;
@@ -358,8 +361,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         if (server is null || index < 0 || index >= ViewCount) return;
         if (!IsServerAllowed(server))
         {
-            _ = ShowLimitAsync($"{server.ServerName} is beyond the free version's {FeatureKeyService.FreeMaxServers} servers. " +
-                               "A feature key unlocks it.");
+            _ = ShowLimitAsync(BeyondLimitMessage(server));
             return;
         }
 

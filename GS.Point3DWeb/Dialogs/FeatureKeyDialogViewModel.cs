@@ -1,3 +1,4 @@
+using GS.Point3DWeb.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GS.Point3DWeb.Services;
@@ -9,7 +10,7 @@ public partial class FeatureKeyDialogViewModel(FeatureKeyService featureKeys) : 
 {
     public FeatureKeyService FeatureKeys { get; } = featureKeys;
 
-    [ObservableProperty] public partial string Title { get; set; } = "Feature key";
+    [ObservableProperty] public partial string Title { get; set; } = L.T("Feature key");
 
     /// <summary>Optional reason the dialog was opened (e.g. a limit was reached).</summary>
     [ObservableProperty] public partial string? Reason { get; set; }
@@ -33,7 +34,7 @@ public partial class FeatureKeyDialogViewModel(FeatureKeyService featureKeys) : 
         Error = null;
         KeyText = "";
         Reason = null;
-        Message = "Key added. All views and servers are unlocked.";
+        Message = L.T("Key added. All views and servers are unlocked.");
     }
 
     [RelayCommand]
@@ -41,7 +42,7 @@ public partial class FeatureKeyDialogViewModel(FeatureKeyService featureKeys) : 
     {
         FeatureKeys.Remove();
         Error = null;
-        Message = $"Key removed. Limited to {FeatureKeyService.FreeMaxViews} view and {FeatureKeyService.FreeMaxServers} servers.";
+        Message = L.T("Key removed. Limited to {0} view and {1} servers.", FeatureKeyService.FreeMaxViews, FeatureKeyService.FreeMaxServers);
     }
 
     [RelayCommand]

@@ -1,10 +1,10 @@
 ﻿@page "/Error"
 @using System.Diagnostics
 
-<PageTitle>Error · GS Point3D Web</PageTitle>
+<PageTitle>@L.T("Error") · GS Point3D Web</PageTitle>
 
-<h1 class="text-danger">Error.</h1>
-<h2 class="text-danger">An error occurred while processing your request.</h2>
+<h1 class="text-danger">@L.T("Error")</h1>
+<h2 class="text-danger">@L.T("An error occurred while processing your request.")</h2>
 
 @if (ShowRequestId)
 {

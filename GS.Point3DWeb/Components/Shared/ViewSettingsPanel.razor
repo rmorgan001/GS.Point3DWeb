@@ -1,23 +1,24 @@
 @* Back of a quadrant's flip card: the server's 3D model settings, which coordinates show on the
    front, and the saved camera. Everything is stored on the server and saved with the server list. *@
+@inherits LocalizedComponentBase
 @implements IDisposable
 
-<section class="settings" aria-label="View settings for @Server.ServerName">
+<section class="settings" aria-label="@L.T("View settings for {0}", Server.ServerName)">
     <header class="settings-header">
-        <button type="button" class="icon-btn" title="Back to the model" aria-label="Back to the model"
+        <button type="button" class="icon-btn" title="@L.T("Back to the model")" aria-label="@L.T("Back to the model")"
                 @onclick="OnDone">
             <Icon Kind="ArrowLeft" Size="18" />
         </button>
         <h2 title="@Server.Url">@Server.ServerName</h2>
-        <button type="button" class="btn btn-primary done" @onclick="OnDone">Done</button>
+        <button type="button" class="btn btn-primary done" @onclick="OnDone">@L.T("Done")</button>
     </header>
 
     <div class="settings-body">
         <fieldset class="show-items model">
-            <legend>3D Model</legend>
+            <legend>@L.T("3D Model")</legend>
             <div class="model-grid">
                 <label class="field model-type">
-                    <span class="field-label">Model</span>
+                    <span class="field-label">@L.T("Model")</span>
                     <select value="@Server.ModelType" @onchange="OnModelChanged">
                         @foreach (var type in Model3D.ModelTypes)
                         {
@@ -26,17 +27,17 @@
                     </select>
                 </label>
                 <label class="field">
-                    <span class="field-label">Polar mode</span>
+                    <span class="field-label">@L.T("Polar mode")</span>
                     <select value="@Server.PolarMode" @onchange="OnPolarModeChanged"
-                            title="OTA side on a polar (fork) mount">
+                            title="@L.T("OTA side on a polar (fork) mount")">
                         @foreach (var mode in Enum.GetValues<PolarMode>())
                         {
-                            <option value="@mode">@mode</option>
+                            <option value="@mode">@L.T(mode.ToString())</option>
                         }
                     </select>
                 </label>
                 <label class="field">
-                    <span class="field-label">RA adjust (°)</span>
+                    <span class="field-label">@L.T("RA adjust (°)")</span>
                     <select value="@Server.RaOffset" @onchange="e => OnOffsetChanged(e, isRa: true)">
                         @foreach (var value in Model3D.OffsetValues)
                         {
@@ -45,7 +46,7 @@
                     </select>
                 </label>
                 <label class="field">
-                    <span class="field-label">Dec adjust (°)</span>
+                    <span class="field-label">@L.T("Dec adjust (°)")</span>
                     <select value="@Server.DecOffset" @onchange="e => OnOffsetChanged(e, isRa: false)">
                         @foreach (var value in Model3D.OffsetValues)
                         {
@@ -56,47 +57,47 @@
             </div>
 
             <div class="mount-row">
-                <span class="mount-info" title="Read from the mount when it connects; picks the model variant and offsets, as in GSServer">
-                    <span class="field-label">Mount</span>
+                <span class="mount-info" title="@L.T("Read from the mount when it connects; picks the model variant and offsets, as in GSServer")">
+                    <span class="field-label">@L.T("Mount")</span>
                     @MountText
                 </span>
                 <button type="button" class="btn" @onclick="ResetAdjustments"
                         disabled="@(Server.RaOffset == Model3D.DefaultRaOffset && Server.DecOffset == Model3D.DefaultDecOffset)">
-                    Reset adjustments
+                    @L.T("Reset adjustments")
                 </button>
             </div>
         </fieldset>
 
         <fieldset class="show-items appearance">
-            <legend>Appearance</legend>
+            <legend>@L.T("Appearance")</legend>
 
-            <span class="field-label" id="color-label-@Server.IdGuid">Model color</span>
+            <span class="field-label" id="color-label-@Server.IdGuid">@L.T("Model color")</span>
             <div class="swatches" role="radiogroup" aria-labelledby="color-label-@Server.IdGuid">
                 @foreach (var preset in ModelAppearance.ColorPresets)
                 {
                     var selected = string.Equals(Server.ModelColor, preset.Hex, StringComparison.OrdinalIgnoreCase);
                     <button type="button" class="swatch @(selected ? "selected" : null)" role="radio"
-                            aria-checked="@selected" title="@preset.Name" aria-label="@preset.Name"
+                            aria-checked="@selected" title="@L.T(preset.Name)" aria-label="@L.T(preset.Name)"
                             style="--swatch: @preset.Hex" @onclick="() => SetModelColor(preset.Hex)"></button>
                 }
-                <label class="swatch custom @(IsCustomColor ? "selected" : null)" title="Custom color">
-                    <input type="color" value="@Server.ModelColor" aria-label="Custom model color"
+                <label class="swatch custom @(IsCustomColor ? "selected" : null)" title="@L.T("Custom color")">
+                    <input type="color" value="@Server.ModelColor" aria-label="@L.T("Custom model color")"
                            @onchange="e => SetModelColor(e.Value?.ToString())" />
                     <span class="custom-mark" style="--swatch: @Server.ModelColor" aria-hidden="true"></span>
                 </label>
                 <span class="color-hex">@Server.ModelColor</span>
             </div>
 
-            <span class="field-label background-label" id="bg-label-@Server.IdGuid">Background</span>
+            <span class="field-label background-label" id="bg-label-@Server.IdGuid">@L.T("Background")</span>
             <div class="backgrounds" role="radiogroup" aria-labelledby="bg-label-@Server.IdGuid">
                 @foreach (var background in ModelAppearance.Backgrounds)
                 {
                     var selected = string.Equals(Server.Background, background.Key, StringComparison.OrdinalIgnoreCase);
                     <button type="button" class="background @(selected ? "selected" : null)" role="radio"
-                            aria-checked="@selected" title="@background.Name"
+                            aria-checked="@selected" title="@L.T(background.Name)"
                             @onclick="() => SetBackground(background.Key)">
                         <span class="thumb" style="@ThumbStyle(background)" aria-hidden="true"></span>
-                        <span class="background-name">@background.Name</span>
+                        <span class="background-name">@L.T(background.Name)</span>
                     </button>
                 }
             </div>
@@ -104,13 +105,13 @@
             <div class="appearance-actions">
                 <button type="button" class="btn" @onclick="ResetAppearance"
                         disabled="@(Server.ModelColor == ModelAppearance.DefaultColor && Server.Background == ModelAppearance.DefaultBackground)">
-                    Reset appearance
+                    @L.T("Reset appearance")
                 </button>
             </div>
         </fieldset>
 
         <fieldset class="show-items">
-            <legend>Coordinates on the front</legend>
+            <legend>@L.T("Coordinates on the front")</legend>
             <div class="checks">
                 @foreach (var item in Items)
                 {
@@ -121,47 +122,46 @@
                 }
             </div>
             <div class="ra-units">
-                <span class="field-label" id="ra-units-label-@Server.IdGuid">Ra shown in</span>
+                <span class="field-label" id="ra-units-label-@Server.IdGuid">@L.T("Ra shown in")</span>
                 <div class="segmented" role="group" aria-labelledby="ra-units-label-@Server.IdGuid">
                     <button type="button" class="@(Server.RaInDegrees ? null : "selected")"
-                            aria-pressed="@(!Server.RaInDegrees)" @onclick="() => SetRaInDegrees(false)">Hours</button>
+                            aria-pressed="@(!Server.RaInDegrees)" @onclick="() => SetRaInDegrees(false)">@L.T("Hours")</button>
                     <button type="button" class="@(Server.RaInDegrees ? "selected" : null)"
-                            aria-pressed="@Server.RaInDegrees" @onclick="() => SetRaInDegrees(true)">Degrees</button>
+                            aria-pressed="@Server.RaInDegrees" @onclick="() => SetRaInDegrees(true)">@L.T("Degrees")</button>
                 </div>
-                <span class="hint">Lst is always in hours.</span>
+                <span class="hint">@L.T("Lst is always in hours.")</span>
             </div>
         </fieldset>
 
         <fieldset class="show-items camera">
-            <legend>Camera</legend>
+            <legend>@L.T("Camera")</legend>
             @if (Server.Camera is { } camera)
             {
-                <span class="field-label camera-caption">Saved view</span>
+                <span class="field-label camera-caption">@L.T("Saved view")</span>
                 <dl class="camera-values">
-                    <div><dt>Rotation</dt><dd>@camera.Alpha.ToString("0.#")°</dd></div>
-                    <div><dt>Tilt</dt><dd>@camera.Beta.ToString("0.#")°</dd></div>
-                    <div><dt>Zoom</dt><dd>@camera.Radius.ToString("0.#")</dd></div>
-                    <div><dt>Pan</dt><dd>@PanText(camera)</dd></div>
+                    <div><dt>@L.T("Rotation")</dt><dd>@camera.Alpha.ToString("0.#")°</dd></div>
+                    <div><dt>@L.T("Tilt")</dt><dd>@camera.Beta.ToString("0.#")°</dd></div>
+                    <div><dt>@L.T("Zoom")</dt><dd>@camera.Radius.ToString("0.#")</dd></div>
+                    <div><dt>@L.T("Pan")</dt><dd>@PanText(camera)</dd></div>
                 </dl>
             }
             else
             {
-                <p class="camera-default">No saved view; the default view is used.</p>
+                <p class="camera-default">@L.T("No saved view; the default view is used.")</p>
             }
             <div class="camera-actions">
-                <button type="button" class="btn btn-primary" @onclick="SaveCamera">Save current view</button>
+                <button type="button" class="btn btn-primary" @onclick="SaveCamera">@L.T("Save current view")</button>
                 <button type="button" class="btn" @onclick="OnResetCamera"
-                        title="Move the camera back to the saved view (or the default if none is saved)">
-                    Reset to saved view
+                        title="@L.T("Move the camera back to the saved view (or the default if none is saved)")">
+                    @L.T("Reset to saved view")
                 </button>
                 <button type="button" class="btn link" disabled="@(Server.Camera is null)" @onclick="OnClearCamera"
-                        title="Forget the saved view and use the default">
-                    Clear saved view
+                        title="@L.T("Forget the saved view and use the default")">
+                    @L.T("Clear saved view")
                 </button>
             </div>
             <p class="hint">
-                Drag, scroll or pan the model on the front to set the view, then save it here. Each view of this
-                server opens at the saved view.
+                @L.T("Drag, scroll or pan the model on the front to set the view, then save it here. Each view of this server opens at the saved view.")
             </p>
             @if (_savedMessage is not null)
             {
@@ -169,7 +169,7 @@
             }
         </fieldset>
 
-        <p class="hint">Changes apply right away and are saved with this server's settings.</p>
+        <p class="hint">@L.T("Changes apply right away and are saved with this server's settings.")</p>
     </div>
 </section>
 
@@ -199,7 +199,7 @@
         if (Server.Camera is null) return;
 
         // Brief confirmation, then clear it so it never looks current after later moves.
-        var message = _savedMessage = $"Saved at {DateTime.Now:HH:mm:ss}.";
+        var message = _savedMessage = L.T("Saved at {0}.", DateTime.Now.ToString("HH:mm:ss"));
         StateHasChanged();
         await Task.Delay(3000);
         if (ReferenceEquals(_savedMessage, message)) _savedMessage = null;
@@ -255,8 +255,8 @@
     }
 
     private string MountText => Server.Latitude is { } latitude
-        ? $"{Model3D.GetDisplayName(Server.AlignmentMode)}, latitude {latitude:0.##}°"
-        : $"{Model3D.GetDisplayName(Server.AlignmentMode)} (not read from the mount yet)";
+        ? L.T("{0}, latitude {1}°", Model3D.GetDisplayName(Server.AlignmentMode), latitude.ToString("0.##"))
+        : L.T("{0} (not read from the mount yet)", Model3D.GetDisplayName(Server.AlignmentMode));
 
     protected override void OnParametersSet()
     {
@@ -303,7 +303,7 @@
 
     private static string PanText(CameraView camera)
         => camera.TargetX == 0 && camera.TargetY == 6 && camera.TargetZ == 0
-            ? "centred"
+            ? L.T("centred")
             : $"{camera.TargetX:0.#}, {camera.TargetY:0.#}, {camera.TargetZ:0.#}";
 
     private Task SetShown(ChangeEventArgs e, Item item)

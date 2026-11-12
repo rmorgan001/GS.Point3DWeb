@@ -15,27 +15,31 @@
     <div>
         @if (keys.IsLicensed && keys.Key is { } key)
         {
-            <strong>Unlocked</strong>
-            <span>Licensed to @key.Name@(key.Expires is { } expires ? $", until {expires:yyyy-MM-dd}" : "").</span>
-            <span class="key-limits">Up to @FeatureKeyService.LicensedMaxViews views and any number of servers.</span>
+            <strong>@L.T("Unlocked")</strong>
+            <span>
+                @(key.Expires is { } expires
+                    ? L.T("Licensed to {0}, until {1}.", key.Name, expires.ToString("yyyy-MM-dd"))
+                    : L.T("Licensed to {0}.", key.Name))
+            </span>
+            <span class="key-limits">@L.T("Up to {0} views and any number of servers.", FeatureKeyService.LicensedMaxViews)</span>
         }
         else
         {
-            <strong>Free</strong>
+            <strong>@L.T("Free")</strong>
             @if (keys.Key is { } expired && expired.IsExpired(today))
             {
-                <span>The key for @expired.Name expired on @expired.Expires?.ToString("yyyy-MM-dd").</span>
+                <span>@L.T("The key for {0} expired on {1}.", expired.Name, expired.Expires?.ToString("yyyy-MM-dd"))</span>
             }
             <span class="key-limits">
-                @FeatureKeyService.FreeMaxViews view and up to @FeatureKeyService.FreeMaxServers servers.
-                A feature key unlocks up to @FeatureKeyService.LicensedMaxViews views and more servers.
+                @L.T("{0} view and up to {1} servers.", FeatureKeyService.FreeMaxViews, FeatureKeyService.FreeMaxServers)
+                @L.T("A feature key unlocks up to {0} views and more servers.", FeatureKeyService.LicensedMaxViews)
             </span>
         }
     </div>
 </div>
 
 <label class="field key-field">
-    <span class="field-label">@(keys.IsLicensed ? "Replace the key" : "Enter a feature key")</span>
+    <span class="field-label">@(keys.IsLicensed ? L.T("Replace the key") : L.T("Enter a feature key"))</span>
     <textarea rows="3" spellcheck="false" autocomplete="off" placeholder="GSP3W1.…"
               class="@(ViewModel.Error is null ? null : "has-error")"
               @bind="ViewModel.KeyText" @bind:event="oninput"></textarea>
@@ -53,16 +57,16 @@
 <div class="dialog-buttons">
     <button type="button" class="dialog-button" disabled="@string.IsNullOrWhiteSpace(ViewModel.KeyText)"
             @onclick="() => ViewModel.ApplyCommand.Execute(null)">
-        Apply key
+        @L.T("Apply key")
     </button>
     @if (keys.Key is not null)
     {
         <button type="button" class="dialog-button danger" @onclick="() => ViewModel.RemoveCommand.Execute(null)">
-            Remove key
+            @L.T("Remove key")
         </button>
     }
     <button type="button" class="dialog-button" @onclick="() => ViewModel.CloseDialogCommand.Execute(null)">
-        Close
+        @L.T("Close")
     </button>
 </div>
 

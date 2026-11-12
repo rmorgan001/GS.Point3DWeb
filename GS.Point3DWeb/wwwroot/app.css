@@ -20,8 +20,9 @@
     --yellow-soft: rgba(242, 200, 75, .12);
     --red: #ef6461;          /* errors */
 
-    --font: "Barlow", "Segoe UI", system-ui, sans-serif;
-    --font-display: "Barlow Condensed", "Barlow", "Segoe UI", system-ui, sans-serif;
+    /* CJK fallbacks so Chinese uses a proper system font (Barlow has no CJK glyphs). */
+    --font: "Barlow", "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+    --font-display: "Barlow Condensed", "Barlow", "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
     --font-code: "Cascadia Mono", Consolas, ui-monospace, monospace;
     --radius: 10px;
     --radius-sm: 6px;

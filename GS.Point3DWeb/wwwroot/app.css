@@ -411,13 +411,24 @@ h1:focus {
     flex: 1 1 200px;
 }
 
-.field-id {
-    flex: 0 1 330px;
+.field-poll {
+    flex: 0 1 150px;
 }
 
-.field-poll {
-    flex: 0 1 130px;
+.field-txn {
+    flex: 0 1 170px;
 }
+
+/* Read-only identifiers at the bottom of the edit form, set apart from the settings. */
+.field-row-info {
+    padding-top: .85rem;
+    border-top: 1px solid var(--line);
+}
+
+    .field-row-info input[readonly] {
+        font-family: var(--font-code);
+        font-size: .82rem;
+    }
 
 .field-offset {
     flex: 0 1 120px;

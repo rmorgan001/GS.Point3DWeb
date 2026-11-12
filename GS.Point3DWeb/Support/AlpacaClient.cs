@@ -8,7 +8,10 @@ namespace GS.Alpaca.Support
     public class AlpacaClient(string url, double clientTransactionId)
     {
         private readonly string _baseUrl = $"{url}";
-        private readonly HttpClient _httpClient = new();
+        // One HttpClient for every request (a new one per poll leaks sockets). The timeout is short so a
+        // server that stops answering is reported as disconnected in seconds, not after the 100 s default.
+        private static readonly HttpClient SharedHttpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
+        private readonly HttpClient _httpClient = SharedHttpClient;
         private const int ClientId = 71 + 81 + 81; // = 233 or Decimal  G + S + S
 
         public double ClientTransactionId
@@ -166,7 +169,7 @@ namespace GS.Alpaca.Support
             alpacaResponse.MethodName = method;
             alpacaResponse.MethodType = "Put, Connected, true";
             //todo log any errors in response 
-            alpacaResponse.ErrorNumber = 0;
+            // Keep ErrorNumber / ErrorMessage: they say why the server would not connect.
             return alpacaResponse;
         }
 

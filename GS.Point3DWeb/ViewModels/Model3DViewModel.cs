@@ -25,10 +25,18 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     private double _lastRaHours;
     private bool _mountInfoRead;
 
+    // How often to read the server's "connected" property: while connected, to notice another program
+    // disconnecting it (devicestate keeps answering on some servers); while not, to notice it reconnecting.
+    private static readonly TimeSpan ConnectedCheckInterval = TimeSpan.FromSeconds(5);
+    private TimeSpan _lastConnectedCheck = TimeSpan.MinValue;
+
+    // The last connect / disconnect outcome, kept on the status line while not connected.
+    private string? _connectionMessage;
+
     /// <summary>The server this panel shows. Set before <see cref="StartTimerUpdates"/>.</summary>
     public AlpacaServer? Server { get; set; }
 
-    /// <summary>Raised when the auto-connect changes the server's connection state.</summary>
+    /// <summary>Raised when this view finds or changes the server's connection state.</summary>
     public event Action? ConnectionChanged;
 
     /// <summary>Raised after each poll with the new model pose.</summary>
@@ -140,8 +148,26 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 DeviceName = server.ServerName;
                 if (!server.IsConnected)
                 {
-                    StatusText = "Not connected";
                     _mountInfoRead = false; // read it again after reconnecting
+                    if (!IsChangingConnection) StatusText = _connectionMessage ?? "Not connected";
+                    if (busy || IsChangingConnection || _timer.Elapsed - _lastConnectedCheck < ConnectedCheckInterval)
+                        continue;
+
+                    _lastConnectedCheck = _timer.Elapsed;
+                    busy = true;
+                    try
+                    {
+                        if (await AlpacaConnector.RefreshConnectedAsync(server) && !token.IsCancellationRequested)
+                        {
+                            _connectionMessage = null;
+                            StatusText = "Connected";
+                            ConnectionChanged?.Invoke();
+                        }
+                    }
+                    finally
+                    {
+                        busy = false;
+                    }
                     continue;
                 }
 
@@ -161,6 +187,17 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                         if (token.IsCancellationRequested) break;
                     }
 
+                    if (!IsChangingConnection && _timer.Elapsed - _lastConnectedCheck >= ConnectedCheckInterval)
+                    {
+                        _lastConnectedCheck = _timer.Elapsed;
+                        if (!await AlpacaConnector.RefreshConnectedAsync(server))
+                        {
+                            if (token.IsCancellationRequested) break;
+                            ReportConnectionLost("the server reports it is not connected");
+                            continue;
+                        }
+                    }
+
                     var client = new AlpacaClient(server.Url, server.ClientTransactionId);
                     var deviceState = await client.GetDeviceStateAsync();
                     server.SetClientTransactionId(client.ClientTransactionId);
@@ -168,11 +205,20 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
                     if (deviceState?.AlpacaResponse?.ErrorNumber > 0)
                     {
-                        StatusText = $"Error {deviceState.AlpacaResponse.ErrorNumber}: {deviceState.AlpacaResponse.ErrorMessage}";
+                        var error = $"Error {deviceState.AlpacaResponse.ErrorNumber}: {deviceState.AlpacaResponse.ErrorMessage}";
+                        if (deviceState.AlpacaResponse.ErrorNumber == NotConnectedError)
+                            await CheckStillConnectedAsync(server, error, token);
+                        else
+                            StatusText = error;
                         continue;
                     }
-                    if (deviceState is null) continue;
+                    if (deviceState is null)
+                    {
+                        await CheckStillConnectedAsync(server, "no answer from the server", token);
+                        continue;
+                    }
 
+                    _connectionMessage = null;
                     UpdateLocalProperties(deviceState);
                     TimerCounter++;
                     ElapsedTime = (int)_timer.Elapsed.TotalSeconds;
@@ -180,9 +226,10 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
                     RotationChanged?.Invoke();
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                // An HTTP timeout is also an OperationCanceledException, so only a stop ends the loop.
+                catch (Exception ex) when (!token.IsCancellationRequested)
                 {
-                    StatusText = $"Error updating: {ex.Message}";
+                    await CheckStillConnectedAsync(server, ex.Message, token);
                 }
                 finally
                 {
@@ -198,6 +245,35 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         {
             _timer.Stop();
         }
+    }
+
+    /// <summary>Alpaca's NotConnected error (0x407): the device isn't connected.</summary>
+    private const int NotConnectedError = 0x407;
+
+    /// <summary>
+    /// After a failed poll, asks the server whether it is still connected. If it isn't (or doesn't answer),
+    /// the view reports the lost connection instead of a stale "connected".
+    /// </summary>
+    private async Task CheckStillConnectedAsync(AlpacaServer server, string reason, CancellationToken token)
+    {
+        if (IsChangingConnection)
+            return; // the Connect / Disconnect button is changing it right now
+
+        if (await AlpacaConnector.RefreshConnectedAsync(server) || token.IsCancellationRequested)
+        {
+            StatusText = $"Error updating: {reason}";
+            return;
+        }
+
+        ReportConnectionLost(reason);
+    }
+
+    private void ReportConnectionLost(string reason)
+    {
+        _connectionMessage = $"Connection lost: {reason}";
+        StatusText = _connectionMessage;
+        _lastConnectedCheck = _timer?.Elapsed ?? TimeSpan.Zero;
+        ConnectionChanged?.Invoke();
     }
 
     /// <summary>True while the view's Connect / Disconnect button is working.</summary>
@@ -219,7 +295,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
             {
                 Title = "Disconnect",
                 Message = $"Disconnect from {server.ServerName}? Its views stop updating, and other programs " +
-                          "using this mount's Alpaca device are disconnected too.",
+                          "using this mount's Alpaca device may be disconnected too.",
                 AcceptText = "Disconnect",
                 CancelText = "Cancel"
             };
@@ -227,29 +303,38 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
             if (!confirm.Confirmed || !server.IsConnected) return;
         }
 
+        var disconnecting = server.IsConnected;
         IsChangingConnection = true;
         try
         {
-            if (server.IsConnected)
+            if (disconnecting)
             {
                 StatusText = $"Disconnecting from {server.ServerName}...";
-                await AlpacaConnector.DisconnectAsync(server);
-                StatusText = "Disconnected";
+                var stillConnected = await AlpacaConnector.DisconnectAsync(server);
+                _connectionMessage = stillConnected ? null : "Disconnected";
+                StatusText = stillConnected
+                    ? $"Still connected: {server.ServerName} kept the connection open"
+                    : "Disconnected";
             }
             else
             {
                 StatusText = $"Connecting to {server.ServerName}...";
                 var connected = await AlpacaConnector.ConnectAsync(server);
                 _mountInfoRead = false; // read the mount type and latitude again
+                _connectionMessage = connected ? null : "Could not connect";
                 StatusText = connected ? "Connected" : "Could not connect";
             }
         }
         catch (Exception ex)
         {
-            StatusText = server.IsConnected ? $"Disconnect failed: {ex.Message}" : $"Connect failed: {ex.Message}";
+            // A failed disconnect leaves the state unknown: ask the server what it is now.
+            if (disconnecting) await AlpacaConnector.RefreshConnectedAsync(server);
+            _connectionMessage = disconnecting ? $"Disconnect failed: {ex.Message}" : $"Connect failed: {ex.Message}";
+            StatusText = _connectionMessage;
         }
         finally
         {
+            _lastConnectedCheck = _timer?.Elapsed ?? TimeSpan.Zero;
             IsChangingConnection = false;
         }
         ConnectionChanged?.Invoke();
@@ -268,12 +353,15 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         {
             var connected = await AlpacaConnector.ConnectAsync(server);
             if (token.IsCancellationRequested) return;
+            _connectionMessage = connected ? null : "Could not connect";
             StatusText = connected ? "Connected" : "Could not connect";
         }
         catch (Exception ex)
         {
-            StatusText = $"Connect failed: {ex.Message}";
+            _connectionMessage = $"Connect failed: {ex.Message}";
+            StatusText = _connectionMessage;
         }
+        _lastConnectedCheck = _timer?.Elapsed ?? TimeSpan.Zero;
         ConnectionChanged?.Invoke();
     }
 

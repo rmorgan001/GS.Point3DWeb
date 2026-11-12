@@ -1,32 +1,44 @@
 using GS.Alpaca.Shared;
 using GS.Alpaca.Support;
 using GS.Point3DWeb.Models;
+using Newtonsoft.Json.Linq;
 
 namespace GS.Point3DWeb.Services;
 
 /// <summary>
 /// Connect / disconnect an Alpaca telescope server without any UI.
-/// Used by the toolbar Connect button and by the 3D model quadrants (auto-connect).
+/// Used by the toolbar Connect button and by the 3D views (auto-connect and their Connect / Disconnect button).
+/// Every method leaves <see cref="AlpacaServer.IsConnected"/> set to what the server itself reports,
+/// so the connection dots and buttons never show an assumed state.
 /// </summary>
 public static class AlpacaConnector
 {
-    /// <summary>Connects the server if it is not already connected. Returns the final state.</summary>
+    /// <summary>
+    /// Connects the server if it is not already connected. Returns the server's connected state afterwards.
+    /// Throws with the server's error message if it refused to connect.
+    /// </summary>
     public static async Task<bool> ConnectAsync(AlpacaServer server)
     {
         try
         {
             var client = new AlpacaClient(server.Url, server.ClientTransactionId);
 
-            var response = await client.GetPropertyAsync("connected");
+            var isConnected = await ReadConnectedAsync(client);
             server.SetClientTransactionId(client.ClientTransactionId);
-            var isConnected = response?.Value.ToObject<bool>() == true;
 
             if (!isConnected)
             {
-                await client.ConnectAsync();
-                response = await client.GetPropertyAsync("connected");
+                var response = await client.ConnectAsync();
+                isConnected = await ReadConnectedAsync(client);
                 server.SetClientTransactionId(client.ClientTransactionId);
-                isConnected = response?.Value.ToObject<bool>() == true;
+
+                if (!isConnected && response is { ErrorNumber: not 0 })
+                {
+                    server.IsConnected = false;
+                    throw new InvalidOperationException(string.IsNullOrWhiteSpace(response.ErrorMessage)
+                        ? $"the server returned error {response.ErrorNumber}"
+                        : response.ErrorMessage);
+                }
             }
 
             server.IsConnected = isConnected;
@@ -37,6 +49,53 @@ public static class AlpacaConnector
             server.IsConnected = false;
             throw;
         }
+    }
+
+    /// <summary>
+    /// Asks the server to disconnect, then reads back whether it really did.
+    /// Returns true if the server is still connected (it kept the connection open).
+    /// </summary>
+    public static async Task<bool> DisconnectAsync(AlpacaServer server)
+    {
+        var client = new AlpacaClient(server.Url, server.ClientTransactionId);
+        await client.DisconnectAsync();
+        server.SetClientTransactionId(client.ClientTransactionId);
+
+        bool stillConnected;
+        try
+        {
+            stillConnected = await ReadConnectedAsync(client);
+            server.SetClientTransactionId(client.ClientTransactionId);
+        }
+        catch
+        {
+            stillConnected = false; // it stopped answering, so it isn't connected for us
+        }
+
+        server.IsConnected = stillConnected;
+        return stillConnected;
+    }
+
+    /// <summary>
+    /// Reads the server's connected state into <see cref="AlpacaServer.IsConnected"/>.
+    /// A server that doesn't answer counts as not connected. Never throws.
+    /// </summary>
+    public static async Task<bool> RefreshConnectedAsync(AlpacaServer server)
+    {
+        bool connected;
+        try
+        {
+            var client = new AlpacaClient(server.Url, server.ClientTransactionId);
+            connected = await ReadConnectedAsync(client);
+            server.SetClientTransactionId(client.ClientTransactionId);
+        }
+        catch
+        {
+            connected = false;
+        }
+
+        server.IsConnected = connected;
+        return connected;
     }
 
     /// <summary>
@@ -61,11 +120,11 @@ public static class AlpacaConnector
         return true;
     }
 
-    public static async Task DisconnectAsync(AlpacaServer server)
+    /// <summary>The server's "connected" property; false if it returned an error or no value.</summary>
+    private static async Task<bool> ReadConnectedAsync(AlpacaClient client)
     {
-        var client = new AlpacaClient(server.Url, server.ClientTransactionId);
-        await client.DisconnectAsync();
-        server.SetClientTransactionId(client.ClientTransactionId);
-        server.IsConnected = false;
+        var response = await client.GetPropertyAsync("connected");
+        return response is { ErrorNumber: 0, Value: { Type: not JTokenType.Null } value }
+               && value.ToObject<bool>();
     }
 }

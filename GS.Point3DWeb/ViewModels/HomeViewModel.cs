@@ -197,21 +197,31 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        var disconnecting = server.IsConnected;
         var confirmViewModel = new ConfirmDialogViewModel
         {
-            Message = server.IsConnected
-                ? $"Disconnect from {server.ServerName}?"
+            Message = disconnecting
+                ? $"Disconnect from {server.ServerName}? Its views stop updating, and other programs using " +
+                  "this mount's Alpaca device may be disconnected too."
                 : $"Connect to {server.ServerName}?"
         };
         await _dialogService.ShowDialog(confirmViewModel);
-        if (!confirmViewModel.Confirmed) return;
+        // Skip if the state changed while the dialog was open (a view connected or lost it).
+        if (!confirmViewModel.Confirmed || server.IsConnected != disconnecting) return;
 
         IsBusy = true;
         try
         {
-            if (server.IsConnected)
+            if (disconnecting)
             {
-                await AlpacaConnector.DisconnectAsync(server);
+                if (await AlpacaConnector.DisconnectAsync(server))
+                {
+                    await _dialogService.ShowDialog(new ConfirmDialogViewModel
+                    {
+                        Message = $"{server.ServerName} is still connected: the server kept the connection open.",
+                        CancelVisible = false
+                    });
+                }
                 return;
             }
 
@@ -223,16 +233,22 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
             await _dialogService.ShowDialog(new ConfirmDialogViewModel
             {
-                Message = $"Connected: {isConnected}",
+                Message = isConnected
+                    ? $"Connected to {server.ServerName}."
+                    : $"Could not connect to {server.ServerName}.",
                 CancelVisible = false
             });
         }
         catch (Exception e)
         {
-            server.IsConnected = false;
+            // A failed disconnect leaves the state unknown: ask the server what it is now.
+            // (ConnectAsync already marks a failed connect as not connected.)
+            if (disconnecting) await AlpacaConnector.RefreshConnectedAsync(server);
             await _dialogService.ShowDialog(new ConfirmDialogViewModel
             {
-                Message = e.Message,
+                Message = disconnecting
+                    ? $"Disconnect from {server.ServerName} failed: {e.Message}"
+                    : $"Connect to {server.ServerName} failed: {e.Message}",
                 CancelVisible = false
             });
         }

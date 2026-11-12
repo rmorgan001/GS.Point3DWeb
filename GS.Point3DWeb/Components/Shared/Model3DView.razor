@@ -213,8 +213,13 @@
             case nameof(AlpacaServer.ServerName):
                 ViewModel.DeviceName = Server?.ServerName ?? ViewModel.DeviceName;
                 break;
-            case nameof(AlpacaServer.IsConnected)
-                or nameof(AlpacaServer.ShowRa) or nameof(AlpacaServer.ShowDec)
+            case nameof(AlpacaServer.IsConnected):
+                // Whoever changed it (toolbar, another view, a lost connection), the page's dots,
+                // count and buttons follow the server's real state.
+                _ = InvokeAsync(StateHasChanged);
+                _ = InvokeAsync(() => OnConnectionChanged.InvokeAsync());
+                break;
+            case nameof(AlpacaServer.ShowRa) or nameof(AlpacaServer.ShowDec)
                 or nameof(AlpacaServer.ShowAz) or nameof(AlpacaServer.ShowAlt)
                 or nameof(AlpacaServer.ShowLha) or nameof(AlpacaServer.ShowLst):
                 _ = InvokeAsync(StateHasChanged);

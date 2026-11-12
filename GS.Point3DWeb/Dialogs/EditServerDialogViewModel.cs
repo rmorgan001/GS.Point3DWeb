@@ -1,0 +1,107 @@
+using System.Text.RegularExpressions;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using GS.Point3DWeb.Models;
+
+namespace GS.Point3DWeb.Dialogs;
+
+/// <summary>
+/// Edits one server's fields (the field area under the grid in GS.Alpaca.Client's ConnectPageView).
+/// Works on a copy; <see cref="ApplyTo"/> writes the values back only after Accept.
+/// Validation follows GS.Alpaca.Client.Models.AlpacaServer.
+/// </summary>
+public partial class EditServerDialogViewModel : DialogViewModel
+{
+    private static readonly Regex TelescopePath =
+        new(@"/api/v1/telescope/\d+/$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    public EditServerDialogViewModel(AlpacaServer server)
+    {
+        IdGuid = server.IdGuid;
+        ServerName = server.ServerName;
+        Url = server.Url;
+        UserName = server.UserName;
+        Password = server.Password;
+        ClientTransactionId = server.ClientTransactionId;
+    }
+
+    [ObservableProperty] public partial string Title { get; set; } = "Edit Server";
+    [ObservableProperty] public partial string AcceptText { get; set; } = "Accept";
+    [ObservableProperty] public partial string CancelText { get; set; } = "Cancel";
+
+    public string IdGuid { get; }
+    public double ClientTransactionId { get; }
+
+    [ObservableProperty] public partial string ServerName { get; set; }
+    [ObservableProperty] public partial string Url { get; set; }
+    [ObservableProperty] public partial string? UserName { get; set; }
+    [ObservableProperty] public partial string? Password { get; set; }
+
+    [ObservableProperty] public partial string? ServerNameError { get; set; }
+    [ObservableProperty] public partial string? UrlError { get; set; }
+
+    [ObservableProperty] public partial bool Confirmed { get; set; }
+
+    public bool HasErrors => ServerNameError is not null || UrlError is not null;
+
+    partial void OnServerNameChanged(string value) => ValidateServerName(value);
+
+    partial void OnUrlChanged(string value) => ValidateUrl(value);
+
+    /// <summary>Copies the edited values onto the real server.</summary>
+    public void ApplyTo(AlpacaServer server)
+    {
+        var urlChanged = !string.Equals(server.Url, Url.Trim(), StringComparison.OrdinalIgnoreCase);
+
+        server.ServerName = ServerName.Trim();
+        server.Url = Url.Trim();
+        server.UserName = string.IsNullOrWhiteSpace(UserName) ? null : UserName;
+        server.Password = string.IsNullOrEmpty(Password) ? null : Password;
+
+        // A different address is a different device, so the old connection no longer applies.
+        if (urlChanged) server.IsConnected = false;
+    }
+
+    [RelayCommand]
+    private Task ConfirmAsync()
+    {
+        ValidateServerName(ServerName);
+        ValidateUrl(Url);
+        if (HasErrors) return Task.CompletedTask;
+
+        Confirmed = true;
+        Close();
+        return Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private Task CancelAsync()
+    {
+        Confirmed = false;
+        Close();
+        return Task.CompletedTask;
+    }
+
+    private void ValidateServerName(string? value)
+        => ServerNameError = string.IsNullOrWhiteSpace(value) ? "Required" : null;
+
+    private void ValidateUrl(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            UrlError = "Required";
+            return;
+        }
+
+        if (!Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri) ||
+            !(uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            UrlError = "Invalid";
+            return;
+        }
+
+        UrlError = TelescopePath.IsMatch(uri.AbsolutePath)
+            ? null
+            : "Invalid Path (expected …/api/v1/telescope/{n}/)";
+    }
+}

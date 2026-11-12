@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../GS.AlpacaClient/GS.Alpaca.Support/GS.Alpaca.Support.csproj" />
+  <Project Path="GS.Point3DWeb/GS.Point3DWeb.csproj" />
+</Solution>

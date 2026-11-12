@@ -1,0 +1,57 @@
+<h2 class="dialog-title">@ViewModel.Title</h2>
+
+<div class="dialog-message">
+    <Icon Kind="Search" Size="32" />
+    <span>@ViewModel.Message</span>
+</div>
+
+@if (!string.IsNullOrEmpty(ViewModel.StatusText))
+{
+    <p class="dialog-status">@ViewModel.StatusText</p>
+}
+
+@if (ViewModel.Devices.Count > 0)
+{
+    <ul class="device-list">
+        @foreach (var device in ViewModel.Devices)
+        {
+            <li>
+                <label class="device">
+                    <input type="radio"
+                           name="discovered-device"
+                           checked="@(device == ViewModel.SelectedDevice)"
+                           @onchange="() => ViewModel.SelectedDevice = device" />
+                    <span class="device-name">@device.DeviceName</span>
+                    <span class="device-url">@device.DeviceUrl</span>
+                </label>
+            </li>
+        }
+    </ul>
+}
+
+@if (ViewModel.Busy)
+{
+    <p class="dialog-progress">@ViewModel.ProgressText</p>
+}
+else
+{
+    <div class="dialog-buttons">
+        <button type="button" class="dialog-button" @onclick="() => ViewModel.SearchCommand.ExecuteAsync(null)">
+            Search
+        </button>
+        <button type="button" class="dialog-button" @onclick="() => ViewModel.ConfirmCommand.ExecuteAsync(null)">
+            @ViewModel.AcceptText
+        </button>
+        @if (ViewModel.CancelVisible)
+        {
+            <button type="button" class="dialog-button" @onclick="() => ViewModel.CancelCommand.ExecuteAsync(null)">
+                @ViewModel.CancelText
+            </button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public DiscoveryDialogViewModel ViewModel { get; set; } = default!;
+}

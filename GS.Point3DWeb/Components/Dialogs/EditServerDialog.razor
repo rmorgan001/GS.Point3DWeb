@@ -1,0 +1,73 @@
+<h2 class="dialog-title">@ViewModel.Title</h2>
+
+<form class="edit-form" @onsubmit="() => ViewModel.ConfirmCommand.ExecuteAsync(null)" novalidate>
+    <div class="field-row">
+        <label class="field field-id">
+            <span class="field-label">ID</span>
+            <input type="text" value="@ViewModel.IdGuid" readonly />
+        </label>
+        <label class="field field-grow">
+            <span class="field-label">Server Name</span>
+            <input type="text" autofocus
+                   class="@(ViewModel.ServerNameError is null ? null : "has-error")"
+                   aria-invalid="@(ViewModel.ServerNameError is not null)"
+                   @bind="ViewModel.ServerName" @bind:event="oninput" />
+            @if (ViewModel.ServerNameError is not null)
+            {
+                <span class="field-error">@ViewModel.ServerNameError</span>
+            }
+        </label>
+    </div>
+
+    <div class="field-row">
+        <label class="field field-grow">
+            <span class="field-label">Url</span>
+            <input type="url" spellcheck="false"
+                   class="@(ViewModel.UrlError is null ? null : "has-error")"
+                   aria-invalid="@(ViewModel.UrlError is not null)"
+                   @bind="ViewModel.Url" @bind:event="oninput" />
+            @if (ViewModel.UrlError is not null)
+            {
+                <span class="field-error">@ViewModel.UrlError</span>
+            }
+        </label>
+    </div>
+
+    <div class="field-row">
+        <label class="field field-grow">
+            <span class="field-label">User Name</span>
+            <input type="text" autocomplete="off" @bind="ViewModel.UserName" @bind:event="oninput" />
+        </label>
+        <label class="field field-grow">
+            <span class="field-label">Password</span>
+            <span class="password">
+                <input type="@(_showPassword ? "text" : "password")" autocomplete="new-password"
+                       @bind="ViewModel.Password" @bind:event="oninput" />
+                <button type="button" class="reveal"
+                        title="@(_showPassword ? "Hide password" : "Show password")"
+                        aria-label="@(_showPassword ? "Hide password" : "Show password")"
+                        @onclick="() => _showPassword = !_showPassword">
+                    @(_showPassword ? "Hide" : "Show")
+                </button>
+            </span>
+        </label>
+        <label class="field">
+            <span class="field-label">Client Transaction ID</span>
+            <input type="text" value="@ViewModel.ClientTransactionId" readonly />
+        </label>
+    </div>
+
+    <div class="dialog-buttons">
+        <button type="submit" class="dialog-button">@ViewModel.AcceptText</button>
+        <button type="button" class="dialog-button" @onclick="() => ViewModel.CancelCommand.ExecuteAsync(null)">
+            @ViewModel.CancelText
+        </button>
+    </div>
+</form>
+
+@code {
+    [Parameter, EditorRequired]
+    public EditServerDialogViewModel ViewModel { get; set; } = default!;
+
+    private bool _showPassword;
+}

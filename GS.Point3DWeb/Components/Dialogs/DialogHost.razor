@@ -1,0 +1,56 @@
+@using System.ComponentModel
+@implements IDisposable
+@inject DialogService DialogService
+
+@* Renders whatever dialog DialogService is currently showing. Placed once in MainLayout. *@
+@if (_current is not null)
+{
+    <div class="dialog-backdrop">
+        <div class="dialog @(_current is EditServerDialogViewModel ? "dialog-wide" : null)" role="dialog" aria-modal="true">
+            @if (_current is ConfirmDialogViewModel confirm)
+            {
+                <ConfirmDialog ViewModel="confirm" />
+            }
+            else if (_current is DiscoveryDialogViewModel discovery)
+            {
+                <DiscoveryDialog ViewModel="discovery" />
+            }
+            else if (_current is EditServerDialogViewModel edit)
+            {
+                <EditServerDialog ViewModel="edit" />
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private DialogViewModel? _current;
+
+    protected override void OnInitialized()
+    {
+        DialogService.DialogChanged += OnDialogChanged;
+        Attach(DialogService.Current);
+    }
+
+    private void OnDialogChanged() => _ = InvokeAsync(() =>
+    {
+        Attach(DialogService.Current);
+        StateHasChanged();
+    });
+
+    private void Attach(DialogViewModel? dialog)
+    {
+        if (_current is not null) _current.PropertyChanged -= OnDialogPropertyChanged;
+        _current = dialog;
+        if (_current is not null) _current.PropertyChanged += OnDialogPropertyChanged;
+    }
+
+    private void OnDialogPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        DialogService.DialogChanged -= OnDialogChanged;
+        Attach(null);
+    }
+}

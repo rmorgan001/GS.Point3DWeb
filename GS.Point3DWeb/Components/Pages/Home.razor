@@ -1,0 +1,113 @@
+﻿@page "/"
+@inherits MvvmComponentBase<HomeViewModel>
+
+<PageTitle>@(ViewModel.SelectedAlpacaServer?.ServerName ?? "Home")</PageTitle>
+
+<div class="home">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>Servers</h2>
+            <span class="count">Count: @ViewModel.Count</span>
+        </div>
+
+        <div class="toolbar" role="toolbar" aria-label="Server commands">
+            <button type="button" class="tool" title="Add" aria-label="Add"
+                    @onclick="() => ViewModel.AddCommand.Execute(null)">
+                <Icon Kind="Plus" />
+            </button>
+            <button type="button" class="tool" title="Search" aria-label="Search"
+                    @onclick="() => ViewModel.DiscoveryCommand.ExecuteAsync(null)">
+                <Icon Kind="Search" />
+            </button>
+            <button type="button" class="tool @(ViewModel.SelectedAlpacaServer?.IsConnected == true ? "active" : null)"
+                    title="@ConnectText" aria-label="@ConnectText" disabled="@ViewModel.IsBusy"
+                    @onclick="() => ViewModel.ConnectCommand.ExecuteAsync(null)">
+                <Icon Kind="Connection" />
+            </button>
+            <button type="button" class="tool" title="Save" aria-label="Save"
+                    @onclick="() => ViewModel.SaveCommand.ExecuteAsync(null)">
+                <Icon Kind="ContentSave" />
+            </button>
+            <button type="button" class="tool" title="Delete" aria-label="Delete"
+                    disabled="@(ViewModel.SelectedAlpacaServer is null)"
+                    @onclick="() => ViewModel.DeleteCommand.ExecuteAsync(ViewModel.SelectedAlpacaServer)">
+                <Icon Kind="Delete" />
+            </button>
+        </div>
+
+        <nav>
+            <ul class="server-list">
+                @foreach (var server in ViewModel.AlpacaServers)
+                {
+                    <li>
+                        <button type="button"
+                                class="server-item @(server == ViewModel.SelectedAlpacaServer ? "selected" : null)"
+                                title="@ServerTooltip(server)"
+                                @onclick="() => ViewModel.SelectServerCommand.Execute(server)"
+                                @ondblclick="() => ViewModel.EditServerCommand.ExecuteAsync(server)"
+                                @onkeydown="e => OnServerKeyDown(e, server)">
+                            <span class="status @(server.IsConnected ? "connected" : null)"
+                                  title="@(server.IsConnected ? "Connected" : "Not connected")"></span>
+                            <span class="name">@server.ServerName</span>
+                        </button>
+                    </li>
+                }
+            </ul>
+        </nav>
+    </aside>
+
+    <main class="content">
+        @if (ViewModel.SelectedAlpacaServer is { } selected)
+        {
+            <div class="details-header">
+                <h1>@selected.ServerName</h1>
+                <span class="badge @(selected.IsConnected ? "connected" : null)">
+                    @(selected.IsConnected ? "Connected" : "Not connected")
+                </span>
+            </div>
+
+            <dl class="details">
+                <dt>Url</dt>
+                <dd class="mono">@selected.Url</dd>
+
+                <dt>ID</dt>
+                <dd class="mono">@selected.IdGuid</dd>
+
+                <dt>User Name</dt>
+                <dd>@(string.IsNullOrEmpty(selected.UserName) ? "—" : selected.UserName)</dd>
+
+                <dt>Password</dt>
+                <dd>@(string.IsNullOrEmpty(selected.Password) ? "Not set" : "Set")</dd>
+
+                <dt>Client Transaction ID</dt>
+                <dd class="mono">@selected.ClientTransactionId</dd>
+            </dl>
+
+            <div class="details-actions">
+                <button type="button" class="action" @onclick="() => ViewModel.EditServerCommand.ExecuteAsync(selected)">
+                    Edit
+                </button>
+                <button type="button" class="action" disabled="@ViewModel.IsBusy"
+                        @onclick="() => ViewModel.ConnectCommand.ExecuteAsync(null)">
+                    @ConnectText
+                </button>
+            </div>
+        }
+        else
+        {
+            <div class="empty">
+                <h1>No server selected</h1>
+                <p>Pick a server from the list, or use Add or Search to create one.</p>
+            </div>
+        }
+    </main>
+</div>
+
+@code {
+    private string ConnectText => ViewModel.SelectedAlpacaServer?.IsConnected == true ? "Disconnect" : "Connect";
+
+    private static string ServerTooltip(AlpacaServer server) => $"{server.Url}\nDouble-click (or F2) to edit";
+
+    private Task OnServerKeyDown(KeyboardEventArgs e, AlpacaServer server)
+        => e.Key == "F2" ? ViewModel.EditServerCommand.ExecuteAsync(server) : Task.CompletedTask;
+}

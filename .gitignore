@@ -480,3 +480,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# 3D telescope models (Wavefront .obj), not C++ object files
+!GS.Point3DWeb/wwwroot/model3d/models/*.obj

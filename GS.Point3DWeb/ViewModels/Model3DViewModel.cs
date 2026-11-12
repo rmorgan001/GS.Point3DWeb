@@ -28,7 +28,9 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     // How often to read the server's "connected" property: while connected, to notice another program
     // disconnecting it (devicestate keeps answering on some servers); while not, to notice it reconnecting.
     private static readonly TimeSpan ConnectedCheckInterval = TimeSpan.FromSeconds(5);
-    private TimeSpan _lastConnectedCheck = TimeSpan.MinValue;
+    // Stopwatch time of the last check. Zero (not MinValue: Elapsed - MinValue overflows) means the
+    // first check comes one interval after the view starts.
+    private TimeSpan _lastConnectedCheck = TimeSpan.Zero;
 
     // The last connect / disconnect outcome, kept on the status line while not connected.
     private string? _connectionMessage;

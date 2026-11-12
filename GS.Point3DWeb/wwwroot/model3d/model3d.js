@@ -36,8 +36,8 @@ function loadScript(src) {
 
 function ensureBabylon() {
     if (window.BABYLON && window.BABYLON.SceneLoader) return Promise.resolve();
-    babylonReady ??= loadScript(base + 'babylon.max.js')
-        .then(() => loadScript(base + 'babylonjs.loaders.min.js'));
+    // Trimmed Babylon.js build with only what this viewer uses (tools/babylon-bundle).
+    babylonReady ??= loadScript(base + 'babylon.custom.min.js');
     return babylonReady;
 }
 

@@ -1,0 +1,13 @@
+{
+  "name": "gs-point3dweb-babylon-bundle",
+  "private": true,
+  "description": "Builds the trimmed Babylon.js bundle used by GS Point3D Web (only the parts the 3D viewer needs).",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@babylonjs/core": "8.48.1",
+    "@babylonjs/loaders": "8.48.1",
+    "esbuild": "0.28.2"
+  }
+}

@@ -8,11 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ASCOM.Alpaca.Components" Version="3.1.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\GS.AlpacaClient\GS.Alpaca.Support\GS.Alpaca.Support.csproj" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 
 </Project>

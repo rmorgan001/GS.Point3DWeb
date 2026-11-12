@@ -22,6 +22,7 @@ public partial class EditServerDialogViewModel : DialogViewModel
         Url = server.Url;
         UserName = server.UserName;
         Password = server.Password;
+        PollSeconds = server.PollSeconds;
         ClientTransactionId = server.ClientTransactionId;
     }
 
@@ -37,12 +38,24 @@ public partial class EditServerDialogViewModel : DialogViewModel
     [ObservableProperty] public partial string? UserName { get; set; }
     [ObservableProperty] public partial string? Password { get; set; }
 
+    /// <summary>How often the server is asked for its state, in seconds (0.5 to 5.0).</summary>
+    [ObservableProperty] public partial double PollSeconds { get; set; }
+
+    [ObservableProperty] public partial string? PollSecondsError { get; set; }
+
     [ObservableProperty] public partial string? ServerNameError { get; set; }
     [ObservableProperty] public partial string? UrlError { get; set; }
 
     [ObservableProperty] public partial bool Confirmed { get; set; }
 
-    public bool HasErrors => ServerNameError is not null || UrlError is not null;
+    public bool HasErrors => ServerNameError is not null || UrlError is not null || PollSecondsError is not null;
+
+    partial void OnPollSecondsChanged(double value) => ValidatePollSeconds(value);
+
+    private void ValidatePollSeconds(double value)
+        => PollSecondsError = double.IsNaN(value) || value < AlpacaServer.MinPollSeconds || value > AlpacaServer.MaxPollSeconds
+            ? $"{AlpacaServer.MinPollSeconds:0.0} to {AlpacaServer.MaxPollSeconds:0.0} seconds"
+            : null;
 
     partial void OnServerNameChanged(string value) => ValidateServerName(value);
 
@@ -57,6 +70,7 @@ public partial class EditServerDialogViewModel : DialogViewModel
         server.Url = Url.Trim();
         server.UserName = string.IsNullOrWhiteSpace(UserName) ? null : UserName;
         server.Password = string.IsNullOrEmpty(Password) ? null : Password;
+        server.PollSeconds = AlpacaServer.ClampPollSeconds(PollSeconds);
 
         // A different address is a different device, so the old connection no longer applies.
         if (urlChanged) server.IsConnected = false;
@@ -67,6 +81,7 @@ public partial class EditServerDialogViewModel : DialogViewModel
     {
         ValidateServerName(ServerName);
         ValidateUrl(Url);
+        ValidatePollSeconds(PollSeconds);
         if (HasErrors) return Task.CompletedTask;
 
         Confirmed = true;

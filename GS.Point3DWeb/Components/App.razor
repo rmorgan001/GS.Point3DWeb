@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <ResourcePreloader />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#070b0e" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["GS.Point3DWeb.styles.css"]" />
     <ImportMap />
@@ -16,6 +21,15 @@
     <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script>
+        // Firefox only starts a drag when data is set; Blazor can't set dataTransfer from C#.
+        document.addEventListener('dragstart', e => {
+            const el = e.target.closest && e.target.closest('[data-server-id]');
+            if (!el) return;
+            e.dataTransfer.setData('text/plain', el.dataset.serverId);
+            e.dataTransfer.effectAllowed = 'copy';
+        });
+    </script>
 </body>
 
 </html>

@@ -1,0 +1,319 @@
+@* Back of a quadrant's flip card: the server's 3D model settings, which coordinates show on the
+   front, and the saved camera. Everything is stored on the server and saved with the server list. *@
+@implements IDisposable
+
+<section class="settings" aria-label="View settings for @Server.ServerName">
+    <header class="settings-header">
+        <button type="button" class="icon-btn" title="Back to the model" aria-label="Back to the model"
+                @onclick="OnDone">
+            <Icon Kind="ArrowLeft" Size="18" />
+        </button>
+        <h2 title="@Server.Url">@Server.ServerName</h2>
+        <button type="button" class="btn btn-primary done" @onclick="OnDone">Done</button>
+    </header>
+
+    <div class="settings-body">
+        <fieldset class="show-items model">
+            <legend>3D Model</legend>
+            <div class="model-grid">
+                <label class="field model-type">
+                    <span class="field-label">Model</span>
+                    <select value="@Server.ModelType" @onchange="OnModelChanged">
+                        @foreach (var type in Model3D.ModelTypes)
+                        {
+                            <option value="@type">@Model3D.GetDisplayName(type)</option>
+                        }
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field-label">Polar mode</span>
+                    <select value="@Server.PolarMode" @onchange="OnPolarModeChanged"
+                            title="OTA side on a polar (fork) mount">
+                        @foreach (var mode in Enum.GetValues<PolarMode>())
+                        {
+                            <option value="@mode">@mode</option>
+                        }
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field-label">RA adjust (°)</span>
+                    <select value="@Server.RaOffset" @onchange="e => OnOffsetChanged(e, isRa: true)">
+                        @foreach (var value in Model3D.OffsetValues)
+                        {
+                            <option value="@value">@value</option>
+                        }
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field-label">Dec adjust (°)</span>
+                    <select value="@Server.DecOffset" @onchange="e => OnOffsetChanged(e, isRa: false)">
+                        @foreach (var value in Model3D.OffsetValues)
+                        {
+                            <option value="@value">@value</option>
+                        }
+                    </select>
+                </label>
+            </div>
+
+            <div class="mount-row">
+                <span class="mount-info" title="Read from the mount when it connects; picks the model variant and offsets, as in GSServer">
+                    <span class="field-label">Mount</span>
+                    @MountText
+                </span>
+                <button type="button" class="btn" @onclick="ResetAdjustments"
+                        disabled="@(Server.RaOffset == Model3D.DefaultRaOffset && Server.DecOffset == Model3D.DefaultDecOffset)">
+                    Reset adjustments
+                </button>
+            </div>
+        </fieldset>
+
+        <fieldset class="show-items appearance">
+            <legend>Appearance</legend>
+
+            <span class="field-label" id="color-label-@Server.IdGuid">Model color</span>
+            <div class="swatches" role="radiogroup" aria-labelledby="color-label-@Server.IdGuid">
+                @foreach (var preset in ModelAppearance.ColorPresets)
+                {
+                    var selected = string.Equals(Server.ModelColor, preset.Hex, StringComparison.OrdinalIgnoreCase);
+                    <button type="button" class="swatch @(selected ? "selected" : null)" role="radio"
+                            aria-checked="@selected" title="@preset.Name" aria-label="@preset.Name"
+                            style="--swatch: @preset.Hex" @onclick="() => SetModelColor(preset.Hex)"></button>
+                }
+                <label class="swatch custom @(IsCustomColor ? "selected" : null)" title="Custom color">
+                    <input type="color" value="@Server.ModelColor" aria-label="Custom model color"
+                           @onchange="e => SetModelColor(e.Value?.ToString())" />
+                    <span class="custom-mark" style="--swatch: @Server.ModelColor" aria-hidden="true"></span>
+                </label>
+                <span class="color-hex">@Server.ModelColor</span>
+            </div>
+
+            <span class="field-label background-label" id="bg-label-@Server.IdGuid">Background</span>
+            <div class="backgrounds" role="radiogroup" aria-labelledby="bg-label-@Server.IdGuid">
+                @foreach (var background in ModelAppearance.Backgrounds)
+                {
+                    var selected = string.Equals(Server.Background, background.Key, StringComparison.OrdinalIgnoreCase);
+                    <button type="button" class="background @(selected ? "selected" : null)" role="radio"
+                            aria-checked="@selected" title="@background.Name"
+                            @onclick="() => SetBackground(background.Key)">
+                        <span class="thumb" style="@ThumbStyle(background)" aria-hidden="true"></span>
+                        <span class="background-name">@background.Name</span>
+                    </button>
+                }
+            </div>
+
+            <div class="appearance-actions">
+                <button type="button" class="btn" @onclick="ResetAppearance"
+                        disabled="@(Server.ModelColor == ModelAppearance.DefaultColor && Server.Background == ModelAppearance.DefaultBackground)">
+                    Reset appearance
+                </button>
+            </div>
+        </fieldset>
+
+        <fieldset class="show-items">
+            <legend>Coordinates on the front</legend>
+            <div class="checks">
+                @foreach (var item in Items)
+                {
+                    <label class="check">
+                        <input type="checkbox" checked="@item.Get(Server)"
+                               @onchange="e => SetShown(e, item)" /> @item.Label
+                    </label>
+                }
+            </div>
+            <div class="ra-units">
+                <span class="field-label" id="ra-units-label-@Server.IdGuid">Ra shown in</span>
+                <div class="segmented" role="group" aria-labelledby="ra-units-label-@Server.IdGuid">
+                    <button type="button" class="@(Server.RaInDegrees ? null : "selected")"
+                            aria-pressed="@(!Server.RaInDegrees)" @onclick="() => SetRaInDegrees(false)">Hours</button>
+                    <button type="button" class="@(Server.RaInDegrees ? "selected" : null)"
+                            aria-pressed="@Server.RaInDegrees" @onclick="() => SetRaInDegrees(true)">Degrees</button>
+                </div>
+                <span class="hint">Lst is always in hours.</span>
+            </div>
+        </fieldset>
+
+        <fieldset class="show-items camera">
+            <legend>Camera</legend>
+            @if (Server.Camera is { } camera)
+            {
+                <span class="field-label camera-caption">Saved view</span>
+                <dl class="camera-values">
+                    <div><dt>Rotation</dt><dd>@camera.Alpha.ToString("0.#")°</dd></div>
+                    <div><dt>Tilt</dt><dd>@camera.Beta.ToString("0.#")°</dd></div>
+                    <div><dt>Zoom</dt><dd>@camera.Radius.ToString("0.#")</dd></div>
+                    <div><dt>Pan</dt><dd>@PanText(camera)</dd></div>
+                </dl>
+            }
+            else
+            {
+                <p class="camera-default">No saved view; the default view is used.</p>
+            }
+            <div class="camera-actions">
+                <button type="button" class="btn btn-primary" @onclick="SaveCamera">Save current view</button>
+                <button type="button" class="btn" @onclick="OnResetCamera"
+                        title="Move the camera back to the saved view (or the default if none is saved)">
+                    Reset to saved view
+                </button>
+                <button type="button" class="btn link" disabled="@(Server.Camera is null)" @onclick="OnClearCamera"
+                        title="Forget the saved view and use the default">
+                    Clear saved view
+                </button>
+            </div>
+            <p class="hint">
+                Drag, scroll or pan the model on the front to set the view, then save it here. Each view of this
+                server opens at the saved view.
+            </p>
+            @if (_savedMessage is not null)
+            {
+                <p class="saved-note" role="status">@_savedMessage</p>
+            }
+        </fieldset>
+
+        <p class="hint">Changes apply right away and are saved with this server's settings.</p>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public AlpacaServer Server { get; set; } = default!;
+
+    /// <summary>Flip back to the model.</summary>
+    [Parameter] public EventCallback OnDone { get; set; }
+
+    /// <summary>Raised after a setting changes, so the owner can save.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>Save this view's current camera to the server.</summary>
+    [Parameter] public EventCallback OnSaveCamera { get; set; }
+
+    /// <summary>Move this view's camera back to the saved view.</summary>
+    [Parameter] public EventCallback OnResetCamera { get; set; }
+
+    /// <summary>Forget the server's saved view.</summary>
+    [Parameter] public EventCallback OnClearCamera { get; set; }
+
+    private string? _savedMessage;
+
+    private async Task SaveCamera()
+    {
+        await OnSaveCamera.InvokeAsync();
+        if (Server.Camera is null) return;
+
+        // Brief confirmation, then clear it so it never looks current after later moves.
+        var message = _savedMessage = $"Saved at {DateTime.Now:HH:mm:ss}.";
+        StateHasChanged();
+        await Task.Delay(3000);
+        if (ReferenceEquals(_savedMessage, message)) _savedMessage = null;
+    }
+
+    private AlpacaServer? _watched;
+
+    private sealed record Item(string Label, Func<AlpacaServer, bool> Get, Action<AlpacaServer, bool> Set);
+
+    private static readonly Item[] Items =
+    [
+        new("Ra", s => s.ShowRa, (s, v) => s.ShowRa = v),
+        new("Dec", s => s.ShowDec, (s, v) => s.ShowDec = v),
+        new("Az", s => s.ShowAz, (s, v) => s.ShowAz = v),
+        new("Alt", s => s.ShowAlt, (s, v) => s.ShowAlt = v),
+        new("Lha", s => s.ShowLha, (s, v) => s.ShowLha = v),
+        new("Lst", s => s.ShowLst, (s, v) => s.ShowLst = v),
+    ];
+
+    private bool IsCustomColor => !ModelAppearance.ColorPresets.Any(
+        p => string.Equals(p.Hex, Server.ModelColor, StringComparison.OrdinalIgnoreCase));
+
+    private static string ThumbStyle(SceneBackground background)
+        => background.Url is null ? "" : $"background-image: url('{background.Url}')";
+
+    private Task SetModelColor(string? hex)
+    {
+        var color = ModelAppearance.NormalizeColor(hex);
+        if (color == Server.ModelColor) return Task.CompletedTask;
+        Server.ModelColor = color;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task SetBackground(string key)
+    {
+        if (key == Server.Background) return Task.CompletedTask;
+        Server.Background = ModelAppearance.GetBackground(key).Key;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task ResetAppearance()
+    {
+        Server.ModelColor = ModelAppearance.DefaultColor;
+        Server.Background = ModelAppearance.DefaultBackground;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task SetRaInDegrees(bool degrees)
+    {
+        if (Server.RaInDegrees == degrees) return Task.CompletedTask;
+        Server.RaInDegrees = degrees;
+        return OnChanged.InvokeAsync();
+    }
+
+    private string MountText => Server.Latitude is { } latitude
+        ? $"{Model3D.GetDisplayName(Server.AlignmentMode)}, latitude {latitude:0.##}°"
+        : $"{Model3D.GetDisplayName(Server.AlignmentMode)} (not read from the mount yet)";
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(_watched, Server)) return;
+        if (_watched is not null) _watched.PropertyChanged -= OnServerPropertyChanged;
+        _watched = Server;
+        _watched.PropertyChanged += OnServerPropertyChanged;
+    }
+
+    /// <summary>Keeps the panel current when the server changes elsewhere (mount read, camera moved).</summary>
+    private void OnServerPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        => _ = InvokeAsync(StateHasChanged);
+
+    private Task OnModelChanged(ChangeEventArgs e)
+    {
+        if (!Enum.TryParse<GS.Alpaca.Shared.Model3DType>(e.Value?.ToString(), out var type)) return Task.CompletedTask;
+        Server.ModelType = type;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task OnPolarModeChanged(ChangeEventArgs e)
+    {
+        if (!Enum.TryParse<PolarMode>(e.Value?.ToString(), out var mode)) return Task.CompletedTask;
+        Server.PolarMode = mode;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task OnOffsetChanged(ChangeEventArgs e, bool isRa)
+    {
+        if (!double.TryParse(e.Value?.ToString(), System.Globalization.CultureInfo.InvariantCulture, out var value))
+            return Task.CompletedTask;
+
+        if (isRa) Server.RaOffset = Model3D.ClampOffset(value);
+        else Server.DecOffset = Model3D.ClampOffset(value);
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task ResetAdjustments()
+    {
+        Server.RaOffset = Model3D.DefaultRaOffset;
+        Server.DecOffset = Model3D.DefaultDecOffset;
+        return OnChanged.InvokeAsync();
+    }
+
+    private static string PanText(CameraView camera)
+        => camera.TargetX == 0 && camera.TargetY == 6 && camera.TargetZ == 0
+            ? "centred"
+            : $"{camera.TargetX:0.#}, {camera.TargetY:0.#}, {camera.TargetZ:0.#}";
+
+    private Task SetShown(ChangeEventArgs e, Item item)
+    {
+        item.Set(Server, e.Value is true || (e.Value is string s && bool.TryParse(s, out var b) && b));
+        return OnChanged.InvokeAsync();
+    }
+
+    public void Dispose()
+    {
+        if (_watched is not null) _watched.PropertyChanged -= OnServerPropertyChanged;
+    }
+}

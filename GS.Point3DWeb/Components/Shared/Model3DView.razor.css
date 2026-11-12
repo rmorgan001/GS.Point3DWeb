@@ -1,0 +1,228 @@
+/* A 3D model view card: header, the scene with a coordinates readout over it, status line. */
+
+.model3d {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    overflow: hidden;
+}
+
+/* ===== Header ===== */
+.model3d-header {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex: none;
+    padding: .4rem .45rem .4rem .8rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.titles {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0 .65rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+    .titles h2 {
+        margin: 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 1.15rem;
+        font-weight: 600;
+    }
+
+.mount-tag {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .78rem;
+    font-weight: 500;
+    color: var(--mare);
+}
+
+.conn {
+    flex: none;
+    width: .6rem;
+    height: .6rem;
+    border-radius: 50%;
+    background: var(--line-strong);
+}
+
+    .conn.connected {
+        background: var(--green);
+        box-shadow: 0 0 0 3px var(--green-soft);
+    }
+
+.close:hover:not(:disabled) {
+    color: var(--red) !important;
+    border-color: rgba(239, 100, 97, .45) !important;
+}
+
+/* ===== Scene ===== */
+.viewport {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 120px;
+    background: var(--well);
+}
+
+.render-canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    outline: none;
+    touch-action: none;
+}
+
+/* Coordinates readout over the top-left of the scene. */
+.coords {
+    position: absolute;
+    top: .55rem;
+    left: .55rem;
+    right: .55rem;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    pointer-events: none;
+}
+
+    .coords:empty {
+        display: none;
+    }
+
+.coord {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .4rem;
+    padding: .2rem .55rem;
+    border: 1px solid rgba(52, 71, 79, .8);
+    border-radius: var(--radius-sm);
+    background: rgba(7, 11, 14, .72);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    pointer-events: auto;
+}
+
+    .coord .label {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--yellow);
+    }
+
+    .coord .value {
+        font-family: var(--font-code);
+        font-size: .8rem;
+        color: var(--moon);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    .coord.ra {
+        cursor: pointer;
+        user-select: none;
+    }
+
+/* Start-up / error message in the middle of the scene. */
+.overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .6rem;
+    max-width: 80%;
+    transform: translate(-50%, -50%);
+    color: var(--mare);
+    text-align: center;
+    pointer-events: none;
+}
+
+    .overlay p {
+        margin: 0;
+        font-size: .9rem;
+    }
+
+    .overlay.error p {
+        color: var(--red);
+    }
+
+.overlay-mark {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    box-shadow: inset -.6rem .1rem 0 0 var(--yellow);
+    transform: rotate(-20deg);
+    animation: overlay-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes overlay-pulse {
+    50% {
+        opacity: .45;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .overlay-mark {
+        animation: none;
+    }
+}
+
+/* ===== Status line ===== */
+.model3d-status {
+    display: flex;
+    align-items: center;
+    gap: .35rem 1rem;
+    flex: none;
+    min-width: 0;
+    padding: .35rem .8rem;
+    border-top: 1px solid var(--line);
+    font-size: .74rem;
+    color: var(--mare);
+    font-variant-numeric: tabular-nums;
+}
+
+.axes {
+    display: inline-flex;
+    gap: .8rem;
+    flex: none;
+    font-family: var(--font-code);
+}
+
+    .axes .label {
+        color: var(--green);
+        font-weight: 600;
+    }
+
+.status-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+}
+
+@media (max-width: 760px) {
+    .axes {
+        display: none;
+    }
+
+    .status-text {
+        text-align: left;
+    }
+}

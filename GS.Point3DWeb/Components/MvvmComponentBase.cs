@@ -26,6 +26,7 @@ public abstract class MvvmComponentBase<TViewModel> : ComponentBase, IDisposable
     public virtual void Dispose()
     {
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        (ViewModel as IDisposable)?.Dispose();
         GC.SuppressFinalize(this);
     }
 }

@@ -1,3 +1,6 @@
 <Solution>
   <Project Path="GS.Point3DWeb/GS.Point3DWeb.csproj" />
+  <Folder Name="/tools/">
+    <Project Path="tools/GS.Point3DWeb.KeyGen/GS.Point3DWeb.KeyGen.csproj" />
+  </Folder>
 </Solution>

@@ -1,0 +1,346 @@
+@inherits MvvmComponentBase<Model3DViewModel>
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<section class="model3d" aria-label="3D model">
+    <header class="model3d-header">
+        <span class="conn @(Server?.IsConnected == true ? "connected" : null)"
+              title="@(Server?.IsConnected == true ? "Connected" : "Not connected")"></span>
+        <div class="titles">
+            <h2 title="@Server?.Url">@ViewModel.DeviceName</h2>
+            @if (Server is not null)
+            {
+                <span class="mount-tag" title="Model and mount type (read from the mount)">
+                    @Model3D.GetDisplayName(Server.ModelType) · @Model3D.GetDisplayName(Server.AlignmentMode)
+                </span>
+            }
+        </div>
+        @if (OnSettings.HasDelegate)
+        {
+            <button type="button" class="icon-btn" title="View settings" aria-label="View settings"
+                    @onclick="OnSettings">
+                <Icon Kind="Cog" Size="18" />
+            </button>
+        }
+        @if (OnClose.HasDelegate)
+        {
+            <button type="button" class="icon-btn close" title="Remove from this view" aria-label="Remove from this view"
+                    @onclick="OnClose">
+                <Icon Kind="Close" Size="18" />
+            </button>
+        }
+    </header>
+
+    <div class="viewport">
+        <canvas @ref="_canvas" class="render-canvas"></canvas>
+
+        @* Coordinates float over the top of the scene; which ones show is chosen on the back of the card. *@
+        <div class="coords" aria-label="Mount coordinates">
+            @if (Server?.ShowRa != false)
+            {
+                <span class="coord ra" title="Double-click to switch between hours and degrees"
+                      @ondblclick="ToggleRaUnitsAsync">
+                    <span class="label">Ra</span><span class="value">@ViewModel.Ra</span>
+                </span>
+            }
+            @if (Server?.ShowDec != false)
+            {
+                <span class="coord"><span class="label">Dec</span><span class="value">@ViewModel.Dec</span></span>
+            }
+            @if (Server?.ShowAz != false)
+            {
+                <span class="coord"><span class="label">Az</span><span class="value">@ViewModel.Az</span></span>
+            }
+            @if (Server?.ShowAlt != false)
+            {
+                <span class="coord"><span class="label">Alt</span><span class="value">@ViewModel.Alt</span></span>
+            }
+            @if (Server?.ShowLha != false)
+            {
+                <span class="coord"><span class="label">Lha</span><span class="value">@ViewModel.Lha</span></span>
+            }
+            @if (Server?.ShowLst != false)
+            {
+                <span class="coord" title="Local sidereal time"><span class="label">Lst</span><span class="value">@ViewModel.Lst</span></span>
+            }
+        </div>
+
+        @if (_overlay is not null)
+        {
+            <div class="overlay @(_overlayIsError ? "error" : null)">
+                <span class="overlay-mark" aria-hidden="true"></span>
+                <p>@_overlay</p>
+            </div>
+        }
+    </div>
+
+    <footer class="model3d-status">
+        <span class="axes" title="Mount axes (X, Y) and tilt (Z), as in GSServer">
+            <span><span class="label">X</span> @ViewModel.PrimaryAxis.ToString("F4")°</span>
+            <span><span class="label">Y</span> @ViewModel.SecondaryAxis.ToString("F4")°</span>
+            <span><span class="label">Z</span> @ViewModel.Tilt.ToString("F2")°</span>
+        </span>
+        <span class="status-text" title="@ViewModel.StatusText">@ViewModel.StatusText</span>
+    </footer>
+</section>
+
+@code {
+    /// <summary>The server to connect to and show.</summary>
+    [Parameter] public AlpacaServer? Server { get; set; }
+
+    /// <summary>Shows a settings button (flips the quadrant to its view settings) when set.</summary>
+    [Parameter] public EventCallback OnSettings { get; set; }
+
+    /// <summary>Shows a close button when set.</summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>Raised after the auto-connect changes the server's connection state.</summary>
+    [Parameter] public EventCallback OnConnectionChanged { get; set; }
+
+    /// <summary>Raised after a per-server setting changes from this view (Ra units toggled), so the owner can save.</summary>
+    [Parameter] public EventCallback OnSettingsChanged { get; set; }
+
+    private Task ToggleRaUnitsAsync()
+    {
+        if (Server is null) return Task.CompletedTask;
+        Server.RaInDegrees = !Server.RaInDegrees;
+        return OnSettingsChanged.InvokeAsync();
+    }
+
+    /// <summary>Calls a viewer function (model3d.js) with the viewer and one argument.</summary>
+    private async Task CallViewerAsync(string function, object? argument)
+    {
+        if (_module is null || _viewer is null) return;
+        try
+        {
+            await _module.InvokeVoidAsync(function, _viewer, argument);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    /// <summary>The camera as it is now in this view (to save it), or null if the viewer isn't ready.</summary>
+    public async Task<CameraView?> GetCameraAsync()
+    {
+        if (_module is null || _viewer is null) return null;
+        try
+        {
+            return await _module.InvokeAsync<CameraView>("getCamera", _viewer);
+        }
+        catch (JSDisconnectedException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Moves this view's camera back to the server's saved view (or the default).</summary>
+    public Task ResetCameraAsync() => CallViewerAsync("setCamera", Server?.Camera);
+
+    private ElementReference _canvas;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _viewer;
+    private string? _overlay = "Initializing ...";
+    private bool _overlayIsError;
+    private bool _modelLoaded;
+    private int _rotationPending;
+    private AlpacaServer? _watchedServer;
+    private string? _loadedModelKey;
+    private bool? _northCompass;
+
+    protected override void OnParametersSet()
+    {
+        ViewModel.Server = Server;
+        if (Server is not null) ViewModel.DeviceName = Server.ServerName;
+
+        if (!ReferenceEquals(_watchedServer, Server))
+        {
+            if (_watchedServer is not null) _watchedServer.PropertyChanged -= OnServerPropertyChanged;
+            _watchedServer = Server;
+            if (_watchedServer is not null) _watchedServer.PropertyChanged += OnServerPropertyChanged;
+        }
+    }
+
+    /// <summary>Applies edits to the server (model, offsets, name) while it is being shown.</summary>
+    private void OnServerPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(AlpacaServer.ModelType) or nameof(AlpacaServer.PolarMode):
+                _ = InvokeAsync(async () =>
+                {
+                    await ReloadModelIfChangedAsync();
+                    StateHasChanged();
+                });
+                break;
+            case nameof(AlpacaServer.AlignmentMode) or nameof(AlpacaServer.Latitude):
+                // Read from the mount after connecting: may change the model file, tilt and compass.
+                _ = InvokeAsync(async () =>
+                {
+                    await UpdateCompassAsync();
+                    await ReloadModelIfChangedAsync();
+                    await ApplyCurrentRotationAsync();
+                    StateHasChanged();
+                });
+                break;
+            case nameof(AlpacaServer.RaOffset) or nameof(AlpacaServer.DecOffset):
+                _ = InvokeAsync(ApplyCurrentRotationAsync);
+                break;
+            case nameof(AlpacaServer.ModelColor):
+                _ = InvokeAsync(() => CallViewerAsync("setModelColor", ViewModel.ModelColor));
+                break;
+            case nameof(AlpacaServer.Background):
+                _ = InvokeAsync(() => CallViewerAsync("setBackground", ViewModel.BackgroundUrl));
+                break;
+            case nameof(AlpacaServer.RaInDegrees):
+                ViewModel.RefreshRa();
+                break;
+            case nameof(AlpacaServer.ServerName):
+                ViewModel.DeviceName = Server?.ServerName ?? ViewModel.DeviceName;
+                break;
+            case nameof(AlpacaServer.IsConnected)
+                or nameof(AlpacaServer.ShowRa) or nameof(AlpacaServer.ShowDec)
+                or nameof(AlpacaServer.ShowAz) or nameof(AlpacaServer.ShowAlt)
+                or nameof(AlpacaServer.ShowLha) or nameof(AlpacaServer.ShowLst):
+                _ = InvokeAsync(StateHasChanged);
+                break;
+        }
+    }
+
+    /// <summary>The model file and the pier (alignment mode, latitude) it was loaded with.</summary>
+    private string ModelKey => $"{ViewModel.ModelUrl}|{ViewModel.MountInfo}";
+
+    private Task ReloadModelIfChangedAsync()
+        => ModelKey == _loadedModelKey ? Task.CompletedTask : LoadModelAsync();
+
+    private async Task UpdateCompassAsync()
+    {
+        if (_module is null || _viewer is null) return;
+        var north = ViewModel.UseNorthCompass;
+        if (_northCompass == north) return;
+        _northCompass = north;
+        try
+        {
+            await _module.InvokeVoidAsync("setHemisphere", _viewer, north);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private async Task LoadModelAsync()
+    {
+        if (_module is null || _viewer is null) return;
+        try
+        {
+            _modelLoaded = false;
+            ViewModel.StatusText = $"Loading {ViewModel.ModelName} model...";
+            _loadedModelKey = ModelKey;
+            var result = await _module.InvokeAsync<string>("loadModel", _viewer, ViewModel.ModelUrl, ViewModel.MountInfo);
+            if (result.Contains("Error", StringComparison.OrdinalIgnoreCase))
+            {
+                ViewModel.StatusText = $"Failed to load model: {result}";
+                return;
+            }
+
+            _modelLoaded = true;
+            ViewModel.StatusText = $"Telescope loaded: {ViewModel.ModelName}";
+            await ApplyCurrentRotationAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException ex)
+        {
+            ViewModel.StatusText = $"Failed to load model: {ex.Message}";
+        }
+    }
+
+    private Task ApplyCurrentRotationAsync() => _modelLoaded ? SetPoseAsync() : Task.CompletedTask;
+
+    private void OnVmConnectionChanged() => _ = InvokeAsync(() => OnConnectionChanged.InvokeAsync());
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            ViewModel.StatusText = "Initializing 3D viewer...";
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./model3d/model3d.js");
+            _viewer = await _module.InvokeAsync<IJSObjectReference>("create", _canvas, new
+            {
+                primaryColor = ViewModel.ModelColor,
+                background = ViewModel.BackgroundUrl,
+                secondaryColor = ViewModel.SecondaryColor,
+                northern = ViewModel.UseNorthCompass,
+                camera = Server?.Camera
+            });
+            _overlay = null;
+
+            await LoadModelAsync();
+
+            ViewModel.RotationChanged += OnRotationChanged;
+            ViewModel.ConnectionChanged += OnVmConnectionChanged;
+            ViewModel.StartTimerUpdates();
+        }
+        catch (JSDisconnectedException)
+        {
+            // circuit went away during start-up
+        }
+        catch (Exception ex)
+        {
+            _overlay = ex.Message;
+            _overlayIsError = true;
+            ViewModel.StatusText = $"Initialization error: {ex.Message}";
+        }
+
+        StateHasChanged();
+    }
+
+    private void OnRotationChanged()
+    {
+        if (!_modelLoaded) return;
+        // Drop updates while one is still in flight to the browser (like the desktop TimerLock).
+        if (Interlocked.Exchange(ref _rotationPending, 1) == 1) return;
+        _ = InvokeAsync(async () =>
+        {
+            try { await SetPoseAsync(); }
+            finally { Interlocked.Exchange(ref _rotationPending, 0); }
+        });
+    }
+
+    /// <summary>Sends GSServer's model transform for the current axis positions to the viewer.</summary>
+    private async Task SetPoseAsync()
+    {
+        if (_module is null || _viewer is null) return;
+        try
+        {
+            var (x, y, z, yCentre) = ViewModel.CurrentPose;
+            await _module.InvokeVoidAsync("setPose", _viewer, x, y, z, yCentre);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        ViewModel.RotationChanged -= OnRotationChanged;
+        ViewModel.ConnectionChanged -= OnVmConnectionChanged;
+        if (_watchedServer is not null) _watchedServer.PropertyChanged -= OnServerPropertyChanged;
+        ViewModel.Dispose();
+        base.Dispose();
+
+        try
+        {
+            if (_module is not null && _viewer is not null)
+                await _module.InvokeVoidAsync("dispose", _viewer);
+            if (_viewer is not null) await _viewer.DisposeAsync();
+            if (_module is not null) await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

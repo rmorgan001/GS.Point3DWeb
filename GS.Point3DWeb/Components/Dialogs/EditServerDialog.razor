@@ -51,6 +51,18 @@
                 </button>
             </span>
         </label>
+        <label class="field field-poll">
+            <span class="field-label">Polling (seconds)</span>
+            <input type="number" min="@AlpacaServer.MinPollSeconds" max="@AlpacaServer.MaxPollSeconds" step="0.1"
+                   title="How often the server is asked for its position (0.5 to 5.0 seconds)"
+                   class="@(ViewModel.PollSecondsError is null ? null : "has-error")"
+                   aria-invalid="@(ViewModel.PollSecondsError is not null)"
+                   @bind="ViewModel.PollSeconds" @bind:event="oninput" />
+            @if (ViewModel.PollSecondsError is not null)
+            {
+                <span class="field-error">@ViewModel.PollSecondsError</span>
+            }
+        </label>
         <label class="field">
             <span class="field-label">Client Transaction ID</span>
             <input type="text" value="@ViewModel.ClientTransactionId" readonly />

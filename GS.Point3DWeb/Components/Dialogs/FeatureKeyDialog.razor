@@ -1,0 +1,72 @@
+<h2 class="dialog-title">@ViewModel.Title</h2>
+
+@if (ViewModel.Reason is not null)
+{
+    <p class="key-reason">@ViewModel.Reason</p>
+}
+
+@{
+    var keys = ViewModel.FeatureKeys;
+    var today = DateOnly.FromDateTime(DateTime.Now);
+}
+
+<div class="key-status @(keys.IsLicensed ? "licensed" : null)">
+    <span class="key-badge"><Icon Kind="@(keys.IsLicensed ? "Key" : "Lock")" Size="18" /></span>
+    <div>
+        @if (keys.IsLicensed && keys.Key is { } key)
+        {
+            <strong>Unlocked</strong>
+            <span>Licensed to @key.Name@(key.Expires is { } expires ? $", until {expires:yyyy-MM-dd}" : "").</span>
+            <span class="key-limits">Up to @FeatureKeyService.LicensedMaxViews views and any number of servers.</span>
+        }
+        else
+        {
+            <strong>Free</strong>
+            @if (keys.Key is { } expired && expired.IsExpired(today))
+            {
+                <span>The key for @expired.Name expired on @expired.Expires?.ToString("yyyy-MM-dd").</span>
+            }
+            <span class="key-limits">
+                @FeatureKeyService.FreeMaxViews view and up to @FeatureKeyService.FreeMaxServers servers.
+                A feature key unlocks up to @FeatureKeyService.LicensedMaxViews views and more servers.
+            </span>
+        }
+    </div>
+</div>
+
+<label class="field key-field">
+    <span class="field-label">@(keys.IsLicensed ? "Replace the key" : "Enter a feature key")</span>
+    <textarea rows="3" spellcheck="false" autocomplete="off" placeholder="GSP3W1.…"
+              class="@(ViewModel.Error is null ? null : "has-error")"
+              @bind="ViewModel.KeyText" @bind:event="oninput"></textarea>
+    @if (ViewModel.Error is not null)
+    {
+        <span class="field-error">@ViewModel.Error</span>
+    }
+</label>
+
+@if (ViewModel.Message is not null)
+{
+    <p class="key-message" role="status">@ViewModel.Message</p>
+}
+
+<div class="dialog-buttons">
+    <button type="button" class="dialog-button" disabled="@string.IsNullOrWhiteSpace(ViewModel.KeyText)"
+            @onclick="() => ViewModel.ApplyCommand.Execute(null)">
+        Apply key
+    </button>
+    @if (keys.Key is not null)
+    {
+        <button type="button" class="dialog-button danger" @onclick="() => ViewModel.RemoveCommand.Execute(null)">
+            Remove key
+        </button>
+    }
+    <button type="button" class="dialog-button" @onclick="() => ViewModel.CloseDialogCommand.Execute(null)">
+        Close
+    </button>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public FeatureKeyDialogViewModel ViewModel { get; set; } = default!;
+}

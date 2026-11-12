@@ -1,0 +1,14 @@
+@* Two-sided card that turns over with a 3D rotation. Both faces stay rendered, so content
+   on the hidden side (e.g. a running 3D view) keeps its state; the hidden face is inert. *@
+<div class="flip-card @(Flipped ? "flipped" : null)">
+    <div class="flip-inner">
+        <div class="flip-face flip-front" inert="@Flipped">@Front</div>
+        <div class="flip-face flip-back" inert="@(!Flipped)">@Back</div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? Front { get; set; }
+    [Parameter] public RenderFragment? Back { get; set; }
+    [Parameter] public bool Flipped { get; set; }
+}

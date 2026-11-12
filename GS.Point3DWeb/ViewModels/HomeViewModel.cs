@@ -1,7 +1,6 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using GS.Alpaca.Support;
 using GS.Point3DWeb.Dialogs;
 using GS.Point3DWeb.Models;
 using GS.Point3DWeb.Services;
@@ -12,7 +11,7 @@ namespace GS.Point3DWeb.ViewModels;
 /// Home page view model. The server list, selection and toolbar commands follow the
 /// Connection Manager (ConnectPageViewModel) in GS.Alpaca.Client.
 /// </summary>
-public partial class HomeViewModel : ViewModelBase
+public partial class HomeViewModel : ViewModelBase, IDisposable
 {
     private const string SimulatorName = "ASCOM Alpaca Simulators";
     private const string DefaultUrl = "http://127.0.0.1:32323/api/v1/telescope/0/";
@@ -20,18 +19,78 @@ public partial class HomeViewModel : ViewModelBase
     private readonly SettingsService _settingsService;
     private readonly DialogService _dialogService;
 
-    public HomeViewModel(SettingsService settingsService, DialogService dialogService)
+    public HomeViewModel(SettingsService settingsService, DialogService dialogService, FeatureKeyService featureKeys)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
+        FeatureKeys = featureKeys ?? throw new ArgumentNullException(nameof(featureKeys));
+        FeatureKeys.Changed += OnFeatureKeyChanged;
 
         GetStoredConnections();
+        RestoreQuadrants();
         Count = AlpacaServers.Count;
         SelectedAlpacaServer = _settingsService.SelectedAlpacaServer ?? AlpacaServers.FirstOrDefault();
     }
 
     [ObservableProperty]
     public partial ObservableCollection<AlpacaServer> AlpacaServers { get; set; } = [];
+
+    // ===== Feature key: 1 view and 5 servers without a key; 4 views and any number with one =====
+
+    public FeatureKeyService FeatureKeys { get; }
+
+    public bool IsLicensed => FeatureKeys.IsLicensed;
+
+    public int MaxViews => FeatureKeys.MaxViews;
+
+    public int MaxServers => FeatureKeys.MaxServers;
+
+    /// <summary>
+    /// Servers beyond the limit (e.g. added while a key was installed) stay in the list but
+    /// can't be connected or shown until a key is added.
+    /// </summary>
+    public bool IsServerAllowed(AlpacaServer server)
+    {
+        var index = AlpacaServers.IndexOf(server);
+        return index >= 0 && index < MaxServers;
+    }
+
+    private void OnFeatureKeyChanged()
+    {
+        OnPropertyChanged(nameof(IsLicensed));
+        OnPropertyChanged(nameof(ViewCount));
+        OnPropertyChanged(nameof(Quadrants));
+    }
+
+    /// <summary>Opens the feature-key dialog (header key button, or after hitting a limit).</summary>
+    [RelayCommand]
+    private Task FeatureKeyAsync() => ShowFeatureKeyDialogAsync(null);
+
+    private Task ShowFeatureKeyDialogAsync(string? reason)
+        => _dialogService.ShowDialog(new FeatureKeyDialogViewModel(FeatureKeys) { Reason = reason });
+
+    /// <summary>Explains a free-version limit and offers to enter a key.</summary>
+    private async Task ShowLimitAsync(string message)
+    {
+        var limit = new ConfirmDialogViewModel
+        {
+            Title = "Feature key needed",
+            Message = message,
+            AcceptText = "Enter a key",
+            CancelText = "Close"
+        };
+        await _dialogService.ShowDialog(limit);
+        if (limit.Confirmed) await ShowFeatureKeyDialogAsync(message);
+    }
+
+    private string ServerLimitMessage =>
+        $"The free version allows up to {FeatureKeyService.FreeMaxServers} servers. A feature key unlocks more.";
+
+    public void Dispose()
+    {
+        FeatureKeys.Changed -= OnFeatureKeyChanged;
+        GC.SuppressFinalize(this);
+    }
 
     [ObservableProperty]
     public partial AlpacaServer? SelectedAlpacaServer { get; set; }
@@ -55,15 +114,24 @@ public partial class HomeViewModel : ViewModelBase
         var editViewModel = new EditServerDialogViewModel(server);
         await _dialogService.ShowDialog(editViewModel);
 
-        if (editViewModel.Confirmed) editViewModel.ApplyTo(server);
+        if (!editViewModel.Confirmed) return;
+
+        editViewModel.ApplyTo(server);
+        await PersistAsync();
     }
 
     // ===== Toolbar commands =====
 
     /// <summary>Adds a blank connection pointing at the local simulator URL.</summary>
     [RelayCommand]
-    private void Add()
+    private async Task AddAsync()
     {
+        if (AlpacaServers.Count >= MaxServers)
+        {
+            await ShowLimitAsync(ServerLimitMessage);
+            return;
+        }
+
         var connection = new AlpacaServer(DefaultUrl, "Blank")
         {
             IsConnected = false,
@@ -73,12 +141,19 @@ public partial class HomeViewModel : ViewModelBase
         AlpacaServers.Add(connection);
         SelectedAlpacaServer = connection;
         Count = AlpacaServers.Count;
+        await PersistAsync();
     }
 
     /// <summary>Searches the network for Alpaca telescopes and adds the one picked.</summary>
     [RelayCommand]
     private async Task DiscoveryAsync()
     {
+        if (AlpacaServers.Count >= MaxServers)
+        {
+            await ShowLimitAsync(ServerLimitMessage);
+            return;
+        }
+
         var discoveryViewModel = new DiscoveryDialogViewModel();
         await _dialogService.ShowDialog(discoveryViewModel);
 
@@ -96,6 +171,7 @@ public partial class HomeViewModel : ViewModelBase
             AlpacaServers.Add(connection);
             SelectedAlpacaServer = connection;
             Count = AlpacaServers.Count;
+            await PersistAsync();
         }
     }
 
@@ -114,6 +190,13 @@ public partial class HomeViewModel : ViewModelBase
             return;
         }
 
+        if (!server.IsConnected && !IsServerAllowed(server))
+        {
+            await ShowLimitAsync($"{server.ServerName} is beyond the free version's {FeatureKeyService.FreeMaxServers} servers. " +
+                                 "A feature key unlocks it.");
+            return;
+        }
+
         var confirmViewModel = new ConfirmDialogViewModel
         {
             Message = server.IsConnected
@@ -126,29 +209,13 @@ public partial class HomeViewModel : ViewModelBase
         IsBusy = true;
         try
         {
-            var client = new AlpacaClient(server.Url, server.ClientTransactionId);
-
             if (server.IsConnected)
             {
-                await client.DisconnectAsync();
-                server.SetClientTransactionId(client.ClientTransactionId);
-                server.IsConnected = false;
+                await AlpacaConnector.DisconnectAsync(server);
                 return;
             }
 
-            var response = await client.GetPropertyAsync("connected");
-            server.SetClientTransactionId(client.ClientTransactionId);
-            var isConnected = response?.Value.ToObject<bool>() == true;
-
-            if (!isConnected)
-            {
-                await client.ConnectAsync();
-                response = await client.GetPropertyAsync("connected");
-                server.SetClientTransactionId(client.ClientTransactionId);
-                isConnected = response?.Value.ToObject<bool>() == true;
-            }
-
-            server.IsConnected = isConnected;
+            var isConnected = await AlpacaConnector.ConnectAsync(server);
             if (isConnected)
             {
                 _settingsService.SelectedAlpacaServer = server;
@@ -175,7 +242,7 @@ public partial class HomeViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Saves the server list to disk.</summary>
+    /// <summary>Saves the server list to disk now (changes are also saved automatically).</summary>
     [RelayCommand]
     private async Task SaveAsync()
     {
@@ -183,6 +250,15 @@ public partial class HomeViewModel : ViewModelBase
         await _dialogService.ShowDialog(confirmViewModel);
         if (!confirmViewModel.Confirmed) return;
 
+        await PersistAsync();
+    }
+
+    /// <summary>
+    /// Writes the server list, quadrants and view count to the JSON file. Called after every
+    /// change (add, discover, edit, delete, quadrant drop/clear, view count).
+    /// </summary>
+    private async Task PersistAsync()
+    {
         try
         {
             _settingsService.SelectedAlpacaServer = SelectedAlpacaServer;
@@ -211,9 +287,123 @@ public partial class HomeViewModel : ViewModelBase
 
         var item = AlpacaServers.FirstOrDefault(i => i.IdGuid == connection.IdGuid);
         if (item is not null) AlpacaServers.Remove(item);
+        for (var i = 0; i < Quadrants.Length; i++)
+        {
+            if (Quadrants[i].Server?.IdGuid == connection.IdGuid) ClearQuadrant(i);
+        }
 
         SelectedAlpacaServer = AlpacaServers.LastOrDefault();
         Count = AlpacaServers.Count;
+        await PersistAsync();
+    }
+
+    // ===== 3D model quadrants (drag a server from the list onto one) =====
+
+    /// <summary>The four model quadrants on the right side of the page.</summary>
+    public ModelQuadrant[] Quadrants { get; } =
+        [.. Enumerable.Range(0, SettingsService.QuadrantCount).Select(_ => new ModelQuadrant())];
+
+    /// <summary>
+    /// How many quadrants are shown (1-4). Hidden quadrants keep their server but stop
+    /// polling, and come back when the count is raised again.
+    /// </summary>
+    public int ViewCount
+    {
+        // The stored count is kept, so adding a key brings a larger layout back.
+        get => Math.Min(_settingsService.ViewCount, MaxViews);
+        set
+        {
+            if (value > MaxViews)
+            {
+                _ = ShowLimitAsync($"The free version shows {FeatureKeyService.FreeMaxViews} view. " +
+                                   $"A feature key unlocks up to {FeatureKeyService.LicensedMaxViews}.");
+                return;
+            }
+            if (_settingsService.ViewCount == Math.Clamp(value, 1, Quadrants.Length)) return;
+            _settingsService.ViewCount = value;
+            OnPropertyChanged();
+            _ = PersistAsync();
+        }
+    }
+
+    /// <summary>The server currently being dragged from the list, if any.</summary>
+    [ObservableProperty]
+    public partial AlpacaServer? DragServer { get; set; }
+
+    public void StartDrag(AlpacaServer server) => DragServer = server;
+
+    public void EndDrag() => DragServer = null;
+
+    /// <summary>Shows the dragged server's model in a quadrant. Dropping again restarts it.</summary>
+    public void DropOnQuadrant(int index)
+    {
+        var server = DragServer;
+        DragServer = null;
+        if (server is null || index < 0 || index >= ViewCount) return;
+        if (!IsServerAllowed(server))
+        {
+            _ = ShowLimitAsync($"{server.ServerName} is beyond the free version's {FeatureKeyService.FreeMaxServers} servers. " +
+                               "A feature key unlocks it.");
+            return;
+        }
+
+        Quadrants[index].Server = server;
+        Quadrants[index].Generation++;
+        Quadrants[index].Flipped = false;
+        SelectedAlpacaServer = server;
+        StoreQuadrants();
+        OnPropertyChanged(nameof(Quadrants));
+        _ = PersistAsync();
+    }
+
+    public void ClearQuadrant(int index)
+    {
+        if (index < 0 || index >= Quadrants.Length) return;
+        Quadrants[index].Server = null;
+        Quadrants[index].Flipped = false;
+        StoreQuadrants();
+        OnPropertyChanged(nameof(Quadrants));
+        _ = PersistAsync();
+    }
+
+    public void ToggleFlip(int index)
+    {
+        if (index < 0 || index >= Quadrants.Length) return;
+        Quadrants[index].Flipped = !Quadrants[index].Flipped;
+        OnPropertyChanged(nameof(Quadrants));
+    }
+
+    /// <summary>Saves a per-server view change (shown coordinates, camera) made in a quadrant.</summary>
+    public Task ServerSettingsChangedAsync() => PersistAsync();
+
+    /// <summary>Fills the quadrants from the stored assignments (they then auto-connect).</summary>
+    private void RestoreQuadrants()
+    {
+        var ids = _settingsService.QuadrantServerIds;
+        for (var i = 0; i < Quadrants.Length && i < ids.Length; i++)
+        {
+            Quadrants[i].Server = ids[i] is { } id ? AlpacaServers.FirstOrDefault(s => s.IdGuid == id) : null;
+        }
+    }
+
+    /// <summary>
+    /// Keeps the settings in step with the quadrants, so a page refresh keeps them;
+    /// Save writes them to disk with the server list.
+    /// </summary>
+    private void StoreQuadrants()
+        => _settingsService.QuadrantServerIds = [.. Quadrants.Select(q => q.Server?.IdGuid)];
+
+    public sealed class ModelQuadrant
+    {
+        public AlpacaServer? Server { get; set; }
+
+        /// <summary>True while the quadrant shows its settings (back of the flip card).</summary>
+        public bool Flipped { get; set; }
+
+        /// <summary>Bumped on every drop so the view is rebuilt (and reconnects).</summary>
+        public int Generation { get; set; }
+
+        public string Key => $"{Server?.IdGuid}-{Generation}";
     }
 
     // ===== Helpers =====
@@ -234,6 +424,7 @@ public partial class HomeViewModel : ViewModelBase
     {
         if (AlpacaServers.Any(i => i.ServerName == SimulatorName)) return;
         if (!_settingsService.AutoAddComm) return;
+        if (AlpacaServers.Count >= MaxServers) return;
 
         var connection = new AlpacaServer(DefaultUrl, SimulatorName)
         {

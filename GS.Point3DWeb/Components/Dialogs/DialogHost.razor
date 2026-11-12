@@ -19,6 +19,10 @@
             {
                 <EditServerDialog ViewModel="edit" />
             }
+            else if (_current is FeatureKeyDialogViewModel featureKey)
+            {
+                <FeatureKeyDialog ViewModel="featureKey" />
+            }
         </div>
     </div>
 }

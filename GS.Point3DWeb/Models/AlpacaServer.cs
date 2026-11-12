@@ -1,4 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using GS.Alpaca.Shared;
+using GS.Point3DWeb.Support;
 
 namespace GS.Point3DWeb.Models;
 
@@ -27,6 +29,66 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
 
     [ObservableProperty]
     public partial double ClientTransactionId { get; set; }
+
+    /// <summary>Telescope model shown for this server.</summary>
+    [ObservableProperty]
+    public partial Model3DType ModelType { get; set; } = Model3DType.Default;
+
+    /// <summary>
+    /// RA axis adjustment in degrees (-90 to 90), added to the alignment mode's built-in offset.
+    /// </summary>
+    [ObservableProperty]
+    public partial double RaOffset { get; set; } = Model3D.DefaultRaOffset;
+
+    /// <summary>
+    /// Dec axis adjustment in degrees (-90 to 90), added to the alignment mode's built-in offset.
+    /// </summary>
+    [ObservableProperty]
+    public partial double DecOffset { get; set; } = Model3D.DefaultDecOffset;
+
+    /// <summary>OTA side for polar (fork) mounts; picks the PolarLeft / PolarRight model.</summary>
+    [ObservableProperty]
+    public partial PolarMode PolarMode { get; set; } = PolarMode.Left;
+
+    /// <summary>Alignment mode reported by the mount (read on connect; remembered between runs).</summary>
+    [ObservableProperty]
+    public partial AlignmentModes AlignmentMode { get; set; } = AlignmentModes.algGermanPolar;
+
+    /// <summary>Site latitude reported by the mount, in degrees (null until read).</summary>
+    [ObservableProperty]
+    public partial double? Latitude { get; set; }
+
+    // Which coordinates show on the front of the 3D model card.
+    [ObservableProperty] public partial bool ShowRa { get; set; } = true;
+    [ObservableProperty] public partial bool ShowDec { get; set; } = true;
+    [ObservableProperty] public partial bool ShowAz { get; set; } = true;
+    [ObservableProperty] public partial bool ShowAlt { get; set; } = true;
+    [ObservableProperty] public partial bool ShowLha { get; set; } = true;
+    [ObservableProperty] public partial bool ShowLst { get; set; } = true;
+
+    /// <summary>Show Ra on the front in degrees instead of hours.</summary>
+    [ObservableProperty] public partial bool RaInDegrees { get; set; }
+
+    /// <summary>Telescope color in the 3D view (#rrggbb).</summary>
+    [ObservableProperty] public partial string ModelColor { get; set; } = ModelAppearance.DefaultColor;
+
+    /// <summary>Background image key for the 3D view (see <see cref="ModelAppearance.Backgrounds"/>).</summary>
+    [ObservableProperty] public partial string Background { get; set; } = ModelAppearance.DefaultBackground;
+
+    /// <summary>Saved 3D camera position for this server's model (null = the default view).</summary>
+    [ObservableProperty] public partial CameraView? Camera { get; set; }
+
+    public const double MinPollSeconds = 0.5;
+    public const double MaxPollSeconds = 5.0;
+    public const double DefaultPollSeconds = 0.5;
+
+    /// <summary>How often the server is asked for its state, in seconds (0.5 to 5.0).</summary>
+    [ObservableProperty]
+    public partial double PollSeconds { get; set; } = DefaultPollSeconds;
+
+    /// <summary>Rounds to 0.1 s and keeps the value within 0.5 to 5.0 seconds.</summary>
+    public static double ClampPollSeconds(double seconds)
+        => Math.Clamp(Math.Round(seconds, 1), MinPollSeconds, MaxPollSeconds);
 
     public void SetClientTransactionId(double value) => ClientTransactionId = value;
 }

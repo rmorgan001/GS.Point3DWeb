@@ -11,11 +11,15 @@ builder.Services.AddRazorComponents()
 // Application-wide settings (connection list), shared like the desktop SettingsService singleton.
 builder.Services.AddSingleton<SettingsService>();
 
+// Feature key (free: 1 view, 5 servers; with a key: 4 views, any number of servers).
+builder.Services.AddSingleton<FeatureKeyService>();
+
 // Dialogs: one per browser connection (circuit).
 builder.Services.AddScoped<DialogService>();
 
 // View models: transient so each view gets its own instance.
 builder.Services.AddTransient<HomeViewModel>();
+builder.Services.AddTransient<Model3DViewModel>();
 
 var app = builder.Build();
 

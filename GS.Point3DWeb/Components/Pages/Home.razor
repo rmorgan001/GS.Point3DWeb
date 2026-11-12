@@ -4,109 +4,225 @@
 <PageTitle>@(ViewModel.SelectedAlpacaServer?.ServerName ?? "Home")</PageTitle>
 
 <div class="home">
-    <aside class="sidebar">
+    <header class="app-header">
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span>GS Point3D Web</span>
+            <span class="brand-sub">Alpaca mount viewer</span>
+        </div>
+
+        <div class="header-tools">
+            <span class="connected-count" title="Servers connected">
+                <span class="dot @(ConnectedCount > 0 ? "on" : null)"></span>
+                @ConnectedCount of @ViewModel.Count connected
+            </span>
+
+            <button type="button" class="key-button @(ViewModel.IsLicensed ? "licensed" : null)"
+                    title="@(ViewModel.IsLicensed ? "Feature key installed" : "Free version: add a feature key for more views and servers")"
+                    @onclick="() => ViewModel.FeatureKeyCommand.ExecuteAsync(null)">
+                <Icon Kind="@(ViewModel.IsLicensed ? "Key" : "Lock")" Size="16" />
+                <span>@(ViewModel.IsLicensed ? "Unlocked" : "Free")</span>
+            </button>
+
+            <div class="views" role="group" aria-label="Number of 3D views">
+                <span class="views-label">Views</span>
+                <div class="segmented">
+                    @for (var n = 1; n <= ViewModel.Quadrants.Length; n++)
+                    {
+                        var count = n;
+                        var locked = count > ViewModel.MaxViews;
+                        <button type="button" class="@(ViewModel.ViewCount == count ? "selected" : null) @(locked ? "locked" : null)"
+                                title="@(locked ? $"{count} views need a feature key" : $"Show {count} 3D view{(count == 1 ? "" : "s")}")"
+                                aria-pressed="@(ViewModel.ViewCount == count)"
+                                @onclick="() => ViewModel.ViewCount = count">@count</button>
+                    }
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="workspace">
+    <aside class="sidebar" @ondragenter="() => _hoverQuadrant = -1">
         <div class="sidebar-header">
             <h2>Servers</h2>
-            <span class="count">Count: @ViewModel.Count</span>
+            <span class="count" title="Servers in the list">
+                @ViewModel.Count@(ViewModel.IsLicensed ? "" : $" / {FeatureKeyService.FreeMaxServers}")
+            </span>
         </div>
 
         <div class="toolbar" role="toolbar" aria-label="Server commands">
-            <button type="button" class="tool" title="Add" aria-label="Add"
+            <button type="button" class="icon-btn" title="Add" aria-label="Add"
                     @onclick="() => ViewModel.AddCommand.Execute(null)">
                 <Icon Kind="Plus" />
             </button>
-            <button type="button" class="tool" title="Search" aria-label="Search"
+            <button type="button" class="icon-btn" title="Search the network" aria-label="Search the network"
                     @onclick="() => ViewModel.DiscoveryCommand.ExecuteAsync(null)">
                 <Icon Kind="Search" />
             </button>
-            <button type="button" class="tool @(ViewModel.SelectedAlpacaServer?.IsConnected == true ? "active" : null)"
+            <button type="button" class="icon-btn @(ViewModel.SelectedAlpacaServer?.IsConnected == true ? "active" : null)"
                     title="@ConnectText" aria-label="@ConnectText" disabled="@ViewModel.IsBusy"
                     @onclick="() => ViewModel.ConnectCommand.ExecuteAsync(null)">
                 <Icon Kind="Connection" />
             </button>
-            <button type="button" class="tool" title="Save" aria-label="Save"
+            <button type="button" class="icon-btn" title="Save" aria-label="Save"
                     @onclick="() => ViewModel.SaveCommand.ExecuteAsync(null)">
                 <Icon Kind="ContentSave" />
             </button>
-            <button type="button" class="tool" title="Delete" aria-label="Delete"
+            <span class="toolbar-spacer"></span>
+            <button type="button" class="icon-btn danger" title="Delete" aria-label="Delete"
                     disabled="@(ViewModel.SelectedAlpacaServer is null)"
                     @onclick="() => ViewModel.DeleteCommand.ExecuteAsync(ViewModel.SelectedAlpacaServer)">
                 <Icon Kind="Delete" />
             </button>
         </div>
 
-        <nav>
+        <nav class="server-nav" aria-label="Servers">
             <ul class="server-list">
                 @foreach (var server in ViewModel.AlpacaServers)
                 {
+                    var allowed = ViewModel.IsServerAllowed(server);
                     <li>
                         <button type="button"
-                                class="server-item @(server == ViewModel.SelectedAlpacaServer ? "selected" : null)"
-                                title="@ServerTooltip(server)"
+                                class="server-item @(server == ViewModel.SelectedAlpacaServer ? "selected" : null) @(allowed ? null : "locked")"
+                                title="@(allowed ? ServerTooltip(server) : $"{server.Url}\nNeeds a feature key (free version: {FeatureKeyService.FreeMaxServers} servers)")"
+                                draggable="@(allowed ? "true" : "false")"
+                                data-server-id="@server.IdGuid"
+                                @ondragstart="() => ViewModel.StartDrag(server)"
+                                @ondragend="() => { ViewModel.EndDrag(); _hoverQuadrant = -1; }"
                                 @onclick="() => ViewModel.SelectServerCommand.Execute(server)"
                                 @ondblclick="() => ViewModel.EditServerCommand.ExecuteAsync(server)"
                                 @onkeydown="e => OnServerKeyDown(e, server)">
                             <span class="status @(server.IsConnected ? "connected" : null)"
                                   title="@(server.IsConnected ? "Connected" : "Not connected")"></span>
-                            <span class="name">@server.ServerName</span>
+                            <span class="server-text">
+                                <span class="name">@server.ServerName</span>
+                                <span class="address">@ServerAddress(server)</span>
+                            </span>
+                            @if (!allowed)
+                            {
+                                <span class="lock" aria-label="Needs a feature key"><Icon Kind="Lock" Size="14" /></span>
+                            }
                         </button>
                     </li>
                 }
             </ul>
         </nav>
+
+        <p class="sidebar-hint">
+            Drag a server onto a view to show its mount. Double-click a server (or press F2) to edit it.
+        </p>
     </aside>
 
-    <main class="content">
-        @if (ViewModel.SelectedAlpacaServer is { } selected)
+    <section class="model-panel views-@ViewModel.ViewCount @(ViewModel.DragServer is not null ? "dragging" : null)" aria-label="3D models">
+        @for (var i = 0; i < ViewModel.ViewCount; i++)
         {
-            <div class="details-header">
-                <h1>@selected.ServerName</h1>
-                <span class="badge @(selected.IsConnected ? "connected" : null)">
-                    @(selected.IsConnected ? "Connected" : "Not connected")
-                </span>
-            </div>
+            var index = i;
+            var quadrant = ViewModel.Quadrants[index];
+            @* Drop handlers live on the quadrant itself so a fast drag can't land before the
+               overlay renders. dragleave isn't used: it fires when moving onto child elements. *@
+            <div class="quadrant"
+                 @ondragenter="() => _hoverQuadrant = index"
+                 @ondragover:preventDefault
+                 @ondrop="() => OnDrop(index)"
+                 @ondrop:preventDefault>
+                @if (quadrant.Server is { } lockedServer && !ViewModel.IsServerAllowed(lockedServer))
+                {
+                    <div class="quadrant-empty">
+                        <span class="empty-mark" aria-hidden="true"><Icon Kind="Lock" Size="22" /></span>
+                        <p class="empty-title">@lockedServer.ServerName</p>
+                        <p>Needs a feature key (free version: @FeatureKeyService.FreeMaxServers servers)</p>
+                    </div>
+                }
+                else if (quadrant.Server is { } server)
+                {
+                    <FlipCard @key="quadrant.Key" Flipped="quadrant.Flipped">
+                        <Front>
+                            <Model3DView @ref="_views[index]" Server="server"
+                                         OnSettings="() => ViewModel.ToggleFlip(index)"
+                                         OnClose="() => ViewModel.ClearQuadrant(index)"
+                                         OnConnectionChanged="StateHasChanged"
+                                         OnSettingsChanged="ViewModel.ServerSettingsChangedAsync" />
+                        </Front>
+                        <Back>
+                            <ViewSettingsPanel Server="server"
+                                               OnSaveCamera="() => SaveCameraAsync(index)"
+                                               OnResetCamera="() => ResetCameraAsync(index)"
+                                               OnClearCamera="() => ClearCameraAsync(index)"
+                                               OnDone="() => ViewModel.ToggleFlip(index)"
+                                               OnChanged="ViewModel.ServerSettingsChangedAsync" />
+                        </Back>
+                    </FlipCard>
+                }
+                else
+                {
+                    <div class="quadrant-empty">
+                        <span class="empty-mark" aria-hidden="true"><Icon Kind="Connection" Size="22" /></span>
+                        <p class="empty-title">View @(index + 1)</p>
+                        <p>Drag a server here</p>
+                    </div>
+                }
 
-            <dl class="details">
-                <dt>Url</dt>
-                <dd class="mono">@selected.Url</dd>
-
-                <dt>ID</dt>
-                <dd class="mono">@selected.IdGuid</dd>
-
-                <dt>User Name</dt>
-                <dd>@(string.IsNullOrEmpty(selected.UserName) ? "—" : selected.UserName)</dd>
-
-                <dt>Password</dt>
-                <dd>@(string.IsNullOrEmpty(selected.Password) ? "Not set" : "Set")</dd>
-
-                <dt>Client Transaction ID</dt>
-                <dd class="mono">@selected.ClientTransactionId</dd>
-            </dl>
-
-            <div class="details-actions">
-                <button type="button" class="action" @onclick="() => ViewModel.EditServerCommand.ExecuteAsync(selected)">
-                    Edit
-                </button>
-                <button type="button" class="action" disabled="@ViewModel.IsBusy"
-                        @onclick="() => ViewModel.ConnectCommand.ExecuteAsync(null)">
-                    @ConnectText
-                </button>
+                @if (ViewModel.DragServer is not null)
+                {
+                    <div class="drop-zone @(_hoverQuadrant == index ? "over" : null)">
+                        <span>Show @ViewModel.DragServer.ServerName</span>
+                    </div>
+                }
             </div>
         }
-        else
-        {
-            <div class="empty">
-                <h1>No server selected</h1>
-                <p>Pick a server from the list, or use Add or Search to create one.</p>
-            </div>
-        }
-    </main>
+    </section>
+    </div>
 </div>
 
 @code {
+    private int _hoverQuadrant = -1;
+
+    /// <summary>The 3D view in each quadrant, to read or set its camera.</summary>
+    private readonly Model3DView?[] _views = new Model3DView?[SettingsService.QuadrantCount];
+
+    /// <summary>Saves the quadrant's current camera to its server's settings.</summary>
+    private async Task SaveCameraAsync(int index)
+    {
+        if (ViewModel.Quadrants[index].Server is not { } server || _views[index] is not { } view) return;
+        var camera = await view.GetCameraAsync();
+        if (camera is null) return;
+        server.Camera = camera;
+        await ViewModel.ServerSettingsChangedAsync();
+    }
+
+    /// <summary>Moves the quadrant's camera back to its server's saved view.</summary>
+    private Task ResetCameraAsync(int index) => _views[index]?.ResetCameraAsync() ?? Task.CompletedTask;
+
+    /// <summary>Forgets the server's saved view and returns this quadrant to the default camera.</summary>
+    private async Task ClearCameraAsync(int index)
+    {
+        if (ViewModel.Quadrants[index].Server is not { } server) return;
+        server.Camera = null;
+        await ViewModel.ServerSettingsChangedAsync();
+        await ResetCameraAsync(index);
+    }
+
+    private void OnDrop(int index)
+    {
+        _hoverQuadrant = -1;
+        ViewModel.DropOnQuadrant(index);
+    }
+
     private string ConnectText => ViewModel.SelectedAlpacaServer?.IsConnected == true ? "Disconnect" : "Connect";
 
+    private int ConnectedCount => ViewModel.AlpacaServers.Count(s => s.IsConnected);
+
     private static string ServerTooltip(AlpacaServer server) => $"{server.Url}\nDouble-click (or F2) to edit";
+
+    /// <summary>Short address for the list: host:port and device number.</summary>
+    private static string ServerAddress(AlpacaServer server)
+    {
+        if (!Uri.TryCreate(server.Url, UriKind.Absolute, out var uri)) return server.Url;
+        var device = uri.Segments.LastOrDefault()?.Trim('/');
+        return int.TryParse(device, out var number)
+            ? $"{uri.Authority} · telescope {number}"
+            : uri.Authority;
+    }
 
     private Task OnServerKeyDown(KeyboardEventArgs e, AlpacaServer server)
         => e.Key == "F2" ? ViewModel.EditServerCommand.ExecuteAsync(server) : Task.CompletedTask;

@@ -198,6 +198,7 @@ internal static partial class Translations
         ["User Name"] = "Nombre de usuario",
         ["View settings"] = "Configuración de la vista",
         ["View settings for {0}"] = "Configuración de la vista de {0}",
+        ["Version {0}"] = "Versión {0}",
         ["View {0}"] = "Vista {0}",
         ["Views"] = "Vistas",
         ["Whirlpool galaxy (M51)"] = "Galaxia del Remolino (M51)",

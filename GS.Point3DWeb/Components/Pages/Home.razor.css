@@ -48,6 +48,20 @@
     transform: rotate(-20deg);
 }
 
+/* Version tag next to the name (from Directory.Build.props). */
+.brand-version {
+    align-self: center;
+    flex: none;
+    padding: .05rem .4rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-family: var(--font-code);
+    font-size: .72rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--mare);
+}
+
 .brand-sub {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -498,6 +512,14 @@
 
     .connected-count {
         display: none;
+    }
+
+    /* Key, views and language wrap onto a second line rather than overflow on phones. */
+    .header-tools {
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+        gap: .5rem .75rem;
+        min-width: 0;
     }
 
     .workspace {

@@ -198,6 +198,7 @@ internal static partial class Translations
         ["User Name"] = "用户名",
         ["View settings"] = "视图设置",
         ["View settings for {0}"] = "{0} 的视图设置",
+        ["Version {0}"] = "版本 {0}",
         ["View {0}"] = "视图 {0}",
         ["Views"] = "视图",
         ["Whirlpool galaxy (M51)"] = "涡状星系（M51）",

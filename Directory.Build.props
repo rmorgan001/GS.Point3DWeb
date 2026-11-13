@@ -1,0 +1,11 @@
+<Project>
+
+  <!-- Shared by every project in the repository (the web app and tools). -->
+  <PropertyGroup>
+    <!-- Product version: shown in the web app's header and stamped on the assemblies.
+         Use major.minor[.patch], optionally with a pre-release suffix (e.g. 1.1.0-beta). -->
+    <Version>1.0</Version>
+    <Product>GS Point3D Web</Product>
+  </PropertyGroup>
+
+</Project>

@@ -150,8 +150,8 @@ public class SettingsService
     public event Action? LayoutChanged;
 
     /// <summary>
-    /// Why servers.json couldn't be read at start-up (null if it was fine). The app then starts with
-    /// an empty list; the page tells the user once.
+    /// A problem with servers.json at start-up that the page tells the user about once (null if none): it
+    /// couldn't be read (the app then starts with an empty list), or it was saved by a newer version.
     /// </summary>
     public string? LoadProblem => _loadProblem?.Invoke();
 
@@ -276,8 +276,14 @@ public class SettingsService
             return;
         if (comparison < 0)
         {
-            _logger.LogInformation("The server list was saved by a newer version ({FileVersion}) than this one ({AppVersion})",
-                _storedAppVersion, program);
+            // An older version than the one that last saved the list: settings that version added (and choices
+            // this one doesn't offer) are dropped when this one saves. Logged, and shown once on the page.
+            _logger.LogWarning("The server list in {FilePath} was saved by a newer version ({FileVersion}) than this one " +
+                               "({AppVersion}); settings this version doesn't know about may be lost when it saves. " +
+                               "Backups are in {BackupFolder}", FilePath, _storedAppVersion, program, BackupFolder);
+            var newerVersion = _storedAppVersion;
+            _loadProblem = () => L.T("The server list was last saved by GS Point3D Web {0}, a newer version than this one ({1}). Settings that this version doesn't know about may be lost when it saves your changes. Copies saved at earlier upgrades are in {2}.",
+                newerVersion, program, BackupFolder);
             return;
         }
 

@@ -212,6 +212,7 @@ internal static partial class Translations
         ["The free version allows up to {0} servers. A feature key unlocks more."] = "免费版最多允许 {0} 个服务器。功能密钥可解锁更多。",
         ["The free version shows {0} views. A feature key unlocks up to {1}."] = "免费版显示 {0} 个视图。功能密钥可解锁最多 {1} 个。",
         ["The key for {0} expired on {1}."] = "{0} 的密钥已于 {1} 过期。",
+        ["The server list was last saved by GS Point3D Web {0}, a newer version than this one ({1}). Settings that this version doesn't know about may be lost when it saves your changes. Copies saved at earlier upgrades are in {2}."] = "服务器列表上次由 GS Point3D Web {0} 保存，该版本比当前版本（{1}）更新。保存更改时，当前版本无法识别的设置可能会丢失。之前升级时保存的副本位于 {2}。",
         ["The server list could not be read ({0}). A copy of the file was saved as {1}, and the app started with an empty list."] = "无法读取服务器列表（{0}）。文件副本已保存为 {1}，应用已使用空列表启动。",
         ["The server list could not be read ({0}). It won't be saved over, so your servers are kept: close any program using {1}, or fix the file, then restart the app."] = "无法读取服务器列表（{0}）。该列表不会被覆盖，因此您的服务器得以保留：请关闭正在使用 {1} 的程序或修复该文件，然后重新启动应用。",
         ["The session has been paused by the server."] = "服务器已暂停会话。",

@@ -197,6 +197,12 @@ h1:focus {
         color: var(--yellow);
     }
 
+    /* The text may hold a long file path with no spaces: let it wrap anywhere instead of widening the dialog. */
+    .dialog-message > span {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
 .dialog-status {
     margin: .75rem 0 0;
     color: var(--red);

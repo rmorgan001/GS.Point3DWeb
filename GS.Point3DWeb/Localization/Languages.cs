@@ -4,8 +4,12 @@ namespace GS.Point3DWeb.Localization;
 
 /// <summary>A language the UI can be shown in.</summary>
 /// <param name="Code">Culture name (also the cookie value and the html lang attribute).</param>
-/// <param name="NativeName">The language's name in that language, for the dropdown.</param>
-public sealed record Language(string Code, string NativeName);
+/// <param name="NativeName">The language's name in that language, for the language menu.</param>
+public sealed record Language(string Code, string NativeName)
+{
+    /// <summary>Two-letter code shown on the language menu button: EN, DE, ... ZH.</summary>
+    public string ShortCode => Code.Split('-')[0].ToUpperInvariant();
+}
 
 /// <summary>
 /// The UI languages. The choice is kept per browser in ASP.NET Core's culture cookie
@@ -22,7 +26,7 @@ public static class Languages
         new("fr", "Français"),
         new("it", "Italiano"),
         new("es", "Español"),
-        new("zh-Hans", "中文（简体）")
+        new("zh-Hans", "中文")
     ];
 
     /// <summary>The language for the current request / circuit.</summary>

@@ -174,30 +174,80 @@
             background: var(--green-soft);
         }
 
-/* Language dropdown. */
-.language {
-    display: inline-flex;
-    align-items: center;
-    gap: .35rem;
-    color: var(--mare);
+/* Language menu: a <details> drop-down at the right of the header, as on greenswamp.org. */
+.lang-menu {
+    position: relative;
+    flex: none;
 }
 
-    .language select {
-        height: 2rem;
-        padding: 0 1.6rem 0 .6rem;
+    .lang-menu summary {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .35rem .6rem;
+        list-style: none;
+        cursor: pointer;
         border: 1px solid var(--line-strong);
         border-radius: var(--radius-sm);
-        background-color: var(--panel);
-        color: var(--moon);
-        font: inherit;
-        font-size: .85rem;
-        cursor: pointer;
+        color: var(--mare);
+        font-size: .88rem;
+        font-weight: 600;
     }
 
-        .language select:hover,
-        .language select:focus-visible {
-            border-color: var(--green);
-            outline: none;
+        .lang-menu summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .lang-menu summary:hover,
+        .lang-menu[open] summary {
+            color: var(--moon);
+            border-color: var(--mare);
+        }
+
+        .lang-menu summary:focus-visible {
+            outline: 2px solid var(--yellow);
+            outline-offset: 2px;
+        }
+
+.lang-globe {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.lang-menu ul {
+    position: absolute;
+    right: 0;
+    top: calc(100% + .4rem);
+    z-index: 60;
+    min-width: 10rem;
+    margin: 0;
+    padding: .35rem;
+    list-style: none;
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 16px 40px -16px rgba(0, 0, 0, .8);
+}
+
+.lang-menu a {
+    display: block;
+    padding: .45rem .7rem;
+    border-radius: 6px;
+    color: var(--moon);
+    text-decoration: none;
+}
+
+    .lang-menu a:hover {
+        background: var(--panel-raised);
+    }
+
+    .lang-menu a.current {
+        color: var(--green);
+        font-weight: 600;
+    }
+
+        .lang-menu a.current::after {
+            content: " ✓";
         }
 
 /* View counts that need a key. */
@@ -520,6 +570,11 @@
         flex-wrap: wrap;
         gap: .5rem .75rem;
         min-width: 0;
+    }
+
+    /* Keep the language menu at the right, so its list (anchored right) stays on screen. */
+    .lang-menu {
+        margin-left: auto;
     }
 
     .workspace {

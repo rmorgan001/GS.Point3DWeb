@@ -255,7 +255,7 @@
         <p class="note">
             Ejecute solo una copia a la vez, ya que comparten la misma configuración. El navegador recuerda el
             idioma elegido para cada dirección, así que se mantiene mientras no cambien la dirección ni el
-            puerto. Para mayor seguridad, haga antes una copia de <code>servers.json</code>.
+            puerto. La primera vez que se inicia una versión más nueva, copia <code>servers.json</code> a la carpeta de copias de seguridad (vea <a href="help#files">Dónde se guardan los datos</a>) antes de guardar nada.
         </p>
     </section>
 
@@ -266,6 +266,7 @@
             <tbody>
                 <tr><td>Lista de servidores y configuración de las vistas (<code>servers.json</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
                 <tr><td>Clave de funciones (<code>feature.key</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>Copias de seguridad de <code>servers.json</code>, creadas al iniciar por primera vez una versión más nueva (<code>servers-…json</code>)</td><td><code>Documents\GS.Point3DWeb\Backups</code></td><td><code>~/.config/GS.Point3DWeb/backups</code></td></tr>
                 <tr><td>Archivos de registro (<code>point3dweb-yyyyMMdd.log</code>; se conservan los últimos 14)</td><td><code>Documents\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb/logs</code></td></tr>
             </tbody>
         </table>

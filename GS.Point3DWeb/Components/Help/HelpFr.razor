@@ -264,7 +264,7 @@
         <p class="note">
             N'exécutez qu'une copie à la fois, car elles partagent les mêmes paramètres. Le navigateur retient
             la langue choisie pour chaque adresse : elle est conservée tant que l'adresse et le port ne changent
-            pas. Par précaution, sauvegardez d'abord <code>servers.json</code>.
+            pas. Au premier démarrage d'une version plus récente, <code>servers.json</code> est copié dans le dossier de sauvegarde (voir <a href="help#files">Où sont stockées les données</a>) avant tout enregistrement.
         </p>
     </section>
 
@@ -275,6 +275,7 @@
             <tbody>
                 <tr><td>Liste des serveurs et paramètres des vues (<code>servers.json</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
                 <tr><td>Clé de fonctionnalité (<code>feature.key</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>Sauvegardes de <code>servers.json</code>, faites au premier démarrage d'une version plus récente (<code>servers-…json</code>)</td><td><code>Documents\GS.Point3DWeb\Backups</code></td><td><code>~/.config/GS.Point3DWeb/backups</code></td></tr>
                 <tr><td>Fichiers journaux (<code>point3dweb-yyyyMMdd.log</code> ; les 14 derniers sont conservés)</td><td><code>Documents\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb/logs</code></td></tr>
             </tbody>
         </table>

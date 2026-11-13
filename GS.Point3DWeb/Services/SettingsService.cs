@@ -35,10 +35,25 @@ public class SettingsService
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "GS.Point3DWeb",
             "servers.json");
+        BackupFolder = ChooseBackupFolder();
         Load();
     }
 
     public string FilePath { get; }
+
+    /// <summary>
+    /// Where <see cref="FilePath"/> is copied when a newer version of the app first starts: beside the logs,
+    /// in Documents\GS.Point3DWeb\Backups on Windows, and in the app-data folder elsewhere.
+    /// </summary>
+    public string BackupFolder { get; }
+
+    private static string ChooseBackupFolder()
+    {
+        if (OperatingSystem.IsWindows()
+            && Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) is { Length: > 0 } documents)
+            return Path.Combine(documents, "GS.Point3DWeb", "Backups");
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GS.Point3DWeb", "backups");
+    }
 
     public AlpacaServer? SelectedAlpacaServer { get; set; }
 
@@ -227,6 +242,7 @@ public class SettingsService
             }
             _quadrantServerIds = quadrants;
             if (stored.ViewCount is { } viewCount) ViewCount = viewCount;
+            _storedAppVersion = stored.AppVersion;
         }
         catch (Exception ex)
         {
@@ -235,6 +251,63 @@ public class SettingsService
             SelectedAlpacaServer = null;
             _logger.LogError(ex, "Could not read server list from {FilePath}", FilePath);
             KeepUnreadableFile(ex);
+            return;
+        }
+
+        BackUpIfUpgraded();
+    }
+
+    // The app version that last saved the file (null for files saved before versions were recorded).
+    private string? _storedAppVersion;
+
+    /// <summary>
+    /// The first start of a newer version (than the one that last saved the server list) copies the file to
+    /// <see cref="BackupFolder"/>, then saves it with this version, so it is backed up once per upgrade. A
+    /// file from before versions were recorded counts as older. Build metadata (1.0.6+3) doesn't count.
+    /// </summary>
+    private void BackUpIfUpgraded()
+    {
+        var program = AppVersion.Display;
+        if (AppVersion.Compare(program, program) is null)
+            return; // this build's own version can't be read (the "?" fallback): nothing to compare with
+        // Null when the file has no version (saved before versions were recorded) or one that can't be read.
+        var comparison = AppVersion.Compare(program, _storedAppVersion);
+        if (comparison is 0)
+            return;
+        if (comparison < 0)
+        {
+            _logger.LogInformation("The server list was saved by a newer version ({FileVersion}) than this one ({AppVersion})",
+                _storedAppVersion, program);
+            return;
+        }
+
+        // Newer program, or a file with no (or an unreadable) version: keep a copy before it is saved over.
+        var fileVersion = _storedAppVersion ?? "older";
+        var name = $"servers-{string.Concat(fileVersion.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c))}-{DateTime.Now:yyyyMMdd-HHmmss}.json";
+        var backup = Path.Combine(BackupFolder, name);
+        try
+        {
+            Directory.CreateDirectory(BackupFolder);
+            File.Copy(FilePath, backup, overwrite: false);
+        }
+        catch (Exception ex)
+        {
+            // Not stamped with the new version, so the next start tries again.
+            _logger.LogWarning(ex, "Could not back up {FilePath} to {Backup} for the upgrade from {FileVersion} to {AppVersion}",
+                FilePath, backup, fileVersion, program);
+            return;
+        }
+        _logger.LogInformation("Upgraded from {FileVersion} to {AppVersion}: backed up the server list to {Backup}",
+            fileVersion, program, backup);
+
+        try
+        {
+            Save(); // records this version, so the next start doesn't back up again
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not record version {AppVersion} in {FilePath}; it will be backed up again at the next start",
+                program, FilePath);
         }
     }
 
@@ -298,7 +371,8 @@ public class SettingsService
                     s.PollSeconds, s.ShowLst, s.RaInDegrees, s.ModelColor, s.Background, s.ShowGrid, s.ShowMountState))],
                 [.. quadrants.Select(id => servers.Any(s => s.IdGuid == id) ? id : null)],
                 ViewCount,
-                CurrentVersion);
+                CurrentVersion,
+                AppVersion.Display);
 
             var json = JsonSerializer.Serialize(stored, JsonOptions);
 
@@ -371,9 +445,11 @@ public class SettingsService
     /// <summary>File format version; 2 = model offsets are adjustments on the alignment mode's offsets.</summary>
     private const int CurrentVersion = 2;
 
+    /// <param name="Version">The file format (<see cref="CurrentVersion"/>).</param>
+    /// <param name="AppVersion">The version of GS Point3D Web that saved the file (see BackUpIfUpgraded).</param>
     private sealed record StoredSettings(
         string? SelectedId, List<StoredServer>? Servers, List<string?>? Quadrants = null, int? ViewCount = null,
-        int? Version = null);
+        int? Version = null, string? AppVersion = null);
 
     private sealed record StoredServer(
         string IdGuid, string ServerName, string Url, string? UserName, string? Password,

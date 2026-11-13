@@ -1,0 +1,94 @@
+name: Build a release package
+
+# Builds the app for one platform from a version tag and keeps it as an artifact (package-<group>-<rid>).
+# Called by release.yml, once per platform; not run on its own.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Version tag to build (e.g. v1.0.2)
+        required: true
+        type: string
+      rid:
+        description: .NET runtime identifier (win-x64, osx-arm64...)
+        required: true
+        type: string
+      os:
+        description: Runner to build on
+        required: true
+        type: string
+      group:
+        description: main (published with the release) or macos (added to it afterwards)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  TAG: ${{ inputs.tag }}
+
+jobs:
+  package:
+    name: Package
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Read the version from the tag
+        id: version
+        shell: bash
+        run: |
+          version="${TAG#v}"
+          if [[ "$TAG" != v* || ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$TAG' is not a version like v1.0.0 or v1.1.0-beta.1"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "name=GS.Point3DWeb-$version-${{ inputs.rid }}" >> "$GITHUB_OUTPUT"
+
+      # Self-contained: runs without installing .NET. Only the web app; never the feature key tool.
+      - name: Publish
+        shell: bash
+        run: >
+          dotnet publish GS.Point3DWeb/GS.Point3DWeb.csproj
+          --configuration Release
+          --runtime ${{ inputs.rid }}
+          --self-contained
+          -p:Version=${{ steps.version.outputs.version }}
+          --output "out/${{ steps.version.outputs.name }}"
+
+      # A zip for Windows; a tar.gz elsewhere, which keeps the app's executable permission.
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: out
+        run: Compress-Archive -Path "${{ steps.version.outputs.name }}" -DestinationPath "../${{ steps.version.outputs.name }}.zip"
+
+      - name: Package (Linux, macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        working-directory: out
+        run: tar -czf "../${{ steps.version.outputs.name }}.tar.gz" "${{ steps.version.outputs.name }}"
+
+      - name: Upload the package
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ inputs.group }}-${{ inputs.rid }}
+          path: |
+            ${{ steps.version.outputs.name }}.zip
+            ${{ steps.version.outputs.name }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7

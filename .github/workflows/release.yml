@@ -6,30 +6,40 @@ name: Release
 #   git tag v1.0.0
 #   git push origin v1.0.0
 #
+# The Windows and Linux builds publish the release as soon as they finish. The macOS builds run alongside
+# and are added to the release when they finish: GitHub's macOS runners can be slow to start, or never
+# start (the job is then cancelled), so they never hold the release back. If one is missing, the run ends
+# in a failure: use "Re-run failed jobs" on it to build the missing macOS download and add it.
+#
+# It can also be run by hand (Actions > Release > Run workflow) with an existing tag, for example to
+# release a tag again with this version of the workflow.
+#
 # The version shown in the app comes from the tag, not from Directory.Build.props.
 on:
   push:
     tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to release (e.g. v1.0.2)
+        required: true
 
 permissions:
   contents: read
 
-# One release run per tag at a time; a second push of the same tag waits rather than racing it.
+# One release run per tag at a time; a second run for the same tag waits rather than racing it.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 env:
-  DOTNET_NOLOGO: true
-  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
+  # Windows and Linux: published together, so one failure stops the release.
   build:
     name: Build ${{ matrix.rid }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
     strategy:
-      # One failed platform stops the release: it is published complete or not at all.
       fail-fast: true
       matrix:
         include:
@@ -37,63 +47,28 @@ jobs:
           - { rid: win-arm64,   os: windows-latest }
           - { rid: linux-x64,   os: ubuntu-latest }
           - { rid: linux-arm64, os: ubuntu-latest }   # Raspberry Pi (64-bit OS) and other ARM boards
-          - { rid: osx-x64,     os: macos-latest }    # Intel Macs
-          - { rid: osx-arm64,   os: macos-latest }    # Apple silicon
+    uses: ./.github/workflows/build-package.yml
+    with:
+      tag: ${{ inputs.tag || github.ref_name }}
+      rid: ${{ matrix.rid }}
+      os: ${{ matrix.os }}
+      group: main
 
-    steps:
-      - name: Check out
-        uses: actions/checkout@v5
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Read the version from the tag
-        id: version
-        shell: bash
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Tag '$GITHUB_REF_NAME' is not a version like v1.0.0 or v1.1.0-beta.1"
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "name=GS.Point3DWeb-$version-${{ matrix.rid }}" >> "$GITHUB_OUTPUT"
-
-      # Self-contained: runs without installing .NET. Only the web app; never the feature key tool.
-      - name: Publish
-        shell: bash
-        run: >
-          dotnet publish GS.Point3DWeb/GS.Point3DWeb.csproj
-          --configuration Release
-          --runtime ${{ matrix.rid }}
-          --self-contained
-          -p:Version=${{ steps.version.outputs.version }}
-          --output "out/${{ steps.version.outputs.name }}"
-
-      # A zip for Windows; a tar.gz elsewhere, which keeps the app's executable permission.
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        working-directory: out
-        run: Compress-Archive -Path "${{ steps.version.outputs.name }}" -DestinationPath "../${{ steps.version.outputs.name }}.zip"
-
-      - name: Package (Linux, macOS)
-        if: runner.os != 'Windows'
-        shell: bash
-        working-directory: out
-        run: tar -czf "../${{ steps.version.outputs.name }}.tar.gz" "${{ steps.version.outputs.name }}"
-
-      - name: Upload the package
-        uses: actions/upload-artifact@v7
-        with:
-          name: package-${{ matrix.rid }}
-          path: |
-            ${{ steps.version.outputs.name }}.zip
-            ${{ steps.version.outputs.name }}.tar.gz
-          if-no-files-found: error
-          retention-days: 7
+  # macOS: added to the release on their own; one stuck build doesn't stop the other.
+  build-macos:
+    name: Build ${{ matrix.rid }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: osx-x64,   os: macos-latest }   # Intel Macs
+          - { rid: osx-arm64, os: macos-latest }   # Apple silicon
+    uses: ./.github/workflows/build-package.yml
+    with:
+      tag: ${{ inputs.tag || github.ref_name }}
+      rid: ${{ matrix.rid }}
+      os: ${{ matrix.os }}
+      group: macos
 
   release:
     name: Publish the release
@@ -107,7 +82,7 @@ jobs:
       - name: Download the packages
         uses: actions/download-artifact@v8
         with:
-          pattern: package-*
+          pattern: package-main-*
           merge-multiple: true
           path: dist
 
@@ -133,7 +108,7 @@ jobs:
 
           Extract it, run `GS.Point3DWeb` (`GS.Point3DWeb.exe` on Windows) and open <http://localhost:5000>. ASCOM COM drivers work only on Windows; Alpaca servers work everywhere. See the README for running it on another port or for other computers on the network.
 
-          The macOS builds aren't signed: if macOS blocks the app, run `xattr -dr com.apple.quarantine` on the extracted folder. `SHA256SUMS.txt` lists each file's checksum.
+          The macOS builds aren't signed: if macOS blocks the app, run `xattr -dr com.apple.quarantine` on the extracted folder. They can appear a little after the others, as GitHub's macOS build machines are sometimes slow to start. `SHA256SUMS.txt` lists each file's checksum.
 
           EOF
 
@@ -141,9 +116,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
         run: |
-          # A re-run (e.g. after one platform failed) updates the existing release instead of failing.
+          # A re-run updates the existing release instead of failing.
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
           else
@@ -151,4 +125,53 @@ jobs:
             # v1.1.0-beta.1 and the like are marked as pre-releases.
             [[ "$TAG" == *-* ]] && flags+=(--prerelease)
             gh release create "$TAG" dist/* "${flags[@]}"
+          fi
+
+  macos:
+    name: Add the macOS downloads
+    needs: [build-macos, release]
+    # Whatever happened to the macOS builds, as long as the release was published.
+    if: ${{ always() && needs.release.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # upload files to the release
+
+    steps:
+      - name: Download the macOS packages
+        uses: actions/download-artifact@v8
+        # Nothing to download when both macOS builds were cancelled.
+        continue-on-error: true
+        with:
+          pattern: package-macos-*
+          merge-multiple: true
+          path: dist
+
+      - name: Add them to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version="${TAG#v}"
+          mkdir -p dist
+          missing=()
+          for rid in osx-x64 osx-arm64; do
+            file="dist/GS.Point3DWeb-$version-$rid.tar.gz"
+            if [[ -f "$file" ]]; then
+              gh release upload "$TAG" "$file" --clobber
+              echo "Added $(basename "$file")"
+            else
+              missing+=("$rid")
+            fi
+          done
+
+          # Checksums for everything now on the release.
+          mkdir all
+          gh release download "$TAG" --dir all --pattern 'GS.Point3DWeb-*'
+          (cd all && sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          gh release upload "$TAG" all/SHA256SUMS.txt --clobber
+
+          if (( ${#missing[@]} )); then
+            echo "::error::The release is published without ${missing[*]}: its build didn't finish. Use 'Re-run failed jobs' on this run to build it and add it."
+            exit 1
           fi

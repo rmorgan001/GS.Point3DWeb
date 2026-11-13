@@ -115,6 +115,12 @@ at once, and attaches them, with a `SHA256SUMS.txt` checksum file, to a GitHub R
 tag. Its notes list the changes since the last release. The tag sets the version shown in the
 app. A tag with a suffix, such as `v1.1.0-beta.1`, is published as a pre-release.
 
+The release is published as soon as the Windows and Linux builds finish. The macOS downloads are
+added when their builds finish, as GitHub's macOS build machines are sometimes slow to start or
+never start. If one is missing, the run ends in a failure: use **Re-run failed jobs** on it to
+build and add the missing download. A tag can also be released again by hand from the Actions
+tab (**Release** > **Run workflow**).
+
 Other builds (local builds, `dotnet run` and the build on each push) show the newest version tag
 plus the number of commits since it, such as `v1.0.1+3`, so the version never needs editing by
 hand.

@@ -124,7 +124,10 @@ public class SettingsService
     /// Why servers.json couldn't be read at start-up (null if it was fine). The app then starts with
     /// an empty list; the page tells the user once.
     /// </summary>
-    public string? LoadProblem { get; private set; }
+    public string? LoadProblem => _loadProblem?.Invoke();
+
+    // Built when read, so it shows in the language of whoever reads it, not of whoever started the app.
+    private Func<string>? _loadProblem;
 
     /// <summary>Set once the page has shown <see cref="LoadProblem"/>.</summary>
     public bool LoadProblemShown { get; set; }
@@ -244,14 +247,14 @@ public class SettingsService
         {
             File.Copy(FilePath, copy, overwrite: false);
             _logger.LogWarning("Kept a copy of the unreadable server list as {Copy}", copy);
-            LoadProblem = L.T("The server list could not be read ({0}). A copy of the file was saved as {1}, and the app started with an empty list.",
+            _loadProblem = () => L.T("The server list could not be read ({0}). A copy of the file was saved as {1}, and the app started with an empty list.",
                 error.Message, copy);
         }
         catch (Exception copyError)
         {
             _saveBlocked = true;
             _logger.LogError(copyError, "Could not copy {FilePath} aside; it will not be saved over", FilePath);
-            LoadProblem = L.T("The server list could not be read ({0}). It won't be saved over, so your servers are kept: close any program using {1}, or fix the file, then restart the app.",
+            _loadProblem = () => L.T("The server list could not be read ({0}). It won't be saved over, so your servers are kept: close any program using {1}, or fix the file, then restart the app.",
                 error.Message, FilePath);
         }
     }

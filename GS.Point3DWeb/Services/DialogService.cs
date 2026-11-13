@@ -13,23 +13,27 @@ public class DialogService
 
     public event Action? DialogChanged;
 
+    // One dialog at a time: a dialog asked for while another is open (say, a failed connect while the user
+    // is editing a server) waits its turn. Replacing the open one would leave whoever is waiting on it
+    // waiting for ever.
+    private readonly SemaphoreSlim _oneAtATime = new(1, 1);
+
+    /// <summary>Shows the dialog once any open one has closed, and completes when it closes.</summary>
     public async Task ShowDialog(DialogViewModel dialogViewModel)
     {
-        Current = dialogViewModel;
-        dialogViewModel.Show();
-        DialogChanged?.Invoke();
-
+        await _oneAtATime.WaitAsync();
         try
         {
+            Current = dialogViewModel;
+            dialogViewModel.Show();
+            DialogChanged?.Invoke();
             await dialogViewModel.WaitAsync();
         }
         finally
         {
-            if (ReferenceEquals(Current, dialogViewModel))
-            {
-                Current = null;
-                DialogChanged?.Invoke();
-            }
+            Current = null;
+            DialogChanged?.Invoke();
+            _oneAtATime.Release();
         }
     }
 }

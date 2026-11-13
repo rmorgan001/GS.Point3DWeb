@@ -97,10 +97,10 @@ namespace GS.Alpaca.Support
         /// <returns>A task that represents the asynchronous operation. The task result contains a <see cref="TelescopeDeviceState"/>
         /// object representing the current state of the device, or <see langword="null"/> if the device state could not
         /// be retrieved.</returns>
-        public async Task<TelescopeDeviceState?> GetDeviceStateAsync()
+        public async Task<TelescopeDeviceState?> GetDeviceStateAsync(CancellationToken token = default)
         {
             const string method = "devicestate";
-            var alpacaResponse = await GetAsync(method);
+            var alpacaResponse = await GetAsync(method, token);
             if (alpacaResponse == null)
             {
                 //todo log null response
@@ -145,6 +145,46 @@ namespace GS.Alpaca.Support
             return alpacaResponse;
         }
 
+
+        /// <summary>
+        /// The device state read one property at a time, for servers without devicestate (it came with
+        /// ITelescopeV4 / ASCOM Platform 7). An error on a required property is returned as the state's
+        /// AlpacaResponse, as <see cref="GetDeviceStateAsync"/> does; Azimuth, Altitude and SideOfPier are
+        /// optional on an equatorial mount, so they are left at their defaults if not implemented.
+        /// Returns null if the server gives no answer.
+        /// </summary>
+        public async Task<TelescopeDeviceState?> GetDeviceStateFromPropertiesAsync(CancellationToken token = default)
+        {
+            var state = new TelescopeDeviceState { SideOfPier = -1 }; // unknown unless the mount says
+            AlpacaResponse? last = null;
+            foreach (var (method, required) in new[]
+                     {
+                         ("rightascension", true), ("declination", true), ("siderealtime", true),
+                         ("azimuth", false), ("altitude", false), ("sideofpier", false)
+                     })
+            {
+                var response = await GetPropertyAsync(method, token);
+                if (response is null) return null;
+                if (response.ErrorNumber != 0 || response.Value is null || response.Value.Type == JTokenType.Null)
+                {
+                    if (required) return new TelescopeDeviceState { AlpacaResponse = response };
+                    continue;
+                }
+
+                last = response;
+                switch (method)
+                {
+                    case "rightascension": state.RightAscension = response.Value.ToObject<double>(); break;
+                    case "declination": state.Declination = response.Value.ToObject<double>(); break;
+                    case "siderealtime": state.SiderealTime = response.Value.ToObject<double>(); break;
+                    case "azimuth": state.Azimuth = response.Value.ToObject<double>(); break;
+                    case "altitude": state.Altitude = response.Value.ToObject<double>(); break;
+                    case "sideofpier": state.SideOfPier = response.Value.ToObject<int>(); break;
+                }
+            }
+            state.AlpacaResponse = last;
+            return state;
+        }
 
         // ===== Puts =====
 

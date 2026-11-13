@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GS.Alpaca.Shared;
@@ -25,6 +26,9 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     private Stopwatch? _timer;
     private double _lastRaHours;
     private bool _mountInfoRead;
+    // Whether to try devicestate (one request) for the position; cleared for servers without it, which are
+    // then read one property at a time. Tried again after each reconnect.
+    private bool _useDeviceState = true;
 
     // How often to read the server's "connected" property: while connected, to notice another program
     // disconnecting it (devicestate keeps answering on some servers); while not, to notice it reconnecting.
@@ -201,6 +205,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 if (!server.IsConnected)
                 {
                     _mountInfoRead = false; // read it again after reconnecting
+                    _useDeviceState = true;
                     if (server.IsConnecting) StatusText = L.T("Connecting to {0}…", server.ServerName);
                     else if (!IsChangingConnection) StatusText = _connectionMessage ?? L.T("Not connected");
                     // Not connected by the user (never, or they disconnected): don't ask until they connect.
@@ -209,7 +214,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                         continue;
 
                     _lastConnectedCheck = timer.Elapsed;
-                    if (await AlpacaConnector.RefreshConnectedAsync(server) && !token.IsCancellationRequested)
+                    if (await AlpacaConnector.RefreshConnectedAsync(server, token) && !token.IsCancellationRequested)
                     {
                         _connectionMessage = null;
                         StatusText = L.T("Connected");
@@ -223,14 +228,14 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     // Alignment mode and latitude pick the model and tilt; read them once per connection.
                     if (!_mountInfoRead)
                     {
-                        _mountInfoRead = await AlpacaConnector.ReadMountInfoAsync(server);
+                        _mountInfoRead = await AlpacaConnector.ReadMountInfoAsync(server, token);
                         if (token.IsCancellationRequested) break;
                     }
 
                     if (!IsConnectionBusy && timer.Elapsed - _lastConnectedCheck >= ConnectedCheckInterval)
                     {
                         _lastConnectedCheck = timer.Elapsed;
-                        if (!await AlpacaConnector.RefreshConnectedAsync(server))
+                        if (!await AlpacaConnector.RefreshConnectedAsync(server, token))
                         {
                             if (token.IsCancellationRequested) break;
                             ReportConnectionLost(L.T("the server reports it is not connected"));
@@ -243,7 +248,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     // read add requests that shouldn't count as a slow mount.
                     var pollStarted = timer.Elapsed;
                     var client = AlpacaConnector.CreateClient(server);
-                    var deviceState = await client.GetDeviceStateAsync();
+                    var deviceState = await ReadDeviceStateAsync(client, token);
                     server.SetClientTransactionId(client.ClientTransactionId);
                     if (token.IsCancellationRequested) break;
 
@@ -294,6 +299,30 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     /// <summary>Alpaca's NotConnected error (0x407): the device isn't connected.</summary>
     private const int NotConnectedError = 0x407;
 
+    /// <summary>Alpaca's NotImplemented error (0x400).</summary>
+    private const int NotImplementedError = 0x400;
+
+    /// <summary>
+    /// The mount's position: devicestate if the server has it, otherwise each property on its own (servers
+    /// from before ASCOM Platform 7 answer devicestate with NotImplemented, or HTTP 400 / 404).
+    /// </summary>
+    private async Task<TelescopeDeviceState?> ReadDeviceStateAsync(AlpacaClient client, CancellationToken token)
+    {
+        if (_useDeviceState)
+        {
+            try
+            {
+                var state = await client.GetDeviceStateAsync(token);
+                if (state?.AlpacaResponse?.ErrorNumber != NotImplementedError) return state;
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
+            {
+            }
+            _useDeviceState = false;
+        }
+        return await client.GetDeviceStateFromPropertiesAsync(token);
+    }
+
     /// <summary>
     /// After a failed poll, asks the server whether it is still connected. If it isn't (or doesn't answer),
     /// the view reports the lost connection instead of a stale "connected".
@@ -303,7 +332,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         if (IsConnectionBusy)
             return; // a Connect / Disconnect (here, the toolbar or a drop) is changing it right now
 
-        if (await AlpacaConnector.RefreshConnectedAsync(server) || token.IsCancellationRequested)
+        if (await AlpacaConnector.RefreshConnectedAsync(server, token) || token.IsCancellationRequested)
         {
             StatusText = L.T("Error updating: {0}", reason);
             return;
@@ -419,7 +448,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     [deviceState.RightAscension, deviceState.Declination],
                     deviceState.SiderealTime,
                     southern,
-                    deviceState.SideOfPier);
+                    // East, west or unknown; anything else a mount reports is taken as unknown.
+                    deviceState.SideOfPier is 0 or 1 ? deviceState.SideOfPier : -1);
                 break;
         }
 

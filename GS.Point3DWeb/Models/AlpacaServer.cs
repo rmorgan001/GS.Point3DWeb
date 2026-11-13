@@ -67,8 +67,11 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     [ObservableProperty]
     public partial string? Password { get; set; }
 
-    [ObservableProperty]
-    public partial double ClientTransactionId { get; set; }
+    /// <summary>
+    /// The last Alpaca client transaction ID used. Changes on every request, so it is a plain property:
+    /// a change notification would redraw everything watching the server several times a second.
+    /// </summary>
+    public double ClientTransactionId { get; set; }
 
     /// <summary>Telescope model shown for this server.</summary>
     [ObservableProperty]

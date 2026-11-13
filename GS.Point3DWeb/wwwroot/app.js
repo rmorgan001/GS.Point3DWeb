@@ -23,7 +23,7 @@ document.addEventListener('click', e => {
     closeLanguageMenus(menu);
 
     // The language already showing: just close the menu. Following the link would reload the page and
-    // reconnect every 3D view. Modified clicks (new tab / window) are left to the browser.
+    // restart every 3D view. Modified clicks (new tab / window) are left to the browser.
     const current = e.target.closest && e.target.closest('details.lang-menu a.current');
     if (current && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.button === 0) {
         e.preventDefault();

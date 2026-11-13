@@ -88,7 +88,8 @@
                 <Icon Kind="Search" />
             </button>
             <button type="button" class="icon-btn @(ViewModel.SelectedAlpacaServer?.IsConnected == true ? "active" : null)"
-                    title="@ConnectText" aria-label="@ConnectText" disabled="@ViewModel.IsBusy"
+                    title="@ConnectText" aria-label="@ConnectText"
+                    disabled="@(ViewModel.IsBusy || ViewModel.SelectedAlpacaServer?.IsConnecting == true)"
                     @onclick="() => ViewModel.ConnectCommand.ExecuteAsync(null)">
                 <Icon Kind="Connection" />
             </button>

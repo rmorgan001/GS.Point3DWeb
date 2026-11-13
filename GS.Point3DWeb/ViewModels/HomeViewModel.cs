@@ -62,6 +62,34 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         return Task.CompletedTask;
     }
 
+    // ===== The servers' own changes (connection, name), from any tab or view =====
+
+    private readonly HashSet<AlpacaServer> _watchedServers = [];
+
+    /// <summary>
+    /// Watches every server in the list, so the list's dots, the connected count and the toolbar follow
+    /// connection changes made anywhere (another tab, a view, a lost connection), not only in this page's views.
+    /// </summary>
+    private void WatchServers(AlpacaServer[] servers)
+    {
+        foreach (var gone in _watchedServers.Where(s => Array.IndexOf(servers, s) < 0).ToList())
+        {
+            gone.PropertyChanged -= OnServerPropertyChanged;
+            _watchedServers.Remove(gone);
+        }
+        foreach (var server in servers)
+        {
+            if (_watchedServers.Add(server)) server.PropertyChanged += OnServerPropertyChanged;
+        }
+    }
+
+    private void OnServerPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(AlpacaServer.IsConnected) or nameof(AlpacaServer.IsConnecting)
+            or nameof(AlpacaServer.ServerName) or nameof(AlpacaServer.Url))
+            OnRenderer(() => OnPropertyChanged(nameof(AlpacaServers)));
+    }
+
     /// <summary>
     /// Tells the user once if the saved server list couldn't be read at start-up. Called after the
     /// page's first interactive render (not during prerendering, where a dialog would be lost).
@@ -112,6 +140,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     private void OnServersChanged()
     {
         var servers = AlpacaServers;
+        WatchServers(servers);
         Count = servers.Length;
         if (SelectedAlpacaServer is { } selected && Array.IndexOf(servers, selected) < 0)
             SelectedAlpacaServer = servers.LastOrDefault();
@@ -189,6 +218,8 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         FeatureKeys.Changed -= _featureKeyChangedHandler;
         _settingsService.ServersChanged -= _serversChangedHandler;
         _settingsService.LayoutChanged -= _layoutChangedHandler;
+        foreach (var server in _watchedServers) server.PropertyChanged -= OnServerPropertyChanged;
+        _watchedServers.Clear();
         GC.SuppressFinalize(this);
     }
 
@@ -313,6 +344,9 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        // A connect is already under way (a drop, or a view's button); the button is disabled meanwhile.
+        if (server.IsConnecting) return;
+
         var disconnecting = server.IsConnected;
         var confirmViewModel = new ConfirmDialogViewModel
         {
@@ -321,8 +355,8 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
                 : L.T("Connect to {0}?", server.ServerName)
         };
         await _dialogService.ShowDialog(confirmViewModel);
-        // Skip if the state changed while the dialog was open (a view connected or lost it).
-        if (!confirmViewModel.Confirmed || server.IsConnected != disconnecting) return;
+        // Skip if the state changed while the dialog was open (a view connected, is connecting, or lost it).
+        if (!confirmViewModel.Confirmed || server.IsConnected != disconnecting || server.IsConnecting) return;
 
         IsBusy = true;
         try

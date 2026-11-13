@@ -9,8 +9,9 @@ namespace GS.Alpaca.Support
         public string MethodType { get; set; } = string.Empty;
         public DateTime TimeStamp { get; set; } = DateTime.UtcNow;
 
-        [JsonProperty($"ClientTransactionID")] public int ClientTransactionId { get; set; }
-        [JsonProperty($"ServerTransactionID")] public int ServerTransactionId { get; set; }
+        // Alpaca transaction IDs are unsigned 32-bit, so they can pass int.MaxValue.
+        [JsonProperty($"ClientTransactionID")] public long ClientTransactionId { get; set; }
+        [JsonProperty($"ServerTransactionID")] public long ServerTransactionId { get; set; }
         [JsonProperty($"ErrorNumber")] public int ErrorNumber { get; set; }
         [JsonProperty($"ErrorMessage")] public string? ErrorMessage { get; set; }
         [JsonProperty($"Value")] public required JToken Value { get; set; }

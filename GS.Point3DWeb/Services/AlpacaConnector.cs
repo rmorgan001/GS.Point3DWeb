@@ -119,16 +119,21 @@ public static class AlpacaConnector
     /// Reads the server's connected state into <see cref="AlpacaServer.IsConnected"/>.
     /// A server that doesn't answer counts as not connected, and so does one the user disconnected
     /// (checked after the request, so a check already under way when they disconnect can't undo it).
-    /// Never throws.
+    /// Never throws, except OperationCanceledException when <paramref name="token"/> is cancelled (the view
+    /// stopped); the server's state is then left alone, as it is shared with other views and tabs.
     /// </summary>
-    public static async Task<bool> RefreshConnectedAsync(AlpacaServer server)
+    public static async Task<bool> RefreshConnectedAsync(AlpacaServer server, CancellationToken token = default)
     {
         bool connected;
         try
         {
             var client = CreateClient(server);
-            connected = await ReadConnectedAsync(client);
+            connected = await ReadConnectedAsync(client, token);
             server.SetClientTransactionId(client.ClientTransactionId);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
@@ -147,12 +152,12 @@ public static class AlpacaConnector
     /// answered both requests (even with an error, which won't change on a retry), so they are read
     /// once per connection; false if a request got no answer, so it is tried again.
     /// </summary>
-    public static async Task<bool> ReadMountInfoAsync(AlpacaServer server)
+    public static async Task<bool> ReadMountInfoAsync(AlpacaServer server, CancellationToken token = default)
     {
         var client = CreateClient(server);
 
-        var mode = await client.GetPropertyAsync("alignmentmode");
-        var latitude = await client.GetPropertyAsync("sitelatitude");
+        var mode = await client.GetPropertyAsync("alignmentmode", token);
+        var latitude = await client.GetPropertyAsync("sitelatitude", token);
         server.SetClientTransactionId(client.ClientTransactionId);
 
         if (mode is { ErrorNumber: 0, Value.Type: JTokenType.Integer or JTokenType.Float })

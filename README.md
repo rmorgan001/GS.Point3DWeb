@@ -31,8 +31,9 @@ pointing from any browser.
 - **Saved camera views:** per mount, plus each mount's own polling interval (0.5–5 s).
 - **Languages:** English, Deutsch, Español, Français, Italiano and 中文.
 - **Works offline:** fonts and the 3D engine are bundled, so no internet connection is needed.
-- **Logging:** a daily log file and a built-in log viewer, opened with **View Log** in the top
+- **Logging:** a daily log file and a built-in log viewer, opened with **Log** in the top
   bar.
+- **Built-in help:** a user guide, opened with the **?** button in the top bar.
 
 ## Requirements
 

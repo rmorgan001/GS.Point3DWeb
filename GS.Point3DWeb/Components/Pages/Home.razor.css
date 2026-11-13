@@ -174,7 +174,7 @@
             background: var(--green-soft);
         }
 
-/* "View Log": styled like the key button, in the plain text color. */
+/* "Log": styled like the key button, in the plain text color. */
 .log-button {
     color: var(--moon);
     text-decoration: none;
@@ -184,6 +184,13 @@
         border-color: var(--green);
         background: var(--green-soft);
     }
+
+/* Help: a round icon-only button at the far right of the header. */
+.help-button {
+    justify-content: center;
+    width: 2rem;
+    padding: 0;
+}
 
 /* Language menu: a <details> drop-down at the right of the header, as on greenswamp.org. */
 .lang-menu {

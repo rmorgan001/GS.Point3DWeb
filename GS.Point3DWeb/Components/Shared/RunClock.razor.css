@@ -1,0 +1,8 @@
+/* Total running time, at the far right of the view's footer. */
+.run-time {
+    flex: none;
+    padding-left: 1rem;
+    border-left: 1px solid var(--line);
+    font-family: var(--font-code);
+    white-space: nowrap;
+}

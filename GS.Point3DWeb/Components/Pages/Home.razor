@@ -205,6 +205,12 @@
 @code {
     private int _hoverQuadrant = -1;
 
+    protected override void OnInitialized()
+    {
+        // Changes raised by other tabs (shared server list, layout, feature key) run on this page's renderer.
+        ViewModel.Dispatch = action => InvokeAsync(action);
+    }
+
     protected override void OnAfterRender(bool firstRender)
     {
         // After the first interactive render (never during prerendering), so the dialog reaches the page.

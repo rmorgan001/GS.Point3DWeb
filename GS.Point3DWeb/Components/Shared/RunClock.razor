@@ -1,0 +1,42 @@
+@* A view's total running time (hours:minutes:seconds), at the bottom of the view. It re-renders only
+   itself once a second, so the rest of the 3D view isn't redrawn just to move the clock. *@
+@inherits LocalizedComponentBase
+@implements IDisposable
+
+<span class="run-time" title="@L.T("Total running time of this view (hours:minutes:seconds)")">@L.T("Running {0}", Format(Elapsed?.Invoke() ?? TimeSpan.Zero))</span>
+
+@code {
+    /// <summary>How long the view has been running.</summary>
+    [Parameter, EditorRequired] public Func<TimeSpan>? Elapsed { get; set; }
+
+    private readonly CancellationTokenSource _cts = new();
+
+    /// <summary>hours:minutes:seconds; the hours keep counting past 24.</summary>
+    public static string Format(TimeSpan time) => $"{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}";
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Tick only once interactive (not during prerendering).
+        if (firstRender) _ = TickAsync(_cts.Token);
+    }
+
+    private async Task TickAsync(CancellationToken token)
+    {
+        using var ticker = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await ticker.WaitForNextTickAsync(token))
+                await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+            // view removed
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

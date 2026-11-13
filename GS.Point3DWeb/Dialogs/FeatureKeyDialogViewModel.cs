@@ -40,7 +40,12 @@ public partial class FeatureKeyDialogViewModel(FeatureKeyService featureKeys) : 
     [RelayCommand]
     private void Remove()
     {
-        FeatureKeys.Remove();
+        if (!FeatureKeys.TryRemove(out var error))
+        {
+            Error = error;
+            Message = null;
+            return;
+        }
         Error = null;
         Message = L.T("Key removed. Limited to {0} view and {1} servers.", FeatureKeyService.FreeMaxViews, FeatureKeyService.FreeMaxServers);
     }

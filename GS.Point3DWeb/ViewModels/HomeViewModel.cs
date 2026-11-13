@@ -24,7 +24,13 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
         FeatureKeys = featureKeys ?? throw new ArgumentNullException(nameof(featureKeys));
-        FeatureKeys.Changed += OnFeatureKeyChanged;
+
+        // These services are shared by every tab and raise their events on the thread of the tab that made
+        // the change, so this tab's handlers are run on its own renderer (see Dispatch).
+        _featureKeyChangedHandler = () => OnPage(OnFeatureKeyChanged);
+        _serversChangedHandler = () => OnPage(OnServersChanged);
+        _layoutChangedHandler = () => OnPage(OnLayoutChanged);
+        FeatureKeys.Changed += _featureKeyChangedHandler;
 
         // Read the saved selection first: selecting a server (below) also stores it in the settings.
         var savedSelection = _settingsService.SelectedAlpacaServer;
@@ -35,8 +41,24 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
             ? savedSelection
             : servers.FirstOrDefault();
 
-        _settingsService.ServersChanged += OnServersChanged;
-        _settingsService.LayoutChanged += OnLayoutChanged;
+        _settingsService.ServersChanged += _serversChangedHandler;
+        _settingsService.LayoutChanged += _layoutChangedHandler;
+    }
+
+    private readonly Action _featureKeyChangedHandler;
+    private readonly Action _serversChangedHandler;
+    private readonly Action _layoutChangedHandler;
+
+    /// <summary>
+    /// Runs work on this page's renderer (set by Home.razor to its InvokeAsync), so a change made in another
+    /// tab updates this tab's quadrants and selection between its renders, not in the middle of one.
+    /// </summary>
+    public Func<Action, Task>? Dispatch { get; set; }
+
+    private void OnPage(Action action)
+    {
+        if (Dispatch is { } dispatch) _ = dispatch(action);
+        else action();
     }
 
     /// <summary>
@@ -163,9 +185,9 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        FeatureKeys.Changed -= OnFeatureKeyChanged;
-        _settingsService.ServersChanged -= OnServersChanged;
-        _settingsService.LayoutChanged -= OnLayoutChanged;
+        FeatureKeys.Changed -= _featureKeyChangedHandler;
+        _settingsService.ServersChanged -= _serversChangedHandler;
+        _settingsService.LayoutChanged -= _layoutChangedHandler;
         GC.SuppressFinalize(this);
     }
 

@@ -56,7 +56,8 @@ namespace GS.Alpaca.Support
         /// <returns></returns>
         private async Task<AlpacaResponse?> GetAsync(string method)
         {
-            var url = BuildUrl(method).ToLower();
+            // Only the method name is lower-cased: the server path may be case-sensitive.
+            var url = BuildUrl(method.ToLowerInvariant());
             ClientTransactionId++;
             url += $"?ClientID={ClientId}&ClientTransactionID={ClientTransactionId}";
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -162,7 +163,8 @@ namespace GS.Alpaca.Support
         /// deserialized.</returns>
         private async Task<AlpacaResponse?> PutAsync(string method, params (string key, string value)[] parameters)
         {
-            var url = BuildUrl(method).ToLower();
+            // Only the method name is lower-cased: the server path may be case-sensitive.
+            var url = BuildUrl(method.ToLowerInvariant());
             ClientTransactionId++;
 
             // Build a mutable list of form entries (FormUrlEncodedContent doesn't support Add)

@@ -75,25 +75,44 @@ public sealed class FeatureKeyService
             return false;
         }
 
-        lock (_lock)
+        try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            File.WriteAllText(FilePath, keyText!.Trim());
-            Key = info;
+            lock (_lock)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+                File.WriteAllText(FilePath, keyText!.Trim());
+                Key = info;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // e.g. a read-only folder, or the file locked by another program: report it in the dialog.
+            error = L.T("Could not save the key: {0}", ex.Message);
+            return false;
         }
         Changed?.Invoke();
         return true;
     }
 
-    /// <summary>Removes the installed key (back to the free limits).</summary>
-    public void Remove()
+    /// <summary>Removes the installed key (back to the free limits). False, with a reason, if the file can't be deleted.</summary>
+    public bool TryRemove(out string error)
     {
-        lock (_lock)
+        try
         {
-            if (File.Exists(FilePath)) File.Delete(FilePath);
-            Key = null;
+            lock (_lock)
+            {
+                if (File.Exists(FilePath)) File.Delete(FilePath);
+                Key = null;
+            }
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            error = L.T("Could not remove the key: {0}", ex.Message);
+            return false;
+        }
+        error = "";
         Changed?.Invoke();
+        return true;
     }
 
     /// <summary>Returns the key's details if its signature is genuine, otherwise null and a reason.</summary>

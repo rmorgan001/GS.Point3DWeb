@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using GS.Alpaca.Shared;
+using Microsoft.AspNetCore.DataProtection;
 using GS.Point3DWeb.Localization;
 using GS.Point3DWeb.Models;
 using GS.Point3DWeb.Support;
@@ -21,9 +23,14 @@ public class SettingsService
     // Every browser tab shares this singleton, so writes are serialized.
     private readonly Lock _saveLock = new();
 
-    public SettingsService(ILogger<SettingsService> logger)
+    // Server passwords are saved encrypted with ASP.NET Core Data Protection (on Windows its keys are
+    // protected with DPAPI for this user), so a server that needs a login still connects after a restart.
+    private readonly IDataProtector _passwordProtector;
+
+    public SettingsService(ILogger<SettingsService> logger, IDataProtectionProvider dataProtection)
     {
         _logger = logger;
+        _passwordProtector = dataProtection.CreateProtector("GS.Point3DWeb.ServerPasswords.v1");
         FilePath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "GS.Point3DWeb",
@@ -133,8 +140,6 @@ public class SettingsService
     // ===== 3D model (mirrors the Model settings in GS.Alpaca.Client) =====
 
 
-    public bool NHemiSphere { get; set; } = true;
-
     /// <summary>Scene light color (Green Swamp moon white).</summary>
     public string ModelSecondaryColor { get; set; } = "#e8e6df";
 
@@ -170,6 +175,7 @@ public class SettingsService
                 {
                     IdGuid = s.IdGuid,
                     UserName = s.UserName,
+                    Password = UnprotectPassword(s.Password),
                     // Older files have no model settings, so they get the defaults.
                     ModelType = Enum.TryParse<Model3DType>(s.ModelType, out var modelType) ? modelType : Model3DType.Default,
                     RaOffset = Model3D.ClampOffset(s.RaOffset is { } ra ? ra - legacyRa : Model3D.DefaultRaOffset),
@@ -250,7 +256,7 @@ public class SettingsService
 
     /// <summary>
     /// Writes the server list and the quadrant assignments to disk. Connection state,
-    /// transaction IDs and passwords are not saved.
+    /// transaction IDs are not saved; passwords are saved encrypted.
     /// </summary>
     public void Save()
     {
@@ -265,7 +271,7 @@ public class SettingsService
             var quadrants = QuadrantServerIds;
             var stored = new StoredSettings(
                 SelectedAlpacaServer?.IdGuid,
-                [.. servers.Select(s => new StoredServer(s.IdGuid, s.ServerName, s.Url, s.UserName,
+                [.. servers.Select(s => new StoredServer(s.IdGuid, s.ServerName, s.Url, s.UserName, ProtectPassword(s.Password),
                     s.ModelType.ToString(), s.RaOffset, s.DecOffset,
                     s.ShowRa, s.ShowDec, s.ShowAz, s.ShowAlt, s.ShowLha,
                     s.PolarMode.ToString(), s.AlignmentMode.ToString(), s.Latitude, s.Camera,
@@ -284,6 +290,24 @@ public class SettingsService
         }
     }
 
+    private string? ProtectPassword(string? password)
+        => string.IsNullOrEmpty(password) ? null : _passwordProtector.Protect(password);
+
+    /// <summary>The saved password, or null if there is none or it can't be decrypted (another user or computer).</summary>
+    private string? UnprotectPassword(string? stored)
+    {
+        if (string.IsNullOrEmpty(stored)) return null;
+        try
+        {
+            return _passwordProtector.Unprotect(stored);
+        }
+        catch (CryptographicException ex)
+        {
+            _logger.LogWarning(ex, "A saved server password could not be decrypted; it has to be entered again");
+            return null;
+        }
+    }
+
     /// <summary>File format version; 2 = model offsets are adjustments on the alignment mode's offsets.</summary>
     private const int CurrentVersion = 2;
 
@@ -292,7 +316,7 @@ public class SettingsService
         int? Version = null);
 
     private sealed record StoredServer(
-        string IdGuid, string ServerName, string Url, string? UserName,
+        string IdGuid, string ServerName, string Url, string? UserName, string? Password,
         string? ModelType = null, double? RaOffset = null, double? DecOffset = null,
         bool? ShowRa = null, bool? ShowDec = null, bool? ShowAz = null, bool? ShowAlt = null, bool? ShowLha = null,
         string? PolarMode = null, string? AlignmentMode = null, double? Latitude = null,

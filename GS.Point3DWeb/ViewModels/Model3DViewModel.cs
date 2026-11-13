@@ -58,7 +58,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     /// <summary>North or south compass on the pier base, as GSServer chooses it.</summary>
     public bool UseNorthCompass => Server?.Latitude is { } latitude
         ? Model3D.UseNorthCompass(Mode, latitude)
-        : _settingsService.NHemiSphere;
+        : true; // north until the mount reports its latitude, as GetPose assumes
     /// <summary>The server's telescope color.</summary>
     public string ModelColor => ModelAppearance.NormalizeColor(Server?.ModelColor);
 
@@ -116,13 +116,12 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
     [ObservableProperty] public partial int TimerCounter { get; set; }
     [ObservableProperty] public partial int TimerOverruns { get; set; }
-    [ObservableProperty] public partial int ElapsedTime { get; set; }
+    // Started with the view's updates; the RunClock component at the bottom of the view reads it once a
+    // second, so the clock doesn't make this view model (and the whole view) re-render every second.
+    private readonly Stopwatch _runningClock = new();
 
-    /// <summary>How long this view has been running, as hours:minutes:seconds (shown at the bottom of the view).</summary>
-    [ObservableProperty] public partial string RunningTime { get; set; } = FormatRunningTime(TimeSpan.Zero);
-
-    /// <summary>hours:minutes:seconds; the hours keep counting past 24.</summary>
-    public static string FormatRunningTime(TimeSpan time) => $"{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}";
+    /// <summary>How long this view has been running.</summary>
+    public TimeSpan RunningTime => _runningClock.Elapsed;
 
     /// <summary>The server's polling interval; read every cycle, so an edit applies straight away.</summary>
     public int TimerInMs => (int)(1000 * AlpacaServer.ClampPollSeconds(Server?.PollSeconds ?? AlpacaServer.DefaultPollSeconds));
@@ -133,27 +132,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         StopTimerUpdates();
         _cts = new CancellationTokenSource();
         _ = RunTimerAsync(_cts.Token);
-        _ = RunClockAsync(_cts.Token);
-    }
-
-    /// <summary>
-    /// Updates <see cref="RunningTime"/> every second, whether or not the mount is connected or answering
-    /// (the poll loop's own timing depends on the polling interval and the mount).
-    /// </summary>
-    private async Task RunClockAsync(CancellationToken token)
-    {
-        var clock = Stopwatch.StartNew();
-        RunningTime = FormatRunningTime(TimeSpan.Zero);
-        using var ticker = new PeriodicTimer(TimeSpan.FromSeconds(1));
-        try
-        {
-            while (await ticker.WaitForNextTickAsync(token))
-                RunningTime = FormatRunningTime(clock.Elapsed);
-        }
-        catch (OperationCanceledException)
-        {
-            // stopped
-        }
+        if (!_runningClock.IsRunning) _runningClock.Start();
     }
 
     public void StopTimerUpdates()
@@ -203,8 +182,6 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     continue;
                 }
 
-                // Polls run one after another, so a slow one delays the next rather than overlapping it.
-                var pollStarted = timer.Elapsed;
                 try
                 {
                     // Alignment mode and latitude pick the model and tilt; read them once per connection.
@@ -225,6 +202,10 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                         }
                     }
 
+                    // Polls run one after another, so a slow one delays the next rather than overlapping it.
+                    // Only the devicestate request is timed: the occasional connected check and mount-info
+                    // read add requests that shouldn't count as a slow mount.
+                    var pollStarted = timer.Elapsed;
                     var client = AlpacaConnector.CreateClient(server);
                     var deviceState = await client.GetDeviceStateAsync();
                     server.SetClientTransactionId(client.ClientTransactionId);
@@ -250,11 +231,10 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     TimerCounter++;
                     // A poll that took longer than the interval: count it as an overrun.
                     if (timer.Elapsed - pollStarted > TimeSpan.FromMilliseconds(TimerInMs)) TimerOverruns++;
-                    ElapsedTime = (int)timer.Elapsed.TotalSeconds;
                     var interval = (TimerInMs / 1000.0).ToString("0.0#");
                     StatusText = L.T("Every {0} s · Updates {1} · Slow {2}", interval, TimerCounter, TimerOverruns);
-                    StatusDetail = L.T("Polling every {0} s. {1} updates received; {2} took longer than the interval. Running for {3}.",
-                        interval, TimerCounter, TimerOverruns, RunningTime);
+                    StatusDetail = L.T("Polling every {0} s. {1} updates received; {2} took longer than the interval.",
+                        interval, TimerCounter, TimerOverruns);
 
                     RotationChanged?.Invoke();
                 }
@@ -373,8 +353,11 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         if (server is null) return;
 
         DeviceName = server.ServerName;
-        if (server.IsConnected) return;
+        // Already connected, or the user's Connect / Disconnect from this view is under way.
+        if (server.IsConnected || IsChangingConnection) return;
 
+        // Marks the connection as changing, so the view's button shows "Connecting…" and stays disabled.
+        IsChangingConnection = true;
         StatusText = L.T("Connecting to {0}…", server.ServerName);
         try
         {
@@ -387,6 +370,10 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         {
             _connectionMessage = L.T("Connect failed: {0}", ex.Message);
             StatusText = _connectionMessage;
+        }
+        finally
+        {
+            IsChangingConnection = false;
         }
         _lastConnectedCheck = _timer?.Elapsed ?? TimeSpan.Zero;
         ConnectionChanged?.Invoke();
@@ -404,7 +391,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         Lst = CoordinateFormat.HoursToHms(deviceState.SiderealTime, "h ", ":", "", 2);
 
         // Convert to mount axis positions for the model
-        var southern = Server?.Latitude is { } latitude ? latitude < 0 : !_settingsService.NHemiSphere;
+        // North until the mount reports its latitude (the same default as UseNorthCompass and GetPose).
+        var southern = Server?.Latitude is < 0;
         double[] axes;
         switch (Mode)
         {

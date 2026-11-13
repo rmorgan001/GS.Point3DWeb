@@ -1,6 +1,7 @@
 using System.Globalization;
 using GS.Point3DWeb.Components;
 using GS.Point3DWeb.Localization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using GS.Point3DWeb.Services;
 using GS.Point3DWeb.ViewModels;
@@ -10,6 +11,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Data Protection encrypts the saved server passwords. A fixed application name keeps its keys usable
+// wherever the app runs from (by default they are tied to the content-root path).
+builder.Services.AddDataProtection().SetApplicationName("GS.Point3DWeb");
 
 // Application-wide settings (connection list), shared like the desktop SettingsService singleton.
 builder.Services.AddSingleton<SettingsService>();

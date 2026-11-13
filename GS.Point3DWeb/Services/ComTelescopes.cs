@@ -94,7 +94,9 @@ public static class ComTelescopes
     {
         lock (Gate)
         {
-            if (Connecting.TryGetValue((progId, owner), out var underWay)) return underWay;
+            // Join a connect that is still running. One that has finished (its entry is removed a moment
+            // later, by the continuation below) is not reused: this click gets a fresh attempt.
+            if (Connecting.TryGetValue((progId, owner), out var underWay) && !underWay.IsCompleted) return underWay;
             var connect = ConnectOnceAsync(progId, owner);
             if (connect.IsCompleted) return connect;
             Connecting[(progId, owner)] = connect;

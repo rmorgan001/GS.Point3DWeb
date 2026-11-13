@@ -168,7 +168,9 @@ public partial class EditServerDialogViewModel : DialogViewModel
             return;
         }
 
-        UrlError = TelescopePath.IsMatch(uri.AbsolutePath)
+        // The address must end with the device path: requests are built by adding to it, so a query (?…) or
+        // fragment (#…) after the path would break every one of them.
+        UrlError = TelescopePath.IsMatch(uri.AbsolutePath) && uri.Query.Length == 0 && uri.Fragment.Length == 0
             ? null
             : L.T("Invalid path (expected …/api/v1/telescope/{n}/)");
     }

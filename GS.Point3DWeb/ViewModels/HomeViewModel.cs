@@ -442,9 +442,8 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         }
         catch (Exception e)
         {
-            // A failed disconnect leaves the state unknown: ask the server what it is now.
-            // (ConnectAsync already marks a failed connect as not connected.)
-            if (disconnecting) await AlpacaConnector.RefreshConnectedAsync(server);
+            // Either way the server is now marked as not connected by this app: AlpacaConnector does that for
+            // a failed connect, and for a disconnect that got no answer (the user asked to disconnect).
             await _dialogService.ShowDialog(new ConfirmDialogViewModel
             {
                 Message = disconnecting
@@ -506,9 +505,11 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         SelectedAlpacaServer = AlpacaServers.LastOrDefault();
         await PersistAsync(); // first: releasing a slow driver below mustn't hold up saving the deletion
 
-        // Release a COM driver it held, so the driver (and its program) doesn't stay open for nothing.
-        // A connect still under way for it releases what it connects itself (AlpacaServer.Removed).
-        if (connection.IsCom)
+        // Release a COM driver it held, so the driver (and its program) doesn't stay open for nothing. An
+        // Alpaca device this app connected is disconnected too, as when a server's address is changed:
+        // once the server is gone from the list nothing could disconnect it any more. A COM connect still
+        // under way for it releases what it connects itself (AlpacaServer.Removed).
+        if (connection.IsCom || connection.ConnectRequested)
         {
             try
             {
@@ -516,7 +517,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
             }
             catch
             {
-                // released anyway
+                // already logged (AlpacaConnector); the server is gone from the list either way
             }
         }
     }

@@ -314,7 +314,9 @@
             ViewModel.StatusText = L.T("Loading {0} model…", ViewModel.ModelName);
             // Set before the load, so a second change while it runs doesn't start the same load again.
             key = _loadedModelKey = ModelKey;
-            var result = await _module.InvokeAsync<string>("loadModel", _viewer, ViewModel.ModelUrl, ViewModel.MountInfo);
+            // A model is several MB: on a slow link or a Raspberry Pi it can take longer than the usual
+            // JS call limit, so it gets its own.
+            var result = await _module.InvokeAsync<string>("loadModel", ModelLoadTimeout, [_viewer, ViewModel.ModelUrl, ViewModel.MountInfo]);
             if (result == "Superseded") return; // a newer load replaced this one (model3d.js)
             if (result.Contains("Error", StringComparison.OrdinalIgnoreCase))
             {
@@ -336,7 +338,15 @@
             ViewModel.StatusText = L.T("Failed to load model: {0}", ex.Message);
             LoadFailed(key);
         }
+        catch (OperationCanceledException ex)
+        {
+            // The load took longer than ModelLoadTimeout: tried again later, like any other failed load.
+            ViewModel.StatusText = L.T("Failed to load model: {0}", ex.Message);
+            LoadFailed(key);
+        }
     }
+
+    private static readonly TimeSpan ModelLoadTimeout = TimeSpan.FromMinutes(2);
 
     // When the last model load failed (null = it didn't). A failed load (e.g. a network hiccup fetching
     // the .obj) is tried again on a later update, at most every RetryLoadAfter, rather than never.

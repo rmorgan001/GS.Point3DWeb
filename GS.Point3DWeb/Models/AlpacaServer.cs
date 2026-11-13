@@ -27,7 +27,24 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     /// true when this app never connected it (or has disconnected it); that is only taken as this app being
     /// connected while this is set.
     /// </summary>
-    public volatile bool ConnectRequested;
+    public bool ConnectRequested
+    {
+        get => _connectRequested;
+        set
+        {
+            _connectRequested = value;
+            Interlocked.Increment(ref _connectionChanges);
+        }
+    }
+
+    private volatile bool _connectRequested;
+    private int _connectionChanges;
+
+    /// <summary>
+    /// Counts connects and disconnects (each sets <see cref="ConnectRequested"/>), so a connection check that
+    /// was already under way can tell its answer is out of date (AlpacaConnector.RefreshConnectedAsync).
+    /// </summary>
+    public int ConnectionChanges => Volatile.Read(ref _connectionChanges);
 
     /// <summary>
     /// Set when the server is deleted from the list (not saved), so a connect still under way for it releases

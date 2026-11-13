@@ -226,12 +226,14 @@ public static class AlpacaConnector
     /// <summary>
     /// Reads the server's connected state into <see cref="AlpacaServer.IsConnected"/>.
     /// A server that doesn't answer counts as not connected, and so does one the user disconnected
-    /// (checked after the request, so a check already under way when they disconnect can't undo it).
+    /// (checked after the request, so a check already under way when they disconnect can't undo it), and
+    /// a check that a connect or disconnect overtook leaves that newer result alone.
     /// Never throws, except OperationCanceledException when <paramref name="token"/> is cancelled (the view
     /// stopped); the server's state is then left alone, as it is shared with other views and tabs.
     /// </summary>
     public static async Task<bool> RefreshConnectedAsync(AlpacaServer server, CancellationToken token = default)
     {
+        var changesBefore = server.ConnectionChanges;
         bool connected;
         try
         {
@@ -255,6 +257,8 @@ public static class AlpacaConnector
         {
             connected = false;
         }
+        // A connect or disconnect finished while this was asking: its result is newer than this answer.
+        if (server.ConnectionChanges != changesBefore) return server.IsConnected;
         if (!server.ConnectRequested) connected = false;
 
         server.IsConnected = connected;
@@ -283,8 +287,8 @@ public static class AlpacaConnector
 
         var client = CreateClient(server);
 
-        var mode = await client.GetPropertyAsync("alignmentmode", token);
-        var latitude = await client.GetPropertyAsync("sitelatitude", token);
+        var mode = await GetOptionalPropertyAsync(client, "alignmentmode", token);
+        var latitude = await GetOptionalPropertyAsync(client, "sitelatitude", token);
         server.SetClientTransactionId(client.ClientTransactionId);
 
         if (mode is { ErrorNumber: 0, Value.Type: JTokenType.Integer or JTokenType.Float })
@@ -310,6 +314,23 @@ public static class AlpacaConnector
             latitudeRead ? $"{server.Latitude:0.###}°" : "not reported");
     }
 
+
+    /// <summary>
+    /// A property that a mount may not implement. A server that answers it with an HTTP error (some answer
+    /// 400 or 404 instead of Alpaca's NotImplemented) counts as having answered "not implemented", so the
+    /// model still loads with what the mount did report. No answer at all (a network error) still throws.
+    /// </summary>
+    private static async Task<AlpacaResponse?> GetOptionalPropertyAsync(AlpacaClient client, string method, CancellationToken token)
+    {
+        try
+        {
+            return await client.GetPropertyAsync(method, token);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is not null)
+        {
+            return new AlpacaResponse { Value = JValue.CreateNull(), ErrorNumber = AlpacaClient.NotImplementedError, ErrorMessage = ex.Message };
+        }
+    }
     /// <summary>
     /// The mount's position from a COM driver (an Alpaca server's is polled by the view with
     /// <see cref="AlpacaClient"/>). Throws if the driver fails or doesn't answer.

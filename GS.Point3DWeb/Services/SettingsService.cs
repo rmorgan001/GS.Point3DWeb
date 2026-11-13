@@ -201,9 +201,25 @@ public class SettingsService
             // the user made from those defaults.
             var (legacyRa, legacyDec) = stored.Version is null or < 2 ? (0.0, -90.0) : (0.0, 0.0);
 
+            // An entry with no ID or address (a hand-edited or damaged file) is skipped, and logged, rather
+            // than making the whole list unreadable; so is a second entry with the same ID.
+            var usable = new List<StoredServer>();
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var entry in stored.Servers)
+            {
+                if (entry is null || string.IsNullOrWhiteSpace(entry.IdGuid) || string.IsNullOrWhiteSpace(entry.Url)
+                    || !ids.Add(entry.IdGuid))
+                {
+                    _logger.LogWarning("Skipped a server in {FilePath} with no ID or address, or a repeated ID: {Server}",
+                        FilePath, entry?.ServerName ?? entry?.Url ?? "(empty entry)");
+                    continue;
+                }
+                usable.Add(entry);
+            }
+
             // Build the whole list before using any of it, so a bad entry can't leave half a list.
-            var servers = stored.Servers.Select(s =>
-                new AlpacaServer(s.Url, s.ServerName)
+            var servers = usable.Select(s =>
+                new AlpacaServer(s.Url, string.IsNullOrWhiteSpace(s.ServerName) ? s.Url : s.ServerName)
                 {
                     IdGuid = s.IdGuid,
                     UserName = s.UserName,

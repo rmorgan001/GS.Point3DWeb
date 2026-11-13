@@ -470,8 +470,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         }
         catch (Exception ex)
         {
-            // A failed disconnect leaves the state unknown: ask the server what it is now.
-            if (disconnecting) await AlpacaConnector.RefreshConnectedAsync(server);
+            // Either way the server is now marked as not connected by this app: AlpacaConnector does that for
+            // a failed connect, and for a disconnect that got no answer (the user asked to disconnect).
             _connectionMessage = disconnecting ? L.T("Disconnect failed: {0}", ex.Message) : L.T("Connect failed: {0}", ex.Message);
             StatusText = _connectionMessage;
         }

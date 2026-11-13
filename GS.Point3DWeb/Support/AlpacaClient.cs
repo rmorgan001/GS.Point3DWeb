@@ -18,11 +18,21 @@ namespace GS.Alpaca.Support
         private readonly AuthenticationHeaderValue? _authorization = string.IsNullOrEmpty(userName)
             ? null
             : new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{userName}:{password}")));
-        // One HttpClient for every request (a new one per poll leaks sockets). The timeout is short so a
-        // server that stops answering is reported as disconnected in seconds, not after the 100 s default.
-        private static readonly HttpClient SharedHttpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
+        // One HttpClient for every request (a new one per poll leaks sockets). Its own timeout is off: each
+        // request sets one (SendAsync), short so a server that stops answering is reported as disconnected in
+        // seconds, but long for Connect, which a mount can take a while to finish (a serial port opening).
+        private static readonly HttpClient SharedHttpClient = new() { Timeout = Timeout.InfiniteTimeSpan };
         private readonly HttpClient _httpClient = SharedHttpClient;
+
+        /// <summary>How long a request may take before the server counts as not answering.</summary>
+        public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
+
+        /// <summary>How long a Connect may take (as for a COM driver, connecting can be slow).</summary>
+        public static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(30);
         private const int ClientId = 71 + 81 + 81; // = 233 or Decimal  G + S + S
+
+        /// <summary>Alpaca's NotImplemented error (0x400).</summary>
+        public const int NotImplementedError = 0x400;
 
         public double ClientTransactionId
         {
@@ -69,14 +79,25 @@ namespace GS.Alpaca.Support
         /// (e.g. 401 when the credentials are wrong) throws with its status, rather than failing to parse
         /// an error page as JSON.
         /// </summary>
-        private async Task<AlpacaResponse?> SendAsync(HttpRequestMessage request, CancellationToken token)
+        private async Task<AlpacaResponse?> SendAsync(HttpRequestMessage request, CancellationToken token, TimeSpan? timeout = null)
         {
             if (_authorization is not null) request.Headers.Authorization = _authorization;
-            using var response = await _httpClient.SendAsync(request, token);
-            var body = await response.Content.ReadAsStringAsync(token);
-            if (!response.IsSuccessStatusCode)
-                throw new HttpRequestException(DescribeHttpError(response, body), null, response.StatusCode);
-            return JsonConvert.DeserializeObject<AlpacaResponse>(body);
+            var limit = timeout ?? RequestTimeout;
+            using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeoutSource.CancelAfter(limit);
+            try
+            {
+                using var response = await _httpClient.SendAsync(request, timeoutSource.Token);
+                var body = await response.Content.ReadAsStringAsync(timeoutSource.Token);
+                if (!response.IsSuccessStatusCode)
+                    throw new HttpRequestException(DescribeHttpError(response, body), null, response.StatusCode);
+                return JsonConvert.DeserializeObject<AlpacaResponse>(body);
+            }
+            catch (OperationCanceledException ex) when (!token.IsCancellationRequested)
+            {
+                // Our time limit ran out, not the caller's token: report it as such.
+                throw new TimeoutException($"the server did not answer within {limit.TotalSeconds:0} s", ex);
+            }
         }
 
         /// <summary>"HTTP 401 Unauthorized", plus the server's short plain-text reason if it gave one.</summary>
@@ -113,7 +134,13 @@ namespace GS.Alpaca.Support
             if (alpacaResponse.ErrorNumber != 0)
                 return new TelescopeDeviceState { AlpacaResponse = alpacaResponse };
             if (alpacaResponse.Value is not JArray)
-                return null; // no state to show
+            {
+                // Answered, but without the list of values: treat it as not implemented, so the caller reads
+                // the properties one at a time instead (null would mean the server didn't answer at all).
+                alpacaResponse.ErrorNumber = NotImplementedError;
+                alpacaResponse.ErrorMessage = "devicestate returned no list of values";
+                return new TelescopeDeviceState { AlpacaResponse = alpacaResponse };
+            }
 
             var deviceState = TelescopeMappings.MapDeviceState(alpacaResponse);
             deviceState.AlpacaResponse = alpacaResponse;
@@ -201,7 +228,7 @@ namespace GS.Alpaca.Support
         /// <returns>A task that represents the asynchronous operation. The task result contains an instance of <see
         /// cref="AlpacaResponse"/> with the response data, or <see langword="null"/> if the response cannot be
         /// deserialized.</returns>
-        private async Task<AlpacaResponse?> PutAsync(string method, CancellationToken token, params (string key, string value)[] parameters)
+        private async Task<AlpacaResponse?> PutAsync(string method, CancellationToken token, TimeSpan? timeout, params (string key, string value)[] parameters)
         {
             // Only the method name is lower-cased: the server path may be case-sensitive.
             var url = BuildUrl(method.ToLowerInvariant());
@@ -224,7 +251,7 @@ namespace GS.Alpaca.Support
             {
                 Content = new FormUrlEncodedContent(formEntries)
             };
-            return await SendAsync(request, token);
+            return await SendAsync(request, token, timeout);
         }
 
         /// <summary>
@@ -238,7 +265,7 @@ namespace GS.Alpaca.Support
         public async Task<AlpacaResponse?> ConnectAsync(CancellationToken token = default)
         {
             const string method = "connected";
-            var alpacaResponse = await PutAsync(method, token, ("Connected", "true"));
+            var alpacaResponse = await PutAsync(method, token, ConnectTimeout, ("Connected", "true"));
             if (alpacaResponse == null)
             {
                 //todo log null response
@@ -257,7 +284,7 @@ namespace GS.Alpaca.Support
         /// <returns></returns>
         public async Task<bool> DisconnectAsync()
         {
-            var response = await PutAsync("connected", CancellationToken.None, ("Connected", "false"));
+            var response = await PutAsync("connected", CancellationToken.None, null, ("Connected", "false"));
             return response is { ErrorNumber: 0 };
         }
     }

@@ -1,6 +1,6 @@
 name: Release
 
-# Pushing a version tag (v1.0.0, or v1.1.0-beta.1 for a pre-release) builds the app for every platform
+# Pushing a version tag (v1.0.0, or v1.1.0-beta.1) builds the app for every platform
 # below and attaches them all to one GitHub Release for that tag:
 #
 #   git tag v1.0.0
@@ -121,9 +121,9 @@ jobs:
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
           else
-            flags=(--verify-tag --title "GS Point3D Web ${TAG#v}" --notes-file notes.md --generate-notes)
-            # v1.1.0-beta.1 and the like are marked as pre-releases.
-            [[ "$TAG" == *-* ]] && flags+=(--prerelease)
+            # Every release is published as a pre-release for now. To publish normal releases again,
+            # remove --prerelease here (or keep it only for tags with a suffix: [[ "$TAG" == *-* ]]).
+            flags=(--verify-tag --title "GS Point3D Web ${TAG#v}" --notes-file notes.md --generate-notes --prerelease)
             gh release create "$TAG" dist/* "${flags[@]}"
           fi
 

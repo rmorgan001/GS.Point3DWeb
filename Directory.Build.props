@@ -3,7 +3,8 @@
   <!-- Shared by every project in the repository (the web app and tools). -->
   <PropertyGroup>
     <!-- Product version: shown in the web app's header and stamped on the assemblies.
-         Use major.minor[.patch], optionally with a pre-release suffix (e.g. 1.1.0-beta). -->
+         Use major.minor[.patch], optionally with a pre-release suffix (e.g. 1.1.0-beta).
+         Releases built from a version tag (v1.2.0) use the tag's version instead (.github/workflows/release.yml). -->
     <Version>1.0</Version>
     <Product>GS Point3D Web</Product>
   </PropertyGroup>

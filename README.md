@@ -36,14 +36,43 @@ pointing from any browser.
 
 ## Requirements
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) to build, or the
-  ASP.NET Core 10 runtime to run a published copy.
+- Nothing extra to run a [release](https://github.com/rmorgan001/GS.Point3DWeb/releases): each
+  download includes .NET. To build from source, the
+  [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 - Windows, for ASCOM COM drivers (with the
   [ASCOM Platform](https://ascom-standards.org/) installed). Alpaca servers work on any
   operating system .NET supports.
 - A browser with WebGL.
 
-## Getting started
+## Download
+
+Each [release](https://github.com/rmorgan001/GS.Point3DWeb/releases) has a download for each
+platform, named `GS.Point3DWeb-<version>-<platform>`:
+
+| Platform | For |
+| --- | --- |
+| `win-x64` (.zip) | Windows (Intel / AMD) |
+| `win-arm64` (.zip) | Windows on ARM |
+| `linux-x64` (.tar.gz) | Linux (Intel / AMD) |
+| `linux-arm64` (.tar.gz) | Linux on 64-bit ARM, such as a Raspberry Pi with a 64-bit OS |
+| `osx-x64` (.tar.gz) | macOS on Intel |
+| `osx-arm64` (.tar.gz) | macOS on Apple silicon |
+
+Extract it, run `GS.Point3DWeb` (`GS.Point3DWeb.exe` on Windows) and open
+<http://localhost:5000>. The macOS builds aren't signed: if macOS blocks the app, run
+`xattr -dr com.apple.quarantine` on the extracted folder.
+
+To use another port, or to open the app from other computers on the network, set the address it
+listens on when you start it:
+
+```shell
+GS.Point3DWeb --urls "http://0.0.0.0:5000"
+```
+
+Anyone who can reach that address can connect and disconnect your mounts, so only do this on a
+network you trust.
+
+## Running from source
 
 ```shell
 git clone https://github.com/rmorgan001/GS.Point3DWeb.git
@@ -62,7 +91,7 @@ On its first run the app adds a connection to the
 2. Drag it onto a view. Dragging connects it.
 3. Use the cog on a view to choose the model, colours, background, coordinates and camera.
 
-### Building a release
+### Building
 
 ```shell
 dotnet publish GS.Point3DWeb/GS.Point3DWeb.csproj --configuration Release --output publish
@@ -70,6 +99,20 @@ dotnet publish GS.Point3DWeb/GS.Point3DWeb.csproj --configuration Release --outp
 
 Every push to `main` is also built by [GitHub Actions](.github/workflows/build.yml). Each run
 keeps the published app as a downloadable artifact for 14 days.
+
+### Making a release
+
+Push a version tag:
+
+```shell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The [release workflow](.github/workflows/release.yml) then builds the app for all six platforms
+at once, and attaches them, with a `SHA256SUMS.txt` checksum file, to a GitHub Release for that
+tag. Its notes list the changes since the last release. The tag sets the version shown in the
+app. A tag with a suffix, such as `v1.1.0-beta.1`, is published as a pre-release.
 
 ## Where things are stored
 

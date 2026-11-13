@@ -1,0 +1,154 @@
+name: Release
+
+# Pushing a version tag (v1.0.0, or v1.1.0-beta.1 for a pre-release) builds the app for every platform
+# below and attaches them all to one GitHub Release for that tag:
+#
+#   git tag v1.0.0
+#   git push origin v1.0.0
+#
+# The version shown in the app comes from the tag, not from Directory.Build.props.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+# One release run per tag at a time; a second push of the same tag waits rather than racing it.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      # One failed platform stops the release: it is published complete or not at all.
+      fail-fast: true
+      matrix:
+        include:
+          - { rid: win-x64,     os: windows-latest }
+          - { rid: win-arm64,   os: windows-latest }
+          - { rid: linux-x64,   os: ubuntu-latest }
+          - { rid: linux-arm64, os: ubuntu-latest }   # Raspberry Pi (64-bit OS) and other ARM boards
+          - { rid: osx-x64,     os: macos-latest }    # Intel Macs
+          - { rid: osx-arm64,   os: macos-latest }    # Apple silicon
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Read the version from the tag
+        id: version
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' is not a version like v1.0.0 or v1.1.0-beta.1"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "name=GS.Point3DWeb-$version-${{ matrix.rid }}" >> "$GITHUB_OUTPUT"
+
+      # Self-contained: runs without installing .NET. Only the web app; never the feature key tool.
+      - name: Publish
+        shell: bash
+        run: >
+          dotnet publish GS.Point3DWeb/GS.Point3DWeb.csproj
+          --configuration Release
+          --runtime ${{ matrix.rid }}
+          --self-contained
+          -p:Version=${{ steps.version.outputs.version }}
+          --output "out/${{ steps.version.outputs.name }}"
+
+      # A zip for Windows; a tar.gz elsewhere, which keeps the app's executable permission.
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: out
+        run: Compress-Archive -Path "${{ steps.version.outputs.name }}" -DestinationPath "../${{ steps.version.outputs.name }}.zip"
+
+      - name: Package (Linux, macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        working-directory: out
+        run: tar -czf "../${{ steps.version.outputs.name }}.tar.gz" "${{ steps.version.outputs.name }}"
+
+      - name: Upload the package
+        uses: actions/upload-artifact@v5
+        with:
+          name: package-${{ matrix.rid }}
+          path: |
+            ${{ steps.version.outputs.name }}.zip
+            ${{ steps.version.outputs.name }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish the release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # create the release and upload its files
+
+    steps:
+      - name: Download the packages
+        uses: actions/download-artifact@v5
+        with:
+          pattern: package-*
+          merge-multiple: true
+          path: dist
+
+      - name: Write checksums
+        working-directory: dist
+        run: sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - name: Write the release notes
+        run: |
+          cat > notes.md <<'EOF'
+          ## Downloads
+
+          Pick the file for your computer (`GS.Point3DWeb-<version>-<platform>`). Each one includes everything it needs, so .NET doesn't have to be installed.
+
+          | Platform | For |
+          | --- | --- |
+          | `win-x64.zip` | Windows (Intel / AMD) |
+          | `win-arm64.zip` | Windows on ARM |
+          | `linux-x64.tar.gz` | Linux (Intel / AMD) |
+          | `linux-arm64.tar.gz` | Linux on 64-bit ARM, such as a Raspberry Pi with a 64-bit OS |
+          | `osx-x64.tar.gz` | macOS on Intel |
+          | `osx-arm64.tar.gz` | macOS on Apple silicon |
+
+          Extract it, run `GS.Point3DWeb` (`GS.Point3DWeb.exe` on Windows) and open <http://localhost:5000>. ASCOM COM drivers work only on Windows; Alpaca servers work everywhere. See the README for running it on another port or for other computers on the network.
+
+          The macOS builds aren't signed: if macOS blocks the app, run `xattr -dr com.apple.quarantine` on the extracted folder. `SHA256SUMS.txt` lists each file's checksum.
+
+          EOF
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # A re-run (e.g. after one platform failed) updates the existing release instead of failing.
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            flags=(--verify-tag --title "GS Point3D Web ${TAG#v}" --notes-file notes.md --generate-notes)
+            # v1.1.0-beta.1 and the like are marked as pre-releases.
+            [[ "$TAG" == *-* ]] && flags+=(--prerelease)
+            gh release create "$TAG" dist/* "${flags[@]}"
+          fi

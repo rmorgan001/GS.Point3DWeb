@@ -8,7 +8,19 @@ using GS.Point3DWeb.Support;
 using GS.Point3DWeb.ViewModels;
 using Serilog;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    // A published copy is often started from another folder (a shortcut, a service, ./folder/GS.Point3DWeb), and
+    // the content root defaults to the current folder: use the app's own folder, where appsettings.json is.
+    // Development (dotnet run, Visual Studio) keeps the project folder.
+    ContentRootPath = IsDevelopment() ? null : AppContext.BaseDirectory
+});
+
+static bool IsDevelopment()
+    => string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                     ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"),
+                     "Development", StringComparison.OrdinalIgnoreCase);
 
 // Logging: Serilog writes to the console and to a daily file in AppLog.Folder (Documents\GS.Point3DWeb on Windows; two weeks
 // kept), with the levels from the "Serilog" section of appsettings.json. The Debug output and, on Windows,

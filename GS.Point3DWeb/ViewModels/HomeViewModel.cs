@@ -158,7 +158,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(AlpacaServers));
     }
 
-    // ===== Feature key: 2 views and 5 servers without a key; 4 views and any number with one =====
+    // ===== Feature key: all 4 views and 5 servers without a key; any number of servers with one =====
 
     public FeatureKeyService FeatureKeys { get; }
 
@@ -537,6 +537,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         get => Math.Min(_settingsService.ViewCount, MaxViews);
         set
         {
+            // Can't happen while every view is free (FreeMaxViews = 4); kept for a lower free limit.
             if (value > MaxViews)
             {
                 _ = ShowLimitAsync(L.T("The free version shows {0} views. A feature key unlocks up to {1}.",

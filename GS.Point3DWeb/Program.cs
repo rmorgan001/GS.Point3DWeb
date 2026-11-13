@@ -56,7 +56,7 @@ builder.Services.AddDataProtection().SetApplicationName("GS.Point3DWeb");
 // Application-wide settings (connection list), shared like the desktop SettingsService singleton.
 builder.Services.AddSingleton<SettingsService>();
 
-// Feature key (free: 2 views, 5 servers; with a key: 4 views, any number of servers).
+// Feature key (free: all 4 views and 5 servers; with a key: any number of servers).
 builder.Services.AddSingleton<FeatureKeyService>();
 
 // Dialogs: one per browser connection (circuit).

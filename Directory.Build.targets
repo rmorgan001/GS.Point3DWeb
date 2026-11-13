@@ -7,6 +7,10 @@
       on the tag itself          1.0.1
       3 commits after it         1.0.1+3     (file version 1.0.1.3)
 
+    The file version's last part is the commit count, so a local build on a pre-release tag (v1.1.0-rc.1)
+    and one on the final tag (v1.1.0) can share a file version; the displayed version tells them apart.
+    Release builds use the workflow's run number there instead (.github/workflows/build-package.yml).
+
     A release (.github/workflows/release.yml) passes -p:Version from its tag, so Version no longer equals
     DefaultVersion and this is skipped. Without git, a repository, or a version tag, DefaultVersion
     (Directory.Build.props) is used. Set DisableGitVersion=true to skip it.

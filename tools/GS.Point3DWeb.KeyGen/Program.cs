@@ -85,6 +85,12 @@ try
                     Console.Error.WriteLine("--expires must be yyyy-MM-dd.");
                     return 1;
                 }
+                // The app refuses a key past its date (FeatureKeyInfo.IsExpired), so one would be dead on arrival.
+                if (expiresDate < DateOnly.FromDateTime(DateTime.Now))
+                {
+                    Console.Error.WriteLine($"--expires {expiresText} is in the past: the app would refuse the key as expired.");
+                    return 1;
+                }
                 expires = expiresDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             }
 
@@ -117,14 +123,29 @@ try
                 return 1;
             }
 
-            // Against the public key built into the web app: what the customer's copy will accept.
+            // The same checks as the web app (FeatureKeyService.Verify and TryApply): signed with the key built
+            // into the app, a payload it can read, and not past its date.
             using var appKey = ECDsa.Create();
             appKey.ImportFromPem(FeatureKeyFormat.PublicKeyPem);
-            var valid = appKey.VerifyData(payload, signature, HashAlgorithmName.SHA256);
-            Console.WriteLine(valid
-                ? $"Valid (the web app accepts it): {Encoding.UTF8.GetString(payload)}"
-                : "Invalid: the web app would reject it (not signed with the app's key, or changed).");
-            return valid ? 0 : 1;
+            if (!appKey.VerifyData(payload, signature, HashAlgorithmName.SHA256))
+            {
+                Console.WriteLine("Invalid: the web app would reject it (not signed with the app's key, or changed).");
+                return 1;
+            }
+
+            var json = Encoding.UTF8.GetString(payload);
+            if (ReadPayload(payload) is not { } info)
+            {
+                Console.WriteLine($"Invalid: signed, but the web app can't read its details: {json}");
+                return 1;
+            }
+            if (info.Expires is { } until && DateOnly.FromDateTime(DateTime.Now) > until)
+            {
+                Console.WriteLine($"Expired on {until:yyyy-MM-dd}: the web app would refuse it. {json}");
+                return 1;
+            }
+            Console.WriteLine($"Valid (the web app accepts it): {json}");
+            return 0;
         }
 
         default:
@@ -149,6 +170,27 @@ string? Option(string name)
 }
 
 bool HasFlag(string name) => args.Any(a => string.Equals(a, name, StringComparison.OrdinalIgnoreCase));
+
+// Reads a key's details as the web app does (FeatureKeyService.Verify): null if it couldn't.
+static (string Name, DateOnly Issued, DateOnly? Expires)? ReadPayload(byte[] payload)
+{
+    try
+    {
+        using var json = JsonDocument.Parse(payload);
+        var root = json.RootElement;
+        var name = root.GetProperty("name").GetString() ?? "";
+        var issued = DateOnly.ParseExact(root.GetProperty("issued").GetString()!, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+        DateOnly? expires = root.TryGetProperty("expires", out var e) && e.ValueKind == JsonValueKind.String
+            ? DateOnly.ParseExact(e.GetString()!, "yyyy-MM-dd", CultureInfo.InvariantCulture)
+            : null;
+        return (name, issued, expires);
+    }
+    catch (Exception ex) when (ex is FormatException or JsonException or KeyNotFoundException
+                                   or InvalidOperationException or ArgumentNullException)
+    {
+        return null;
+    }
+}
 
 static ECDsa LoadPrivateKey(string path)
 {

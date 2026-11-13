@@ -114,7 +114,10 @@ public static class AlpacaConnector
         }
         catch
         {
-            SetConnected(server, url, false);
+            // The server is shared by every view and tab. If one of them connected it while this attempt
+            // was failing, leave that connection alone (the regular connection check corrects the state if
+            // the server is really down); otherwise record that this app isn't connected.
+            if (!server.ConnectRequested) SetConnected(server, url, false);
             throw;
         }
         finally
@@ -180,7 +183,20 @@ public static class AlpacaConnector
         }
 
         var client = CreateClient(server);
-        var accepted = await client.DisconnectAsync();
+        bool accepted;
+        try
+        {
+            accepted = await client.DisconnectAsync();
+        }
+        catch
+        {
+            // No answer (timeout, network error): the user still asked to disconnect, so stop counting the
+            // device as this app's. Otherwise the connection check would show it connected again, and start
+            // updating, as soon as the server answers.
+            server.ConnectRequested = false;
+            server.IsConnected = false;
+            throw;
+        }
         server.SetClientTransactionId(client.ClientTransactionId);
 
         if (accepted)

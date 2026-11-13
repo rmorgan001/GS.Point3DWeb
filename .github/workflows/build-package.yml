@@ -57,6 +57,9 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          # File version: the numeric part plus this workflow's run number, so a pre-release (1.1.0-rc.1)
+          # and the final release (1.1.0) of the same version don't get the same file version.
+          echo "fileversion=${version%%-*}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
           echo "name=GS.Point3DWeb-$version-${{ inputs.rid }}" >> "$GITHUB_OUTPUT"
 
       # Self-contained: runs without installing .NET. Only the web app; never the feature key tool.
@@ -68,6 +71,7 @@ jobs:
           --runtime ${{ inputs.rid }}
           --self-contained
           -p:Version=${{ steps.version.outputs.version }}
+          -p:FileVersion=${{ steps.version.outputs.fileversion }}
           --output "out/${{ steps.version.outputs.name }}"
 
       # A zip for Windows; a tar.gz elsewhere, which keeps the app's executable permission.

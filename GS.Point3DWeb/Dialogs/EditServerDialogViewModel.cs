@@ -13,8 +13,9 @@ namespace GS.Point3DWeb.Dialogs;
 /// </summary>
 public partial class EditServerDialogViewModel : DialogViewModel
 {
+    // The trailing slash is optional: it is added when the server is saved (AlpacaServer.NormalizeUrl).
     private static readonly Regex TelescopePath =
-        new(@"/api/v1/telescope/\d+/$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        new(@"/api/v1/telescope/\d+/?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     // A COM ProgID: letters, digits, '_' and '.', starting with a letter (e.g. ASCOM.Simulator.Telescope).
     private static readonly Regex ComProgId = new(@"^[A-Za-z][A-Za-z0-9_.]*$", RegexOptions.Compiled);

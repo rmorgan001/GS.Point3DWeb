@@ -22,7 +22,7 @@
             @* Opens the log viewer (/log) in its own window; a plain link (new tab) if pop-ups are blocked. *@
             <a class="key-button log-button" href="log" target="gs-point3dweb-log"
                title="@L.T("View the log in a separate window")"
-               onclick="return !window.open(this.href, this.target, 'popup,width=1100,height=750');">
+               data-popup="width=1100,height=750">
                 <Icon Kind="FileDocument" Size="16" />
                 <span>@L.T("Log")</span>
             </a>
@@ -81,7 +81,7 @@
             @* Opens the user guide (/help) in its own window, like the log. Last in the header, at the far right. *@
             <a class="key-button log-button help-button" href="help" target="gs-point3dweb-help"
                title="@L.T("Open the help in a separate window")" aria-label="@L.T("Help")"
-               onclick="return !window.open(this.href, this.target, 'popup,width=1000,height=800');">
+               data-popup="width=1000,height=800">
                 <Icon Kind="HelpCircle" Size="18" />
             </a>
         </div>

@@ -23,12 +23,25 @@ namespace GS.Alpaca.Shared
     public static class Range
     {
         /// <summary>
+        /// Prepares a value for the loops below, which step by one period at a time: infinity (or NaN)
+        /// becomes NaN instead of looping forever, and a value many periods out is first brought within
+        /// one period (a huge value would otherwise loop for ever, or not change at all). Ordinary values
+        /// are left exactly as they are, so their results don't change.
+        /// </summary>
+        private static double Prepare(double d, double period)
+        {
+            if (!double.IsFinite(d)) return double.NaN;
+            return Math.Abs(d) > 4 * period ? d % period : d;
+        }
+
+        /// <summary>
         /// Returns double in the range -12 to +12
         /// </summary>
         /// <param name="d">90.169444444444451</param>
         /// <returns>-5.8305555555555486</returns>
         public static double Range12(double d)
         {
+            d = Prepare(d, 24.0);
             while ((d > 12.0) || (d <= -12.0))
             {
                 if (d <= -12.0) d += 24.0;
@@ -44,6 +57,7 @@ namespace GS.Alpaca.Shared
         /// <returns>18.169444444444451</returns>
         public static double Range24(double d)
         {
+            d = Prepare(d, 24.0);
             while ((d >= 24.0) || (d < 0.0))
             {
                 if (d < 0.0) d += 24.0;
@@ -59,6 +73,7 @@ namespace GS.Alpaca.Shared
         /// <returns>89.830555555555549</returns>
         public static double Range90(double d)
         {
+            d = Prepare(d, 360.0);
             while ((d > 90.0) || (d < -90.0))
             {
                 if (d < -90.0) d += 180.0;
@@ -74,6 +89,7 @@ namespace GS.Alpaca.Shared
         /// <returns></returns>
         public static double Range180(double d)
         {
+            d = Prepare(d, 360.0);
             while (d <= -180.0 || d > 180.0)
             {
                 if (d <= -180.0) d += 360;
@@ -94,6 +110,7 @@ namespace GS.Alpaca.Shared
         /// <returns>-69.830555555555577</returns>
         public static double Range270(double d)
         {
+            d = Prepare(d, 360.0);
             while ((d >= 270) || (d < -90))
             {
                 if (d < -90) d += 360.0;
@@ -109,6 +126,7 @@ namespace GS.Alpaca.Shared
         /// <returns>230.16944444444448</returns>
         public static double Range360(double d)
         {
+            d = Prepare(d, 360.0);
             while ((d >= 360.0) || (d < 0.0))
             {
                 if (d < 0.0) d += 360.0;
@@ -183,6 +201,8 @@ namespace GS.Alpaca.Shared
         /// <returns></returns>
         public static double RangeDouble(double d, double a)
         {
+            if (!(a > 0) || !double.IsFinite(a)) return double.NaN; // no range to fit into
+            d = Prepare(d, a);
             while (d >= a || d < 0.0)
             {
                 if (d < 0.0) d += a;

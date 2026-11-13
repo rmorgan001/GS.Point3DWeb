@@ -31,6 +31,14 @@ document.addEventListener('click', e => {
     }
 });
 
+// Links marked data-popup (Log, Help) open in their own sized window; if pop-ups are blocked they open as an
+// ordinary tab. Modified clicks (new tab / window) are left to the browser.
+document.addEventListener('click', e => {
+    const link = e.target.closest && e.target.closest('a[data-popup]');
+    if (!link || e.defaultPrevented || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    if (window.open(link.href, link.target || '_blank', 'popup,' + link.dataset.popup)) e.preventDefault();
+});
+
 document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     const open = document.querySelector('details.lang-menu[open]');

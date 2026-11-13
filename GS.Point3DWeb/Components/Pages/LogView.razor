@@ -172,7 +172,10 @@
             _file = latest;
 
             var chunk = LogFiles.Read(latest, _next, MaxBytes);
-            var changed = chunk.Length != _length || chunk.FromStart || hadProblem;
+            // A read that starts over changes the page only if there was, or now is, something to show
+            // (one huge unfinished entry starts over on every tick and shows nothing until it ends).
+            var changed = chunk.Length != _length || hadProblem
+                          || (chunk.FromStart && (chunk.Lines.Count > 0 || _lines.Count > 0 || chunk.Truncated != _truncated));
             _length = chunk.Length;
             _next = chunk.End;
             if (chunk.FromStart)

@@ -72,7 +72,7 @@ public static class LogFiles
         {
             if (buffer[i] != (byte)'\n') continue;
             var text = Encoding.UTF8.GetString(buffer, lineStart, i - lineStart).TrimEnd('\r').TrimStart('\uFEFF');
-            if (text.Length > 0) lines.Add(new Line(start + lineStart, i - lineStart + 1, text));
+            lines.Add(new Line(start + lineStart, i - lineStart + 1, text));
             lineStart = i + 1;
         }
         return new Chunk(lines, start + lineStart, length, fromStart, truncated);

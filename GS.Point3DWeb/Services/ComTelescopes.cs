@@ -122,7 +122,7 @@ public static class ComTelescopes
                 if (!driver.Telescope.Connected) driver.Telescope.Connected = true;
                 return driver.Telescope.Connected;
             }), ConnectTimeout);
-            if (!connected && added) await ReleaseAsync(progId, owner);
+            if (!connected && added) await ReleaseAndLogAsync(progId, owner);
             return connected;
         }
         catch
@@ -184,11 +184,27 @@ public static class ComTelescopes
         {
             await WithTimeout(release, CallTimeout);
         }
-        catch (TimeoutException) when (!release.IsCompleted)
+        catch (DriverTimeoutException)
         {
             // The caller logs the timeout; how the release itself ends is logged when it does.
             _ = LogIfFails(release, progId);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// <see cref="ReleaseAsync"/> for a caller that has no use for a release error (it has its own outcome to
+    /// report): the error is logged instead of thrown.
+    /// </summary>
+    public static async Task ReleaseAndLogAsync(string progId, string owner)
+    {
+        try
+        {
+            await ReleaseAsync(progId, owner);
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "ASCOM driver {ProgId} could not be released cleanly: {Error}", progId, ex.Message);
         }
     }
 
@@ -329,8 +345,10 @@ public static class ComTelescopes
         if (held.Length + releasing.Length == 0) return;
 
         Log.LogInformation("Shutting down: releasing {Count} ASCOM driver(s)", held.Length + releasing.Length);
-        // Wait for the logging of any failure too, so it is written before logging shuts down.
-        Task[] pending = [.. held.Select(d => LogIfFails(DisposeAsync(d, "the app is shutting down"), d.ProgId)), .. releasing];
+        foreach (var driver in held) _ = LogIfFails(DisposeAsync(driver, "the app is shutting down"), driver.ProgId);
+        // Wait for every release and for the logging of any failure (including releases already under way),
+        // so it is written before logging shuts down.
+        Task[] pending = [.. releasing, .. FailureLogging.Keys];
         try
         {
             Task.WaitAll(pending, TimeSpan.FromSeconds(5));
@@ -382,20 +400,32 @@ public static class ComTelescopes
         }
         catch (TimeoutException) when (!call.IsCompleted) // the wait ran out, not a driver's own timeout error
         {
-            throw new TimeoutException($"the ASCOM driver did not answer within {timeout.TotalSeconds:0} s");
+            throw new DriverTimeoutException(timeout);
         }
     }
 
     /// <summary>Logs the failure of a release that nobody waits for (so nothing else would log it).</summary>
     /// <returns>A task that completes once the release has ended and any failure has been logged.</returns>
     private static Task LogIfFails(Task release, string progId)
-        => release.ContinueWith(t =>
+    {
+        var logging = release.ContinueWith(t =>
             {
                 if (t.Exception?.GetBaseException() is { } error)
                     Log.LogWarning(error, "ASCOM driver {ProgId} failed while being released (it is released anyway): {Error}",
                         progId, error.Message);
             },
             CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+        FailureLogging.TryAdd(logging, 0);
+        _ = logging.ContinueWith(t => FailureLogging.TryRemove(t, out _), TaskScheduler.Default);
+        return logging;
+    }
+
+    // LogIfFails's logging still to run, so DisconnectAll can wait for it at shutdown.
+    private static readonly ConcurrentDictionary<Task, byte> FailureLogging = new();
+
+    /// <summary>The app stopped waiting for a driver call (as opposed to a timeout error from the driver itself).</summary>
+    private sealed class DriverTimeoutException(TimeSpan timeout)
+        : TimeoutException($"the ASCOM driver did not answer within {timeout.TotalSeconds:0} s");
 
     /// <summary>
     /// A single-threaded-apartment thread that runs queued work one item at a time and, while waiting,

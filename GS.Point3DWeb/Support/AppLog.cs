@@ -51,25 +51,50 @@ public static class AppLog
     private static string ChooseFolder()
     {
         var fallback = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GS.Point3DWeb", "logs");
-        if (!OperatingSystem.IsWindows()) return fallback;
+        string? documentsProblem = null;
+        if (OperatingSystem.IsWindows()
+            && Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) is { Length: > 0 } documents)
+        {
+            var folder = Path.Combine(documents, "GS.Point3DWeb");
+            if (CanWrite(folder, out documentsProblem)) return folder;
+            documentsProblem = $"{folder} can't be written ({documentsProblem})";
+        }
 
-        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        if (string.IsNullOrEmpty(documents)) return fallback;
+        // The file sink fails silently, so say so if the fallback can't be written either.
+        if (!CanWrite(fallback, out var fallbackProblem))
+            documentsProblem = (documentsProblem is null ? "" : documentsProblem + "; ")
+                               + $"{fallback} can't be written either ({fallbackProblem}); nothing will be logged to a file";
+        FolderProblem = documentsProblem;
+        return fallback;
+    }
 
-        var folder = Path.Combine(documents, "GS.Point3DWeb");
+    /// <summary>
+    /// Whether a file can be created in the folder (creating the folder if needed). The file sink fails
+    /// silently if it can't write, so this checks first with a file of our own.
+    /// </summary>
+    private static bool CanWrite(string folder, out string? problem)
+    {
+        var probe = Path.Combine(folder, $".write-test-{Environment.ProcessId}.tmp");
         try
         {
-            // The file sink fails silently if it can't write, so check first with a file of our own.
             Directory.CreateDirectory(folder);
-            var probe = Path.Combine(folder, $".write-test-{Environment.ProcessId}.tmp");
             File.WriteAllText(probe, "");
-            File.Delete(probe);
-            return folder;
         }
         catch (Exception ex)
         {
-            FolderProblem = $"{folder} can't be written ({ex.Message})";
-            return fallback;
+            problem = ex.Message;
+            return false;
         }
+
+        try
+        {
+            File.Delete(probe);
+        }
+        catch
+        {
+            // Written, so the folder works; something (antivirus, a sync tool) is holding the test file.
+        }
+        problem = null;
+        return true;
     }
 }

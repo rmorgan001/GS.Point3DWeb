@@ -63,7 +63,7 @@ var app = builder.Build();
 AppLog.Factory = app.Services.GetRequiredService<ILoggerFactory>();
 app.Logger.LogInformation("GS Point3D Web {Version} starting; logs in {LogFolder}", AppVersion.Display, AppLog.Folder);
 if (AppLog.FolderProblem is { } logFolderProblem)
-    app.Logger.LogWarning("Logging to {LogFolder} instead: {Problem}", AppLog.Folder, logFolderProblem);
+    app.Logger.LogWarning("Log folder problem: {Problem}", logFolderProblem);
 
 // Release the ASCOM COM drivers this app connected, so drivers that count their clients don't stay
 // connected for it after it stops.

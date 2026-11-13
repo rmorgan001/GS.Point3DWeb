@@ -59,8 +59,8 @@ public static class AlpacaConnector
         }
     }
 
-    /// <returns>Whether the server reports connected (always false for a COM driver whose result was not
-    /// used), and whether the result was not used: the server was deleted or its address changed meanwhile.</returns>
+    /// <returns>Whether the server is now connected (false when the result was not used), and whether the
+    /// result was not used: the server was deleted or its address changed meanwhile.</returns>
     private static async Task<(bool Connected, bool Discarded)> ConnectCoreAsync(AlpacaServer server, CancellationToken token)
     {
         var url = server.Url; // the result is for this address (see SetConnected)
@@ -77,7 +77,7 @@ public static class AlpacaConnector
                 // Deleted meanwhile, or now pointing at a different driver: this hold isn't wanted any more.
                 if (server.Removed || !SetConnected(server, url, comConnected))
                 {
-                    if (comConnected) await ComTelescopes.ReleaseAsync(AlpacaServer.GetProgId(url)!, server.IdGuid);
+                    if (comConnected) await ComTelescopes.ReleaseAndLogAsync(AlpacaServer.GetProgId(url)!, server.IdGuid);
                     return (false, true);
                 }
                 return (comConnected, false);
@@ -102,8 +102,9 @@ public static class AlpacaConnector
                 }
             }
 
-            var used = SetConnected(server, url, isConnected);
-            return (isConnected, !used);
+            // Deleted meanwhile, or now pointing at a different device: this result isn't for it.
+            var used = !server.Removed && SetConnected(server, url, isConnected);
+            return (used && isConnected, !used);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {

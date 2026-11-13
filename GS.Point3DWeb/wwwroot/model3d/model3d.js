@@ -59,7 +59,26 @@ const deg = r => r * 180 / Math.PI;
 
 // Default camera: looking at the mount head from the south-west, a little above.
 const DEFAULT_CAMERA = { alpha: 150, beta: 60, radius: 40, targetX: 0, targetY: 6, targetZ: 0 };
-const CAMERA_SAVE_DELAY_MS = 700;
+
+// Highest pixel density drawn at: sharp on high-DPI screens (Retina, 150% Windows scaling) without
+// paying for 3x or 4x phone screens.
+const MAX_PIXEL_RATIO = 2;
+
+// After the mouse, a finger or a key moves the camera, keep drawing this long (covers the camera's
+// inertia, which eases out after the input stops).
+const INTERACTION_RENDER_MS = 1000;
+
+// A new position glides from the last one over the time since the previous update (so it moves at the
+// mount's own pace), but at most this long, so the model is never more than this far behind the mount.
+const MAX_GLIDE_MS = 1000;
+// Updates closer together than this, or after the page was hidden, jump instead of gliding.
+const MIN_GLIDE_MS = 50;
+// Moves smaller than this (degrees, on every axis) jump too: tracking moves the axes a few
+// thousandths of a degree per update, which can't be seen, so gliding would only keep the view drawing.
+const MIN_GLIDE_DEGREES = 0.1;
+
+/** The signed change from angle a to angle b the short way round, in degrees (-180 to 180). */
+const angleDelta = (a, b) => ((((b - a) % 360) + 540) % 360) - 180;
 
 class TelescopeViewer {
     constructor(canvas, options) {
@@ -68,33 +87,87 @@ class TelescopeViewer {
         // Green Swamp palette: primary = telescope (green), secondary = light (moon white).
         this.primaryColor = options.primaryColor || '#52b788';
         this.secondaryColor = options.secondaryColor || '#e8e6df';
-        // Background image URL (relative to the page), or null for a plain dark sky.
-        this.backgroundUrl = options.background === undefined ? 'model3d/backgrounds/NorthAmerica.jpg' : options.background;
         this.textures = {
             compassN: base + 'compassN.png',
             compassS: base + 'compassS.png'
         };
-        this.compassRequest = 0; // so a compass image that loads late can't replace a newer one
+        this.compassRequest = 0;    // so a compass image that loads late can't replace a newer one
+        this.backgroundRequest = 0; // the same for background images
         this.modelMeshes = [];
         this.modelMaterials = [];
         this.pierMeshes = [];
         this.loadCount = 0; // so an older loadModel that finishes late is dropped
+
+        // The pose on screen, and the glide towards the latest one (see setPose).
         this.pose = { x: 0, y: 0, z: 0, yCentre: 0 };
+        this.glide = null;
+        this.lastPoseAt = 0;
 
-        this.engine = new B.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true, antialias: true });
+        // Drawing on demand: a frame is drawn only when something changed (a new pose, a camera move,
+        // a texture or model arriving, a resize), not 60 times a second for a scene at rest.
+        this.needsRender = true;
+        this.interactUntil = 0;
+
+        // No preserveDrawingBuffer or stencil: nothing reads frames back or uses stencil effects.
+        // The pixel density is set in resize(), capped at MAX_PIXEL_RATIO.
+        this.engine = new B.Engine(canvas, true, { antialias: true, preserveDrawingBuffer: false, stencil: false }, false);
         this.scene = this.createScene();
-        this.engine.runRenderLoop(() => this.scene && this.scene.render());
+        this.engine.runRenderLoop(() => this.renderFrame());
 
-        // The canvas lives in a resizable panel, not the whole window.
-        this.resizeObserver = new ResizeObserver(() => this.engine.resize());
+        // The canvas lives in a resizable panel, not the whole window. The window's resize event also
+        // fires when the page moves to a screen with a different pixel density, or is zoomed.
+        this.onWindowResize = () => this.resize();
+        this.resizeObserver = new ResizeObserver(this.onWindowResize);
         this.resizeObserver.observe(canvas);
+        window.addEventListener('resize', this.onWindowResize);
+        this.resize();
+
+        // Camera input: keep drawing while the user moves the camera (and while it eases out).
+        this.onInteract = e => {
+            if (e.type === 'pointermove' && e.buttons === 0) return; // just hovering
+            this.interactUntil = performance.now() + INTERACTION_RENDER_MS;
+        };
+        for (const type of ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'keydown']) {
+            canvas.addEventListener(type, this.onInteract, { passive: true });
+        }
 
         this.setHemisphere(options.northern !== false);
-        this.setBackground(this.backgroundUrl);
+        // Background image URL (relative to the page), or null for a plain dark sky.
+        this.setBackground(options.background ?? null);
         this.setGrid(options.grid !== false);
 
         // Camera: start from the server's saved view (saved / reset from the back of the card).
         this.setCamera(options.camera);
+    }
+
+    /** Asks for a frame to be drawn (the scene changed). */
+    requestRender() {
+        this.needsRender = true;
+    }
+
+    /** The render loop: moves the glide on, and draws a frame only when something changed. */
+    renderFrame() {
+        if (!this.scene || this.scene.isDisposed) return;
+        const now = performance.now();
+        const gliding = this.stepGlide(now);
+        const c = this.camera;
+        const cameraMoving = c.inertialAlphaOffset || c.inertialBetaOffset || c.inertialRadiusOffset
+            || c.inertialPanningX || c.inertialPanningY;
+        if (!this.needsRender && !gliding && !cameraMoving && now >= this.interactUntil) return;
+
+        this.needsRender = false;
+        this.scene.render();
+        // Materials compile in the background: until everything is ready, some meshes are skipped,
+        // so keep drawing until they appear.
+        if (!this.scene.isReady()) this.needsRender = true;
+    }
+
+    /** Matches the canvas to its size on screen and the screen's pixel density (up to MAX_PIXEL_RATIO). */
+    resize() {
+        const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+        this.engine.setHardwareScalingLevel(1 / ratio);
+        this.engine.resize();
+        this.requestRender();
     }
 
     /** Applies a saved camera ({ alpha, beta (degrees), radius, targetX/Y/Z }), or the default. */
@@ -105,6 +178,7 @@ class TelescopeViewer {
         this.camera.beta = rad(v.beta);
         this.camera.radius = v.radius;
         this.camera.setTarget(new B.Vector3(v.targetX, v.targetY, v.targetZ));
+        this.requestRender();
     }
 
     getCamera() {
@@ -132,7 +206,10 @@ class TelescopeViewer {
         this.camera.attachControl(this.canvas, true);
         this.camera.lowerRadiusLimit = 5;
         this.camera.upperRadiusLimit = 200;
+        // The wheel zooms by a share of the distance, so it feels the same near and far; a pinch zooms
+        // so the model follows the fingers (both, unlike the default fixed steps, scale with distance).
         this.camera.wheelDeltaPercentage = 0.02;
+        this.camera.useNaturalPinchZoom = true;
 
         // Lighting
         const hemi = new B.HemisphericLight('hemisphericLight', new B.Vector3(0, 1, 0), scene);
@@ -154,6 +231,7 @@ class TelescopeViewer {
         skyMat.specularColor = new B.Color3(0, 0, 0);
         this.skybox.material = skyMat;
         this.skybox.isPickable = false;
+        this.skybox.setEnabled(false); // shown once a background image has loaded (setBackground)
 
         // Root in Helix coordinates: Z up -> scene Y up, Helix units -> scene units.
         this.root = new B.TransformNode('Helix', scene);
@@ -254,6 +332,7 @@ class TelescopeViewer {
     /** Shows or hides the ground grid. */
     setGrid(visible) {
         this.ground.setEnabled(!!visible);
+        this.requestRender();
     }
 
     /** Helix BoxVisual3D: Length = X, Width = Y, Height = Z, rotated about the X axis around a pivot. */
@@ -363,14 +442,51 @@ class TelescopeViewer {
     /**
      * GSServer's model transform: XAxisOffset (about Z), YAxisOffset (about Y),
      * ZAxisOffset (about X), centred on (0, yCentre, 525).
+     *
+     * The model glides to the new pose rather than jumping: each angle moves the short way round,
+     * like the mount's own axes, over the time since the previous update (at most MAX_GLIDE_MS).
      */
     setPose(xAxisOffset, yAxisOffset, zAxisOffset, yAxisCentre) {
-        this.pose = { x: xAxisOffset, y: yAxisOffset, z: zAxisOffset, yCentre: yAxisCentre };
+        const target = { x: xAxisOffset, y: yAxisOffset, z: zAxisOffset, yCentre: yAxisCentre };
+        const now = performance.now();
+        const sincePrevious = now - this.lastPoseAt;
+        const first = this.lastPoseAt === 0;
+        this.lastPoseAt = now;
+
+        const duration = Math.min(sincePrevious, MAX_GLIDE_MS);
+        const largest = Math.max(...['x', 'y', 'z'].map(k => Math.abs(angleDelta(this.pose[k], target[k]))));
+        if (first || document.hidden || duration < MIN_GLIDE_MS || largest < MIN_GLIDE_DEGREES
+            || target.yCentre !== this.pose.yCentre) {
+            // First pose, a hidden page, updates too close together, a move too small to see (tracking),
+            // or a different mount type: jump.
+            this.glide = null;
+            this.pose = target;
+            this.applyPose();
+            return;
+        }
+        this.glide = { from: { ...this.pose }, to: target, start: now, duration };
+        this.requestRender();
+    }
+
+    /** Moves the glide on to time `now`. Returns whether a frame needs drawing for it. */
+    stepGlide(now) {
+        const g = this.glide;
+        if (!g) return false;
+        const t = Math.min((now - g.start) / g.duration, 1);
+        // Shortest way round, so 359 to 1 degree moves 2 degrees, not 358.
+        const angle = (a, b) => a + angleDelta(a, b) * t;
+        this.pose = { x: angle(g.from.x, g.to.x), y: angle(g.from.y, g.to.y), z: angle(g.from.z, g.to.z), yCentre: g.to.yCentre };
+        if (t >= 1) {
+            this.pose = g.to;
+            this.glide = null;
+        }
         this.applyPose();
+        return true;
     }
 
     applyPose() {
         const B = window.BABYLON;
+        this.requestRender();
         const { x, y, z, yCentre } = this.pose;
         const centre = new B.Vector3(0, yCentre, ROTATION_CENTRE_Z);
         const toCentre = B.Matrix.Translation(-centre.x, -centre.y, -centre.z);
@@ -393,25 +509,45 @@ class TelescopeViewer {
     setModelColor(hex) {
         this.primaryColor = hex;
         if (this.otaMaterial) this.otaMaterial.diffuseColor = window.BABYLON.Color3.FromHexString(hex);
+        this.requestRender();
     }
 
-    /** Background image URL (relative to the page), or null for a plain dark sky. */
+    /**
+     * Background image URL (relative to the page), or null for a plain dark sky. The current
+     * background stays until the new image has downloaded, so switching doesn't flash black.
+     */
     setBackground(url) {
         const B = window.BABYLON;
-        this.backgroundUrl = url;
+        const request = ++this.backgroundRequest;
         const material = this.skybox.material;
-        const old = material.reflectionTexture;
-        if (url) {
-            const texture = new B.Texture(new URL(url, document.baseURI).href, this.scene, true);
-            texture.coordinatesMode = B.Texture.FIXED_EQUIRECTANGULAR_MODE;
-            texture.level = 0.55; // dim the image so the mount stands out
+        const swap = texture => {
+            const old = material.reflectionTexture;
             material.reflectionTexture = texture;
-            this.skybox.setEnabled(true);
-        } else {
-            material.reflectionTexture = null;
-            this.skybox.setEnabled(false);
+            this.skybox.setEnabled(!!texture);
+            if (old && old !== texture) old.dispose();
+            this.requestRender();
+        };
+
+        if (!url) {
+            swap(null);
+            return;
         }
-        if (old) old.dispose();
+        const href = new URL(url, document.baseURI).href;
+        const texture = new B.Texture(href, this.scene, true, true, B.Texture.TRILINEAR_SAMPLINGMODE,
+            () => {
+                // A newer choice (or a closed view) wins over an image that arrives late.
+                if (request !== this.backgroundRequest || this.scene.isDisposed) {
+                    texture.dispose();
+                    return;
+                }
+                swap(texture);
+            },
+            (message) => {
+                if (request === this.backgroundRequest) console.warn(`GS Point3D Web: background image ${href} failed to load`, message);
+                texture.dispose();
+            });
+        texture.coordinatesMode = B.Texture.FIXED_EQUIRECTANGULAR_MODE;
+        texture.level = 0.55; // dim the image so the mount stands out
     }
 
     setHemisphere(isNorthern) {
@@ -440,12 +576,20 @@ class TelescopeViewer {
             const old = this.compassBase.material.diffuseTexture;
             this.compassBase.material.diffuseTexture = texture;
             if (old) old.dispose();
+            this.requestRender();
+        };
+        image.onerror = () => {
+            if (request === this.compassRequest) console.warn(`GS Point3D Web: compass image ${url} failed to load`);
         };
         image.src = url;
     }
 
     dispose() {
         this.resizeObserver.disconnect();
+        window.removeEventListener('resize', this.onWindowResize);
+        for (const type of ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'keydown']) {
+            this.canvas.removeEventListener(type, this.onInteract);
+        }
         this.engine.stopRenderLoop();
         this.scene.dispose();
         this.engine.dispose();

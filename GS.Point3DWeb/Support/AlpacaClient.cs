@@ -155,7 +155,7 @@ namespace GS.Alpaca.Support
         /// </summary>
         public async Task<TelescopeDeviceState?> GetDeviceStateFromPropertiesAsync(CancellationToken token = default)
         {
-            var state = new TelescopeDeviceState { SideOfPier = -1 }; // unknown unless the mount says
+            var state = new TelescopeDeviceState(); // SideOfPier stays null (unknown) unless the mount says
             AlpacaResponse? last = null;
             foreach (var (method, required) in new[]
                      {

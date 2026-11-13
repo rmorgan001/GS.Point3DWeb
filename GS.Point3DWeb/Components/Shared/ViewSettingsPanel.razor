@@ -126,7 +126,7 @@
                                @onchange="e => SetShown(e, item)" /> @item.Label
                     </label>
                 }
-                <label class="check mount-state-check" title="@L.T("Tracking, slewing, parked, at home, guiding, pier side and the mount's UTC time, for servers that report them in one answer (devicestate)")">
+                <label class="check" title="@L.T("Tracking, slewing, parked, at home, guiding, pier side and the mount's UTC time, for servers that report them in one answer (devicestate)")">
                     <input type="checkbox" checked="@Server.ShowMountState" @onchange="SetShowMountState" /> @L.T("Mount state (tracking, parked…)")
                 </label>
             </div>
@@ -259,13 +259,13 @@
 
     private Task SetShowGrid(ChangeEventArgs e)
     {
-        Server.ShowGrid = e.Value is true || (e.Value is string s && bool.TryParse(s, out var b) && b);
+        Server.ShowGrid = IsChecked(e);
         return OnChanged.InvokeAsync();
     }
 
     private Task SetShowMountState(ChangeEventArgs e)
     {
-        Server.ShowMountState = e.Value is true || (e.Value is string s && bool.TryParse(s, out var b) && b);
+        Server.ShowMountState = IsChecked(e);
         return OnChanged.InvokeAsync();
     }
 
@@ -334,9 +334,13 @@
             ? L.T("centred")
             : $"{camera.TargetX:0.#}, {camera.TargetY:0.#}, {camera.TargetZ:0.#}";
 
+    /// <summary>A checkbox's new state from its change event (a bool, or "true" / "false" as text).</summary>
+    private static bool IsChecked(ChangeEventArgs e)
+        => e.Value is true || (e.Value is string s && bool.TryParse(s, out var b) && b);
+
     private Task SetShown(ChangeEventArgs e, Item item)
     {
-        item.Set(Server, e.Value is true || (e.Value is string s && bool.TryParse(s, out var b) && b));
+        item.Set(Server, IsChecked(e));
         return OnChanged.InvokeAsync();
     }
 

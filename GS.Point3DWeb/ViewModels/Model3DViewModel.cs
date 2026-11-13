@@ -155,6 +155,16 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         get { lock (_runningClockLock) return _runningClock.IsRunning; }
     }
 
+    /// <summary>
+    /// Follows a change of the server's connection, from anywhere (toolbar, another view, a lost connection):
+    /// the running clock starts or pauses, and the mount state strip is cleared straight away on a disconnect.
+    /// </summary>
+    public void OnServerConnectionChanged()
+    {
+        SyncRunningClock();
+        if (Server?.IsConnected != true) Status = null;
+    }
+
     /// <summary>Runs the clock while the view is updating and the server is connected; pauses it otherwise.</summary>
     public void SyncRunningClock()
     {
@@ -364,6 +374,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     private async Task CheckStillConnectedAsync(AlpacaServer server, string reason, string reasonForLog,
         Exception? error, CancellationToken token)
     {
+        Status = null; // what the strip showed is no longer known to be current
         if (IsConnectionBusy)
             return; // a Connect / Disconnect (here, the toolbar or a drop) is changing it right now
 
@@ -380,6 +391,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     /// <summary>Logs the first failed poll of a run (see <see cref="_pollFailures"/>).</summary>
     private void PollFailed(AlpacaServer server, string reason, Exception? error)
     {
+        Status = null; // the mount state on the strip is out of date
         if (_pollFailures++ == 0)
             _logger.LogWarning(error, "{Server}: update failed: {Reason} (further failures not logged until updates resume)",
                 server.ServerName, reason);
@@ -481,7 +493,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         Alt = CoordinateFormat.DegreesToDms(deviceState.Altitude, "° ", ":", "", 2);
         Lha = CoordinateFormat.HoursToHms(Coordinate.Ra2Ha12(deviceState.RightAscension, deviceState.SiderealTime));
         Lst = CoordinateFormat.HoursToHms(deviceState.SiderealTime, "h ", ":", "", 2);
-        Status = MountStatus.From(deviceState);
+        // A poll that ends after a disconnect mustn't put the strip back.
+        Status = Server?.IsConnected == true ? MountStatus.From(deviceState) : null;
 
         // Convert to mount axis positions for the model
         var southern = Latitude < 0;
@@ -503,7 +516,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     deviceState.SiderealTime,
                     southern,
                     // East, west or unknown; anything else a mount reports is taken as unknown.
-                    deviceState.SideOfPier is 0 or 1 ? deviceState.SideOfPier : -1);
+                    deviceState.SideOfPier is { } pier and (0 or 1) ? pier : -1);
                 break;
         }
 
@@ -519,36 +532,27 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
     /// <summary>
     /// The mount state shown on the view besides the coordinates. Each item is null when the mount didn't
-    /// report it. <see cref="UtcDate"/> is to the second, so a poll only redraws it once a second.
+    /// report it.
     /// </summary>
     public sealed record MountStatus(bool? Tracking, bool? Slewing, bool? AtPark, bool? AtHome,
         bool? IsPulseGuiding, int? SideOfPier, DateTime? UtcDate)
     {
-        /// <summary>The reported items of a device state, or null if it reported none of them.</summary>
+        /// <summary>
+        /// The state items of a poll, or null if it has none: a server read one property at a time reports
+        /// only the position and the side of pier, which alone don't make a strip.
+        /// </summary>
         public static MountStatus? From(TelescopeDeviceState state)
         {
-            var reported = state.Reported;
-            if (reported.Count == 0) return null;
+            if (state is { Tracking: null, Slewing: null, AtPark: null, AtHome: null, IsPulseGuiding: null, UTCDate: null })
+                return null;
 
-            DateTime? utc = null;
-            if (reported.Contains("UTCDate") && state.UTCDate != default)
-            {
-                var date = state.UTCDate.Kind == DateTimeKind.Local ? state.UTCDate.ToUniversalTime() : state.UTCDate;
-                utc = new DateTime(date.Ticks - date.Ticks % TimeSpan.TicksPerSecond, DateTimeKind.Utc);
-            }
-
-            var status = new MountStatus(
-                reported.Contains("Tracking") ? state.Tracking : null,
-                reported.Contains("Slewing") ? state.Slewing : null,
-                reported.Contains("AtPark") ? state.AtPark : null,
-                reported.Contains("AtHome") ? state.AtHome : null,
-                reported.Contains("IsPulseGuiding") ? state.IsPulseGuiding : null,
-                reported.Contains("SideOfPier") ? state.SideOfPier : null,
-                utc);
-            return status == Empty ? null : status;
+            // A time without a zone is taken as UTC, as ASCOM specifies.
+            DateTime? utc = state.UTCDate is { } date
+                ? date.Kind == DateTimeKind.Local ? date.ToUniversalTime() : DateTime.SpecifyKind(date, DateTimeKind.Utc)
+                : null;
+            return new MountStatus(state.Tracking, state.Slewing, state.AtPark, state.AtHome,
+                state.IsPulseGuiding, state.SideOfPier, utc);
         }
-
-        private static readonly MountStatus Empty = new(null, null, null, null, null, null, null);
     }
 
     public void Dispose()

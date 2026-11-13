@@ -293,49 +293,40 @@ public static class ComTelescopes
         });
 
     /// <summary>
-    /// The mount's position: TelescopeState in one call where the driver supports it (ITelescopeV4), otherwise
-    /// each property on its own. Azimuth, Altitude and SideOfPier are optional on an equatorial mount.
+    /// The mount's state: TelescopeState in one call where the driver supports it (ITelescopeV4), with any
+    /// position values it leaves out read one property at a time (all of them for an older driver).
+    /// Azimuth, Altitude and SideOfPier are optional on an equatorial mount.
     /// </summary>
     public static Task<TelescopeDeviceState> ReadStateAsync(string progId)
         => Read(progId, driver => ref driver.StateRead, telescope =>
         {
-            var state = new TelescopeDeviceState { SideOfPier = -1 }; // unknown unless the mount says
+            var state = new TelescopeDeviceState();
+            double? ra = null, dec = null, lst = null, az = null, alt = null;
             try
             {
                 var s = telescope.TelescopeState;
-                if (s.RightAscension is { } ra && s.Declination is { } dec && s.SiderealTime is { } lst)
-                {
-                    state.RightAscension = ra;
-                    state.Declination = dec;
-                    state.SiderealTime = lst;
-                    if (s.Azimuth is { } az) state.Azimuth = az;
-                    if (s.Altitude is { } alt) state.Altitude = alt;
-                    if (s.SideOfPier is { } side) state.SideOfPier = (int)side;
-                    state.Reported.UnionWith(["RightAscension", "Declination", "SiderealTime"]);
-                    if (s.Azimuth is not null) state.Reported.Add("Azimuth");
-                    if (s.Altitude is not null) state.Reported.Add("Altitude");
-                    if (s.SideOfPier is not null) state.Reported.Add("SideOfPier");
-                    // The rest of the state, shown on the view.
-                    if (s.Tracking is { } tracking) { state.Tracking = tracking; state.Reported.Add("Tracking"); }
-                    if (s.Slewing is { } slewing) { state.Slewing = slewing; state.Reported.Add("Slewing"); }
-                    if (s.AtPark is { } atPark) { state.AtPark = atPark; state.Reported.Add("AtPark"); }
-                    if (s.AtHome is { } atHome) { state.AtHome = atHome; state.Reported.Add("AtHome"); }
-                    if (s.IsPulseGuiding is { } guiding) { state.IsPulseGuiding = guiding; state.Reported.Add("IsPulseGuiding"); }
-                    if (s.UTCDate is { } utc) { state.UTCDate = utc; state.Reported.Add("UTCDate"); }
-                    return state;
-                }
+                (ra, dec, lst, az, alt) = (s.RightAscension, s.Declination, s.SiderealTime, s.Azimuth, s.Altitude);
+                state.SideOfPier = s.SideOfPier is { } side ? (int)side : null;
+                state.Tracking = s.Tracking;
+                state.Slewing = s.Slewing;
+                state.AtPark = s.AtPark;
+                state.AtHome = s.AtHome;
+                state.IsPulseGuiding = s.IsPulseGuiding;
+                state.UTCDate = s.UTCDate;
+                state.TimeStamp = s.TimeStamp;
             }
             catch
             {
                 // an older driver without TelescopeState: read the properties below
             }
 
-            state.RightAscension = telescope.RightAscension;
-            state.Declination = telescope.Declination;
-            state.SiderealTime = telescope.SiderealTime;
-            try { state.Azimuth = telescope.Azimuth; } catch { /* optional */ }
-            try { state.Altitude = telescope.Altitude; } catch { /* optional */ }
-            try { state.SideOfPier = (int)telescope.SideOfPier; } catch { /* optional */ }
+            state.RightAscension = ra ?? telescope.RightAscension;
+            state.Declination = dec ?? telescope.Declination;
+            state.SiderealTime = lst ?? telescope.SiderealTime;
+            try { state.Azimuth = az ?? telescope.Azimuth; } catch { /* optional */ }
+            try { state.Altitude = alt ?? telescope.Altitude; } catch { /* optional */ }
+            if (state.SideOfPier is null)
+                try { state.SideOfPier = (int)telescope.SideOfPier; } catch { /* optional */ }
             return state;
         });
 

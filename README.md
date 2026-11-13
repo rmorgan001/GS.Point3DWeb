@@ -119,13 +119,6 @@ Other builds (local builds, `dotnet run` and the build on each push) show the ne
 plus the number of commits since it, such as `v1.0.1+3`, so the version never needs editing by
 hand.
 
-Each successful release is then copied, downloads and all, to the public
-[GS.Point3DWeb-Releases](https://github.com/rmorgan001/GS.Point3DWeb-Releases) repository by the
-[mirror workflow](.github/workflows/mirror-release.yml), so people can download it without access to
-this repository. To copy an earlier release again, run **Mirror release** by hand from the
-Actions tab with its tag. The workflow needs a `PUBLIC_RELEASES_TOKEN` secret: a fine-grained
-token for the public repository only, with *Contents: Read and write*.
-
 ## Where things are stored
 
 | What | Windows | Linux / macOS |

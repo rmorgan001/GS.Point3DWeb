@@ -47,7 +47,7 @@ public partial class FeatureKeyDialogViewModel(FeatureKeyService featureKeys) : 
             return;
         }
         Error = null;
-        Message = L.T("Key removed. Limited to {0} view and {1} servers.", FeatureKeyService.FreeMaxViews, FeatureKeyService.FreeMaxServers);
+        Message = L.T("Key removed. Limited to {0} views and {1} servers.", FeatureKeyService.FreeMaxViews, FeatureKeyService.FreeMaxServers);
     }
 
     [RelayCommand]

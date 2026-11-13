@@ -158,7 +158,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(AlpacaServers));
     }
 
-    // ===== Feature key: 1 view and 5 servers without a key; 4 views and any number with one =====
+    // ===== Feature key: 2 views and 5 servers without a key; 4 views and any number with one =====
 
     public FeatureKeyService FeatureKeys { get; }
 
@@ -525,7 +525,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         {
             if (value > MaxViews)
             {
-                _ = ShowLimitAsync(L.T("The free version shows {0} view. A feature key unlocks up to {1}.",
+                _ = ShowLimitAsync(L.T("The free version shows {0} views. A feature key unlocks up to {1}.",
                     FeatureKeyService.FreeMaxViews, FeatureKeyService.LicensedMaxViews));
                 return;
             }

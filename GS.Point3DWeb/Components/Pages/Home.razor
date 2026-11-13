@@ -19,6 +19,14 @@
                 @L.T("{0} of {1} connected", ConnectedCount, ViewModel.Count)
             </span>
 
+            @* Opens the log viewer (/log) in its own window; a plain link (new tab) if pop-ups are blocked. *@
+            <a class="key-button log-button" href="log" target="gs-point3dweb-log"
+               title="@L.T("View the log in a separate window")"
+               onclick="return !window.open(this.href, this.target, 'popup,width=1100,height=750');">
+                <Icon Kind="FileDocument" Size="16" />
+                <span>@L.T("View Log")</span>
+            </a>
+
             <button type="button" class="key-button @(ViewModel.IsLicensed ? "licensed" : null)"
                     title="@(ViewModel.IsLicensed ? L.T("Feature key installed") : L.T("Free version: add a feature key for more views and servers"))"
                     @onclick="() => ViewModel.FeatureKeyCommand.ExecuteAsync(null)">

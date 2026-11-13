@@ -4,9 +4,31 @@ using GS.Point3DWeb.Localization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using GS.Point3DWeb.Services;
+using GS.Point3DWeb.Support;
 using GS.Point3DWeb.ViewModels;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Logging: Serilog writes to the console and to a daily file in %APPDATA%\GS.Point3DWeb\logs (two weeks
+// kept), with the levels from the "Serilog" section of appsettings.json. The Debug output and, on Windows,
+// the Event Log (warnings and errors) still get the messages too.
+builder.Logging.ClearProviders();
+builder.Logging.AddDebug();
+if (OperatingSystem.IsWindows()) builder.Logging.AddEventLog();
+builder.Services.AddSerilog((services, log) => log
+        .ReadFrom.Configuration(builder.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
+        .WriteTo.File(Path.Combine(AppLog.Folder, "point3dweb-.log"),
+            rollingInterval: RollingInterval.Day,
+            retainedFileCountLimit: 14,
+            fileSizeLimitBytes: 20 * 1024 * 1024,
+            rollOnFileSizeLimit: true,
+            shared: true,
+            outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}"),
+    writeToProviders: true);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -19,7 +41,7 @@ builder.Services.AddDataProtection().SetApplicationName("GS.Point3DWeb");
 // Application-wide settings (connection list), shared like the desktop SettingsService singleton.
 builder.Services.AddSingleton<SettingsService>();
 
-// Feature key (free: 1 view, 5 servers; with a key: 4 views, any number of servers).
+// Feature key (free: 2 views, 5 servers; with a key: 4 views, any number of servers).
 builder.Services.AddSingleton<FeatureKeyService>();
 
 // Dialogs: one per browser connection (circuit).
@@ -33,6 +55,10 @@ builder.Services.AddTransient<HomeViewModel>();
 builder.Services.AddTransient<Model3DViewModel>();
 
 var app = builder.Build();
+
+// The static connection classes (AlpacaConnector, ComTelescopes) log through this.
+AppLog.Factory = app.Services.GetRequiredService<ILoggerFactory>();
+app.Logger.LogInformation("GS Point3D Web {Version} starting; logs in {LogFolder}", AppVersion.Display, AppLog.Folder);
 
 // Release the ASCOM COM drivers this app connected, so drivers that count their clients don't stay
 // connected for it after it stops.
@@ -92,6 +118,11 @@ app.MapGet("/culture/set", (string? culture, string? redirectUri, HttpContext co
         : "/";
     return Results.LocalRedirect(target);
 });
+// The log viewer's Download link: the most recent log file, read while it is still being written.
+app.MapGet("/log/file", () => LogFiles.Latest() is { } file
+    ? Results.File(LogFiles.OpenShared(file), "text/plain; charset=utf-8", file.Name)
+    : Results.NotFound());
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

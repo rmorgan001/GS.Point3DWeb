@@ -5,6 +5,7 @@ using ASCOM.Com;
 using ASCOM.Com.DriverAccess;
 using ASCOM.Common;
 using GS.Alpaca.Support;
+using GS.Point3DWeb.Support;
 
 namespace GS.Point3DWeb.Services;
 
@@ -21,6 +22,8 @@ namespace GS.Point3DWeb.Services;
 [SupportedOSPlatform("windows")]
 public static class ComTelescopes
 {
+    private static ILogger Log => AppLog.For(nameof(ComTelescopes));
+
     /// <summary>Whether ASCOM COM drivers can be used here (Windows only).</summary>
     [SupportedOSPlatformGuard("windows")]
     public static bool IsSupported => OperatingSystem.IsWindows();
@@ -111,10 +114,14 @@ public static class ComTelescopes
         {
             var connected = await WithTimeout(driver.Thread.Run(() =>
             {
-                driver.Telescope ??= new Telescope(driver.ProgId);
+                if (driver.Telescope is null)
+                {
+                    Log.LogInformation("Starting ASCOM driver {ProgId}", driver.ProgId);
+                    driver.Telescope = new Telescope(driver.ProgId);
+                }
                 if (!driver.Telescope.Connected) driver.Telescope.Connected = true;
                 return driver.Telescope.Connected;
-            }), ConnectTimeout);
+            }), ConnectTimeout, progId, "connect");
             if (!connected && added) await ReleaseAsync(progId, owner);
             return connected;
         }
@@ -142,7 +149,10 @@ public static class ComTelescopes
                     Releasing.Remove(progId);
                     if (!Drivers.TryGetValue(progId, out var driver))
                         Drivers[progId] = driver = new Driver(progId);
-                    return (driver, driver.Owners.Add(owner));
+                    var added = driver.Owners.Add(owner);
+                    if (added && driver.Owners.Count > 1)
+                        Log.LogInformation("ASCOM driver {ProgId} is now used by {Count} servers", progId, driver.Owners.Count);
+                    return (driver, added);
                 }
             }
 
@@ -156,6 +166,8 @@ public static class ComTelescopes
             {
                 if (Releasing.TryGetValue(progId, out var current) && current == releasing) Releasing.Remove(progId);
             }
+            Log.LogWarning("ASCOM driver {ProgId} is stuck while being released (no answer in {Seconds} s); " +
+                           "giving up on that instance and starting a new one", progId, CallTimeout.TotalSeconds);
         }
     }
 
@@ -170,20 +182,27 @@ public static class ComTelescopes
         Task<bool> release;
         lock (Gate)
         {
-            if (!Drivers.TryGetValue(progId, out var driver) || !driver.Owners.Remove(owner) || driver.Owners.Count > 0)
+            if (!Drivers.TryGetValue(progId, out var driver) || !driver.Owners.Remove(owner))
                 return Task.CompletedTask;
+            if (driver.Owners.Count > 0)
+            {
+                Log.LogInformation("ASCOM driver {ProgId} stays connected: {Count} other server(s) still use it",
+                    progId, driver.Owners.Count);
+                return Task.CompletedTask;
+            }
             Drivers.Remove(progId);
             Releasing[progId] = release = DisposeAsync(driver);
         }
-        return WithTimeout(release, CallTimeout);
+        return WithTimeout(release, CallTimeout, progId, "release");
     }
 
     /// <summary>Disconnects and releases a driver no server holds any more, then stops its thread.</summary>
     private static async Task<bool> DisposeAsync(Driver driver)
     {
+        Log.LogInformation("Releasing ASCOM driver {ProgId}: no server uses it any more", driver.ProgId);
         try
         {
-            return await driver.Thread.Run(() =>
+            var released = await driver.Thread.Run(() =>
             {
                 if (driver.Telescope is not { } telescope) return true;
                 try
@@ -197,6 +216,14 @@ public static class ComTelescopes
                 }
                 return true;
             });
+            Log.LogInformation("Released ASCOM driver {ProgId}", driver.ProgId);
+            return released;
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "ASCOM driver {ProgId} failed while being released (it is released anyway): {Error}",
+                driver.ProgId, ex.Message);
+            throw;
         }
         finally
         {
@@ -271,12 +298,18 @@ public static class ComTelescopes
     /// </summary>
     public static void DisconnectAll()
     {
-        Task[] pending;
+        Driver[] held;
+        Task[] releasing;
         lock (Gate)
         {
-            pending = [.. Drivers.Values.Select(DisposeAsync), .. Releasing.Values];
+            held = [.. Drivers.Values];
+            releasing = [.. Releasing.Values.Where(t => !t.IsCompleted)];
             Drivers.Clear();
         }
+        if (held.Length + releasing.Length == 0) return;
+
+        Log.LogInformation("Shutting down: releasing {Count} ASCOM driver(s)", held.Length + releasing.Length);
+        Task[] pending = [.. held.Select(DisposeAsync), .. releasing];
         try
         {
             Task.WaitAll(pending, TimeSpan.FromSeconds(5));
@@ -317,9 +350,10 @@ public static class ComTelescopes
 
     /// <summary>
     /// Stops waiting for a driver call that hasn't finished in time. The call itself carries on (it can't
-    /// be stopped), and later calls queue behind it on the driver's thread.
+    /// be stopped), and later calls queue behind it on the driver's thread. A timed-out connect or release
+    /// is logged here; a timed-out read is logged by the view that polls (once per run of failures).
     /// </summary>
-    private static async Task<T> WithTimeout<T>(Task<T> call, TimeSpan timeout)
+    private static async Task<T> WithTimeout<T>(Task<T> call, TimeSpan timeout, string? progId = null, string? what = null)
     {
         try
         {
@@ -327,6 +361,8 @@ public static class ComTelescopes
         }
         catch (TimeoutException) when (!call.IsCompleted) // the wait ran out, not a driver's own timeout error
         {
+            if (progId is not null)
+                Log.LogWarning("ASCOM driver {ProgId} did not answer a {Call} within {Seconds} s", progId, what, timeout.TotalSeconds);
             throw new TimeoutException($"the ASCOM driver did not answer within {timeout.TotalSeconds:0} s");
         }
     }

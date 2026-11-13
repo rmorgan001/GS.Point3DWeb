@@ -2,6 +2,7 @@ using GS.Alpaca.Shared;
 using GS.Alpaca.Support;
 using GS.Point3DWeb.Localization;
 using GS.Point3DWeb.Models;
+using GS.Point3DWeb.Support;
 using Newtonsoft.Json.Linq;
 
 namespace GS.Point3DWeb.Services;
@@ -16,6 +17,11 @@ namespace GS.Point3DWeb.Services;
 /// </summary>
 public static class AlpacaConnector
 {
+    private static ILogger Log => AppLog.For(nameof(AlpacaConnector));
+
+    /// <summary>How a server is named in the log: its name and address.</summary>
+    internal static string Describe(AlpacaServer server) => $"{server.ServerName} ({server.Url})";
+
     /// <summary>A client for the server's address, with its credentials (if any).</summary>
     public static AlpacaClient CreateClient(AlpacaServer server)
         => new(server.Url, server.ClientTransactionId, server.UserName, server.Password);
@@ -28,6 +34,29 @@ public static class AlpacaConnector
     /// recorded and the driver is never left connected with nothing holding it.
     /// </summary>
     public static async Task<bool> ConnectAsync(AlpacaServer server, CancellationToken token = default)
+    {
+        var name = Describe(server);
+        Log.LogInformation("Connecting to {Server}", name);
+        try
+        {
+            var connected = await ConnectCoreAsync(server, token);
+            if (connected) Log.LogInformation("Connected to {Server}", name);
+            else Log.LogWarning("Could not connect to {Server}: it reports not connected", name);
+            return connected;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            Log.LogInformation("Connect to {Server} stopped", name);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Connect to {Server} failed: {Error}", name, ex.Message);
+            throw;
+        }
+    }
+
+    private static async Task<bool> ConnectCoreAsync(AlpacaServer server, CancellationToken token)
     {
         var url = server.Url; // the result is for this address (see SetConnected)
         server.IsConnecting = true;
@@ -43,6 +72,8 @@ public static class AlpacaConnector
                 // Deleted meanwhile, or now pointing at a different driver: this hold isn't wanted any more.
                 if (server.Removed || !SetConnected(server, url, comConnected))
                 {
+                    Log.LogInformation("{Server} was deleted or its address changed while connecting; releasing the driver",
+                        server.ServerName);
                     if (comConnected) await ComTelescopes.ReleaseAsync(AlpacaServer.GetProgId(url)!, server.IdGuid);
                     return false;
                 }
@@ -110,6 +141,24 @@ public static class AlpacaConnector
     /// (it refused and kept the connection open).
     /// </summary>
     public static async Task<bool> DisconnectAsync(AlpacaServer server)
+    {
+        var name = Describe(server);
+        Log.LogInformation("Disconnecting from {Server}", name);
+        try
+        {
+            var stillConnected = await DisconnectCoreAsync(server);
+            if (stillConnected) Log.LogWarning("{Server} refused to disconnect and is still connected", name);
+            else Log.LogInformation("Disconnected from {Server}", name);
+            return stillConnected;
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Disconnect from {Server} failed: {Error}", name, ex.Message);
+            throw;
+        }
+    }
+
+    private static async Task<bool> DisconnectCoreAsync(AlpacaServer server)
     {
         if (server.IsCom)
         {
@@ -208,6 +257,7 @@ public static class AlpacaConnector
             if (comMode is { } m)
                 server.AlignmentMode = Enum.IsDefined(typeof(AlignmentModes), m) ? (AlignmentModes)m : AlignmentModes.algGermanPolar;
             if (comLatitude is { } lat) server.Latitude = lat;
+            LogMountInfo(server, comMode is not null, comLatitude is not null);
             return true; // a property the driver doesn't implement won't appear on a retry
         }
 
@@ -227,7 +277,17 @@ public static class AlpacaConnector
         if (latitude is { ErrorNumber: 0, Value.Type: JTokenType.Integer or JTokenType.Float })
             server.Latitude = latitude.Value.ToObject<double>();
 
-        return mode is not null && latitude is not null;
+        var answered = mode is not null && latitude is not null;
+        if (answered)
+            LogMountInfo(server, mode is { ErrorNumber: 0 }, latitude is { ErrorNumber: 0 });
+        return answered;
+    }
+
+    private static void LogMountInfo(AlpacaServer server, bool modeRead, bool latitudeRead)
+    {
+        Log.LogInformation("{Server}: alignment mode {Mode}{ModeNote}, latitude {Latitude}",
+            server.ServerName, server.AlignmentMode, modeRead ? "" : " (not reported; assumed)",
+            latitudeRead ? $"{server.Latitude:0.###}°" : "not reported");
     }
 
     /// <summary>

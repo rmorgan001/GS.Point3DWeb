@@ -23,7 +23,7 @@ public sealed record FeatureKeyInfo(string Name, DateOnly Issued, DateOnly? Expi
 /// </summary>
 public sealed class FeatureKeyService
 {
-    public const int FreeMaxViews = 1;
+    public const int FreeMaxViews = 2;
     public const int FreeMaxServers = 5;
     public const int LicensedMaxViews = SettingsService.QuadrantCount;
 

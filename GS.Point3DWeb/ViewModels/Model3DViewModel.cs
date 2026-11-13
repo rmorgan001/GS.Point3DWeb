@@ -17,9 +17,15 @@ namespace GS.Point3DWeb.ViewModels;
 /// <see cref="Server"/>, polls its device state and turns it into mount rotations for the Babylon.js viewer.
 /// The view owns the JavaScript side and listens to <see cref="RotationChanged"/>.
 /// </summary>
-public partial class Model3DViewModel(SettingsService settingsService, DialogService dialogService)
+public partial class Model3DViewModel(SettingsService settingsService, DialogService dialogService,
+    ILogger<Model3DViewModel> logger)
     : ViewModelBase, IDisposable
 {
+    private readonly ILogger<Model3DViewModel> _logger = logger;
+
+    // Failed polls in a row. Only the first of a run is logged (a poll runs every half second or so),
+    // then one line when updates resume, so a mount that stops answering doesn't flood the log.
+    private int _pollFailures;
     private readonly SettingsService _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
     private readonly DialogService _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
     private CancellationTokenSource? _cts;
@@ -205,6 +211,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 if (!server.IsConnected)
                 {
                     _mountInfoRead = false; // read it again after reconnecting
+                    _pollFailures = 0; // a new connection starts a new run
                     _useDeviceState = true;
                     if (server.IsConnecting) StatusText = L.T("Connecting to {0}…", server.ServerName);
                     else if (!IsChangingConnection) StatusText = _connectionMessage ?? L.T("Not connected");
@@ -216,6 +223,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     _lastConnectedCheck = timer.Elapsed;
                     if (await AlpacaConnector.RefreshConnectedAsync(server, token) && !token.IsCancellationRequested)
                     {
+                        _logger.LogInformation("{Server}: connected again", server.ServerName);
                         _connectionMessage = null;
                         StatusText = L.T("Connected");
                         ConnectionChanged?.Invoke();
@@ -238,7 +246,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                         if (!await AlpacaConnector.RefreshConnectedAsync(server, token))
                         {
                             if (token.IsCancellationRequested) break;
-                            ReportConnectionLost(L.T("the server reports it is not connected"));
+                            ReportConnectionLost(server, L.T("the server reports it is not connected"),
+                                "the server reports it is not connected");
                             continue;
                         }
                     }
@@ -264,19 +273,26 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     if (deviceState?.AlpacaResponse?.ErrorNumber > 0)
                     {
                         var error = L.T("Error {0}: {1}", deviceState.AlpacaResponse.ErrorNumber, deviceState.AlpacaResponse.ErrorMessage);
+                        var errorForLog = $"error {deviceState.AlpacaResponse.ErrorNumber}: {deviceState.AlpacaResponse.ErrorMessage}";
                         if (deviceState.AlpacaResponse.ErrorNumber == NotConnectedError)
-                            await CheckStillConnectedAsync(server, error, token);
+                        {
+                            await CheckStillConnectedAsync(server, error, errorForLog, null, token);
+                        }
                         else
+                        {
                             StatusText = error;
+                            PollFailed(server, errorForLog, null);
+                        }
                         continue;
                     }
                     if (deviceState is null)
                     {
-                        await CheckStillConnectedAsync(server, L.T("no answer from the server"), token);
+                        await CheckStillConnectedAsync(server, L.T("no answer from the server"), "no answer from the server", null, token);
                         continue;
                     }
 
                     _connectionMessage = null;
+                    PollSucceeded(server);
                     UpdateLocalProperties(deviceState);
                     TimerCounter++;
                     // A poll that took longer than the interval: count it as an overrun.
@@ -291,7 +307,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 // An HTTP timeout is also an OperationCanceledException, so only a stop ends the loop.
                 catch (Exception ex) when (!token.IsCancellationRequested)
                 {
-                    await CheckStillConnectedAsync(server, ex.Message, token);
+                    await CheckStillConnectedAsync(server, ex.Message, ex.Message, ex, token);
                 }
             }
         }
@@ -336,7 +352,10 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     /// After a failed poll, asks the server whether it is still connected. If it isn't (or doesn't answer),
     /// the view reports the lost connection instead of a stale "connected".
     /// </summary>
-    private async Task CheckStillConnectedAsync(AlpacaServer server, string reason, CancellationToken token)
+    /// <param name="reason">Why the poll failed, in the UI language (shown in the view).</param>
+    /// <param name="reasonForLog">The same in English, for the log.</param>
+    private async Task CheckStillConnectedAsync(AlpacaServer server, string reason, string reasonForLog,
+        Exception? error, CancellationToken token)
     {
         if (IsConnectionBusy)
             return; // a Connect / Disconnect (here, the toolbar or a drop) is changing it right now
@@ -344,14 +363,32 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         if (await AlpacaConnector.RefreshConnectedAsync(server, token) || token.IsCancellationRequested)
         {
             StatusText = L.T("Error updating: {0}", reason);
+            if (!token.IsCancellationRequested) PollFailed(server, reasonForLog, error);
             return;
         }
 
-        ReportConnectionLost(reason);
+        ReportConnectionLost(server, reason, reasonForLog);
     }
 
-    private void ReportConnectionLost(string reason)
+    /// <summary>Logs the first failed poll of a run (see <see cref="_pollFailures"/>).</summary>
+    private void PollFailed(AlpacaServer server, string reason, Exception? error)
     {
+        if (_pollFailures++ == 0)
+            _logger.LogWarning(error, "{Server}: update failed: {Reason} (further failures not logged until updates resume)",
+                server.ServerName, reason);
+    }
+
+    private void PollSucceeded(AlpacaServer server)
+    {
+        if (_pollFailures == 0) return;
+        _logger.LogInformation("{Server}: updates resumed after {Count} failed poll(s)", server.ServerName, _pollFailures);
+        _pollFailures = 0;
+    }
+
+    private void ReportConnectionLost(AlpacaServer server, string reason, string reasonForLog)
+    {
+        _logger.LogWarning("{Server}: connection lost: {Reason}", AlpacaConnector.Describe(server), reasonForLog);
+        _pollFailures = 0;
         _connectionMessage = L.T("Connection lost: {0}", reason);
         StatusText = _connectionMessage;
         _lastConnectedCheck = _timer?.Elapsed ?? TimeSpan.Zero;

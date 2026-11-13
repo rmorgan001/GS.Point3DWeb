@@ -1,0 +1,128 @@
+.log-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: .75rem 1rem 1rem;
+    gap: .6rem;
+}
+
+.log-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem 1rem;
+}
+
+.log-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .25rem .8rem;
+    min-width: 0;
+}
+
+    .log-title h1 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: var(--yellow);
+    }
+
+.log-file {
+    font-family: var(--font-code);
+    font-size: .85rem;
+}
+
+.log-meta {
+    font-size: .8rem;
+    color: var(--mare);
+}
+
+.log-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem .9rem;
+}
+
+.log-option {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .85rem;
+    color: var(--mare);
+    cursor: pointer;
+}
+
+    .log-option input {
+        accent-color: var(--green);
+    }
+
+.log-button {
+    display: inline-flex;
+    align-items: center;
+    height: 2rem;
+    padding: 0 .8rem;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--panel);
+    color: var(--moon);
+    font: inherit;
+    font-size: .85rem;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+    .log-button:hover {
+        border-color: var(--green);
+        background: var(--panel-raised);
+    }
+
+.log-note {
+    margin: 0;
+    font-size: .85rem;
+    color: var(--mare);
+}
+
+    .log-note.error {
+        color: var(--red);
+    }
+
+/* Laid out bottom-up, so it opens at the newest line and stays there as lines are added
+   (unless the user has scrolled up to read). */
+.log-scroll {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column-reverse;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--well);
+}
+
+.log-text {
+    margin: 0;
+    padding: .6rem .8rem;
+    font-family: var(--font-code);
+    font-size: .8rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--moon);
+}
+
+    .log-text .dbg {
+        color: var(--mare);
+    }
+
+    .log-text .wrn {
+        color: var(--yellow);
+    }
+
+    .log-text .err,
+    .log-text .ftl {
+        color: var(--red);
+    }

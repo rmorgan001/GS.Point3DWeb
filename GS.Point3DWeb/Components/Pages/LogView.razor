@@ -1,0 +1,197 @@
+@page "/log"
+@inherits LocalizedComponentBase
+@implements IDisposable
+
+@* The log viewer, opened in its own window from the Home page's "View Log" button. Shows the end of the
+   most recent log file; with Follow on it re-reads the file every couple of seconds when it has changed,
+   and stays scrolled to the newest line (the scroll box is laid out bottom-up, so no script is needed). *@
+
+<PageTitle>@L.T("Log") · GS Point3D Web</PageTitle>
+
+<div class="log-page">
+    <header class="log-header">
+        <div class="log-title">
+            <h1>@L.T("Log")</h1>
+            @if (_file is not null)
+            {
+                <span class="log-file" title="@_file.FullName">@_file.Name</span>
+                <span class="log-meta">@SizeText(_length) · @L.T("Updated {0}", _lastWrite.ToLocalTime().ToString("HH:mm:ss"))</span>
+            }
+        </div>
+
+        <div class="log-tools">
+            <label class="log-option" title="@L.T("Show only warnings and errors")">
+                <input type="checkbox" @bind="_problemsOnly" />
+                <span>@L.T("Warnings and errors only")</span>
+            </label>
+            <label class="log-option" title="@L.T("Re-read the log as it grows and keep the newest line in view")">
+                <input type="checkbox" @bind="Follow" />
+                <span>@L.T("Follow")</span>
+            </label>
+            <button type="button" class="log-button" @onclick="ReloadAsync">@L.T("Refresh")</button>
+            @if (_file is not null)
+            {
+                <a class="log-button" href="log/file" download="@_file.Name">@L.T("Download")</a>
+            }
+        </div>
+    </header>
+
+    @if (_problem is not null)
+    {
+        <p class="log-note error">@_problem</p>
+    }
+    else if (_file is null)
+    {
+        <p class="log-note">@L.T("No log file yet. It is created in {0} when the app first writes to it.", AppLog.Folder)</p>
+    }
+    else if (_truncated)
+    {
+        <p class="log-note">@L.T("Showing the last {0} of the file; download it for the whole log.", SizeText(MaxBytes))</p>
+    }
+
+    <div class="log-scroll">
+        <pre class="log-text">@foreach (var line in VisibleLines)
+{<span class="@line.Css">@line.Text</span>@("\n")}</pre>
+    </div>
+</div>
+
+@code {
+    // How much of the file to show: enough for a long session, small enough to render quickly.
+    private const int MaxBytes = 512 * 1024;
+    private static readonly TimeSpan FollowInterval = TimeSpan.FromSeconds(2);
+
+    private FileInfo? _file;
+    private long _length;
+    private DateTime _lastWrite;
+    private bool _truncated;
+    private string? _problem;
+    private bool _problemsOnly;
+    private List<LogLine> _lines = [];
+    private Timer? _timer;
+    private bool _follow = true;
+
+    private readonly record struct LogLine(string Text, string Css, bool Problem);
+
+    private IEnumerable<LogLine> VisibleLines => _problemsOnly ? _lines.Where(l => l.Problem) : _lines;
+
+    private bool Follow
+    {
+        get => _follow;
+        set
+        {
+            _follow = value;
+            if (value) _ = ReloadAsync();
+            UpdateTimer();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Load();
+        UpdateTimer();
+    }
+
+    private void UpdateTimer()
+    {
+        if (_follow) _timer ??= new Timer(_ => _ = InvokeAsync(ReloadIfChanged), null, FollowInterval, FollowInterval);
+        else
+        {
+            _timer?.Dispose();
+            _timer = null;
+        }
+    }
+
+    private Task ReloadAsync()
+    {
+        Load();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Re-reads the log if a newer file was started or the current one changed.</summary>
+    private void ReloadIfChanged()
+    {
+        try
+        {
+            var latest = LogFiles.Latest();
+            if (latest?.FullName == _file?.FullName && latest?.Length == _length && latest?.LastWriteTimeUtc == _lastWrite)
+                return;
+        }
+        catch
+        {
+            // reported by Load below
+        }
+        Load();
+        StateHasChanged();
+    }
+
+    private void Load()
+    {
+        try
+        {
+            _problem = null;
+            _file = LogFiles.Latest();
+            if (_file is null)
+            {
+                _lines = [];
+                return;
+            }
+            _length = _file.Length;
+            _lastWrite = _file.LastWriteTimeUtc;
+            var (text, truncated) = LogFiles.ReadTail(_file, MaxBytes);
+            _truncated = truncated;
+            _lines = Parse(text);
+        }
+        catch (Exception ex)
+        {
+            _problem = L.T("Could not read the log: {0}", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Splits the log into lines and colors each by its entry's level. Lines that don't start an entry
+    /// (an exception's stack trace) take the level of the entry they belong to.
+    /// </summary>
+    private static List<LogLine> Parse(string text)
+    {
+        var lines = new List<LogLine>();
+        var css = "inf";
+        var problem = false;
+        foreach (var raw in text.Split('\n'))
+        {
+            var line = raw.TrimEnd('\r');
+            if (line.Length == 0) continue;
+            if (LevelOf(line) is { } level)
+            {
+                css = level;
+                problem = level is "wrn" or "err" or "ftl";
+            }
+            lines.Add(new LogLine(line, css, problem));
+        }
+        return lines;
+    }
+
+    /// <summary>The level of a line that starts an entry ("2026-11-13 06:11:08.931 [INF] …"), else null.</summary>
+    private static string? LevelOf(string line)
+    {
+        // The timestamp is 23 characters, then a space and the level in brackets.
+        if (line.Length < 29 || line[24] != '[' || line[28] != ']' || !char.IsDigit(line[0])) return null;
+        return line.Substring(25, 3).ToLowerInvariant() switch
+        {
+            "vrb" or "dbg" => "dbg",
+            "inf" => "inf",
+            "wrn" => "wrn",
+            "err" => "err",
+            "ftl" => "ftl",
+            _ => null
+        };
+    }
+
+    private static string SizeText(long bytes)
+        => bytes >= 1024 * 1024 ? $"{bytes / (1024.0 * 1024):0.0} MB" : $"{Math.Max(1, bytes / 1024)} KB";
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+        _timer = null;
+    }
+}

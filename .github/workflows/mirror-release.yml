@@ -48,6 +48,20 @@ jobs:
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error::'$TAG' is not a version tag like v1.0.0"; exit 1; }
           echo "Mirroring $SOURCE_REPO $TAG to $TARGET_REPO"
 
+      # Before downloading anything: a bad token should fail here, with a message that says so.
+      - name: Check the token
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_RELEASES_TOKEN }}
+        run: |
+          if ! out=$(gh api "repos/$TARGET_REPO" --jq .full_name 2>&1); then
+            if [[ "$out" == *"HTTP 401"* ]]; then
+              echo "::error::GitHub rejected PUBLIC_RELEASES_TOKEN (HTTP 401): it is mistyped, expired or revoked. Make a new one and replace the secret."
+            else
+              echo "::error::PUBLIC_RELEASES_TOKEN can't see $TARGET_REPO: $out. Give the token access to that repository."
+            fi
+            exit 1
+          fi
+
       - name: Download the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -80,13 +94,17 @@ jobs:
         run: |
           name=$(jq -r .name release.json)
           prerelease=$(jq -r .isPrerelease release.json)
-          if gh release view "$TAG" --repo "$TARGET_REPO" > /dev/null 2>&1; then
+          if out=$(gh release view "$TAG" --repo "$TARGET_REPO" --json tagName 2>&1); then
             # Mirrored before (a re-run, or a re-published release): bring it up to date.
             gh release edit "$TAG" --repo "$TARGET_REPO" --title "$name" --notes-file notes.md --prerelease="$prerelease"
             gh release upload "$TAG" dist/* --repo "$TARGET_REPO" --clobber
-          else
+          elif [[ "$out" == *"release not found"* ]]; then
             flags=(--repo "$TARGET_REPO" --target main --title "$name" --notes-file notes.md)
             [[ "$prerelease" == true ]] && flags+=(--prerelease)
             gh release create "$TAG" dist/* "${flags[@]}"
+          else
+            # Anything else (no access, GitHub down) must not be taken for "not mirrored yet".
+            echo "::error::Couldn't check $TARGET_REPO for $TAG: $out"
+            exit 1
           fi
           echo "Published: https://github.com/$TARGET_REPO/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"

@@ -27,12 +27,15 @@
                 <span>@L.T("View Log")</span>
             </a>
 
+            @* Feature key button: hidden for now (all four views are free). To bring it back, remove this
+               comment's start and end lines.
             <button type="button" class="key-button @(ViewModel.IsLicensed ? "licensed" : null)"
                     title="@(ViewModel.IsLicensed ? L.T("Feature key installed") : L.T("Free version: add a feature key for more views and servers"))"
                     @onclick="() => ViewModel.FeatureKeyCommand.ExecuteAsync(null)">
                 <Icon Kind="@(ViewModel.IsLicensed ? "Key" : "Lock")" Size="16" />
                 <span>@(ViewModel.IsLicensed ? L.T("Unlocked") : L.T("Free"))</span>
             </button>
+            *@
 
             <div class="views" role="group" aria-label="@L.T("Number of 3D views")">
                 <span class="views-label">@L.T("Views")</span>

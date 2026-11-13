@@ -16,8 +16,8 @@ pointing from any browser.
 - **Telescope models:** reflector, refractor, Schmidt-Cassegrain, Ritchey-Chrétien (tube or
   truss), dual telescope and a default model, in any colour, with optional sky backgrounds and
   a ground grid.
-- **Up to four views at once:** two views and five servers without a feature key; four views
-  and any number of servers with one. Each view can show a different mount.
+- **Up to four views at once:** each view can show a different mount. Up to five servers can be
+  added without a feature key.
 - **Coordinates over the model:** RA, Dec, Az, Alt, LHA and LST, each one optional. RA can be
   shown in hours or degrees.
 - **Mount state:** for servers that support `devicestate` (ASCOM Platform 7 / ITelescopeV4),

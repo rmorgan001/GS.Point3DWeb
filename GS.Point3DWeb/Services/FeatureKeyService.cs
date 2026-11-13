@@ -13,9 +13,9 @@ public sealed record FeatureKeyInfo(string Name, DateOnly Issued, DateOnly? Expi
 }
 
 /// <summary>
-/// Feature key (registered as a singleton). Without a valid key the app is limited to two 3D views
-/// (<see cref="FreeMaxViews"/>) and five servers (<see cref="FreeMaxServers"/>); a valid key unlocks
-/// up to four views and any number of servers.
+/// Feature key (registered as a singleton). All four 3D views are free (<see cref="FreeMaxViews"/>);
+/// without a valid key the app is limited to five servers (<see cref="FreeMaxServers"/>), and a valid
+/// key unlocks any number of servers.
 ///
 /// The key format and the public key are in <see cref="FeatureKeyFormat"/>. Only the public key is
 /// here, so keys can be checked but not made; tools/GS.Point3DWeb.KeyGen issues them.
@@ -23,7 +23,7 @@ public sealed record FeatureKeyInfo(string Name, DateOnly Issued, DateOnly? Expi
 /// </summary>
 public sealed class FeatureKeyService
 {
-    public const int FreeMaxViews = 2;
+    public const int FreeMaxViews = SettingsService.QuadrantCount;
     public const int FreeMaxServers = 5;
     public const int LicensedMaxViews = SettingsService.QuadrantCount;
 

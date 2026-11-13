@@ -101,9 +101,8 @@ so a new version keeps your servers, views, view settings and saved cameras:
 4. Start the new version and open the same address.
 
 Run only one copy at a time, as they share the same settings. Your language choice is kept by the
-browser for each address, so it stays as long as the address and port don't change. The first time
-a newer version starts, it copies `servers.json` to a backup folder before saving anything (see
-[Where things are stored](#where-things-are-stored)).
+browser for each address, so it stays as long as the address and port don't change. To be extra safe,
+back up `servers.json` first.
 
 ## Running from source
 
@@ -163,7 +162,6 @@ hand.
 | --- | --- | --- |
 | Server list and view settings (`servers.json`) | `%APPDATA%\GS.Point3DWeb` | `~/.config/GS.Point3DWeb` |
 | Feature key (`feature.key`) | `%APPDATA%\GS.Point3DWeb` | `~/.config/GS.Point3DWeb` |
-| Backups of `servers.json`, made when a newer version first starts (`servers-<old version>-<date>.json`) | `Documents\GS.Point3DWeb\Backups` | `~/.config/GS.Point3DWeb/backups` |
 | Log files (`point3dweb-yyyyMMdd.log`, the last 14 files kept, up to 20 MB each) | `Documents\GS.Point3DWeb` | `~/.config/GS.Point3DWeb/logs` |
 
 If the Documents folder can't be written (for example because of Windows Security's

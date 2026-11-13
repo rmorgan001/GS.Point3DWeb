@@ -244,7 +244,8 @@
         </ol>
         <p class="note">
             Run only one copy at a time, as they share the same settings. Your language choice is kept by the
-            browser for each address, so it stays as long as the address and port don't change. The first time a newer version starts, it copies <code>servers.json</code> to the backups folder (see <a href="help#files">Where things are stored</a>) before saving anything.
+            browser for each address, so it stays as long as the address and port don't change. To be extra
+            safe, back up <code>servers.json</code> first.
         </p>
     </section>
 
@@ -255,7 +256,6 @@
             <tbody>
                 <tr><td>Server list and view settings (<code>servers.json</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
                 <tr><td>Feature key (<code>feature.key</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
-                <tr><td>Backups of <code>servers.json</code>, made when a newer version first starts (<code>servers-…json</code>)</td><td><code>Documents\GS.Point3DWeb\Backups</code></td><td><code>~/.config/GS.Point3DWeb/backups</code></td></tr>
                 <tr><td>Log files (<code>point3dweb-yyyyMMdd.log</code>; the last 14 are kept)</td><td><code>Documents\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb/logs</code></td></tr>
             </tbody>
         </table>

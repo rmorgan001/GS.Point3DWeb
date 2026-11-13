@@ -201,7 +201,7 @@
             <li>启动新版本并打开相同的地址。</li>
         </ol>
         <p class="note">
-            一次只运行一个副本，因为它们共用同一份设置。浏览器会按地址记住您选择的语言，因此只要地址和端口不变，语言就会保持不变。较新版本首次启动时，会先将 <code>servers.json</code> 复制到备份文件夹（参见<a href="help#files">数据存放位置</a>），然后才保存任何内容。
+            一次只运行一个副本，因为它们共用同一份设置。浏览器会按地址记住您选择的语言，因此只要地址和端口不变，语言就会保持不变。为稳妥起见，可先备份 <code>servers.json</code>。
         </p>
     </section>
 
@@ -212,7 +212,6 @@
             <tbody>
                 <tr><td>服务器列表和视图设置（<code>servers.json</code>）</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
                 <tr><td>功能密钥（<code>feature.key</code>）</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
-                <tr><td><code>servers.json</code> 的备份，在较新版本首次启动时创建 (<code>servers-…json</code>)</td><td><code>Documents\GS.Point3DWeb\Backups</code></td><td><code>~/.config/GS.Point3DWeb/backups</code></td></tr>
                 <tr><td>日志文件（<code>point3dweb-yyyyMMdd.log</code>；保留最近 14 个）</td><td><code>Documents\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb/logs</code></td></tr>
             </tbody>
         </table>

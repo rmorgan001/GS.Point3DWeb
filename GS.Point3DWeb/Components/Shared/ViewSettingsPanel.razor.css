@@ -381,6 +381,10 @@
     font-weight: 500;
 }
 
+.ground-grid {
+    margin-top: .85rem;
+}
+
 .appearance-actions {
     margin-top: .75rem;
 }

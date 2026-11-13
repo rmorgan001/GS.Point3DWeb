@@ -207,6 +207,9 @@
             case nameof(AlpacaServer.Background):
                 _ = InvokeAsync(() => CallViewerAsync("setBackground", ViewModel.BackgroundUrl));
                 break;
+            case nameof(AlpacaServer.ShowGrid):
+                _ = InvokeAsync(() => CallViewerAsync("setGrid", Server?.ShowGrid != false));
+                break;
             case nameof(AlpacaServer.RaInDegrees):
                 ViewModel.RefreshRa();
                 break;
@@ -292,6 +295,7 @@
             {
                 primaryColor = ViewModel.ModelColor,
                 background = ViewModel.BackgroundUrl,
+                grid = Server?.ShowGrid != false,
                 secondaryColor = ViewModel.SecondaryColor,
                 northern = ViewModel.UseNorthCompass,
                 camera = Server?.Camera

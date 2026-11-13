@@ -75,6 +75,9 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     /// <summary>Background image key for the 3D view (see <see cref="ModelAppearance.Backgrounds"/>).</summary>
     [ObservableProperty] public partial string Background { get; set; } = ModelAppearance.DefaultBackground;
 
+    /// <summary>Show the ground grid under the mount in the 3D view (on by default).</summary>
+    [ObservableProperty] public partial bool ShowGrid { get; set; } = true;
+
     /// <summary>Saved 3D camera position for this server's model (null = the default view).</summary>
     [ObservableProperty] public partial CameraView? Camera { get; set; }
 

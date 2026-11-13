@@ -88,6 +88,12 @@
                 <span class="color-hex">@Server.ModelColor</span>
             </div>
 
+            <div class="checks ground-grid">
+                <label class="check" title="@L.T("Show a grid on the ground under the mount")">
+                    <input type="checkbox" checked="@Server.ShowGrid" @onchange="SetShowGrid" /> @L.T("Ground grid")
+                </label>
+            </div>
+
             <span class="field-label background-label" id="bg-label-@Server.IdGuid">@L.T("Background")</span>
             <div class="backgrounds" role="radiogroup" aria-labelledby="bg-label-@Server.IdGuid">
                 @foreach (var background in ModelAppearance.Backgrounds)
@@ -104,7 +110,7 @@
 
             <div class="appearance-actions">
                 <button type="button" class="btn" @onclick="ResetAppearance"
-                        disabled="@(Server.ModelColor == ModelAppearance.DefaultColor && Server.Background == ModelAppearance.DefaultBackground)">
+                        disabled="@(Server.ModelColor == ModelAppearance.DefaultColor && Server.Background == ModelAppearance.DefaultBackground && Server.ShowGrid)">
                     @L.T("Reset appearance")
                 </button>
             </div>
@@ -244,6 +250,13 @@
     {
         Server.ModelColor = ModelAppearance.DefaultColor;
         Server.Background = ModelAppearance.DefaultBackground;
+        Server.ShowGrid = true;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task SetShowGrid(ChangeEventArgs e)
+    {
+        Server.ShowGrid = e.Value is true || (e.Value is string s && bool.TryParse(s, out var b) && b);
         return OnChanged.InvokeAsync();
     }
 

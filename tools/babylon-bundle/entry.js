@@ -11,6 +11,7 @@ import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
 import { Matrix, Quaternion, Vector3, Vector4 } from "@babylonjs/core/Maths/math.vector";
 import { CreateBox } from "@babylonjs/core/Meshes/Builders/boxBuilder";
 import { CreateCylinder } from "@babylonjs/core/Meshes/Builders/cylinderBuilder";
+import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
@@ -32,7 +33,7 @@ window.BABYLON = {
     Quaternion,
     Vector3,
     Vector4,
-    MeshBuilder: { CreateBox, CreateCylinder },
+    MeshBuilder: { CreateBox, CreateCylinder, CreateGround },
     TransformNode,
     StandardMaterial,
     Texture,

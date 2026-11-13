@@ -21,6 +21,12 @@ const PIER_PIVOT = 130;
 const ROTATION_CENTRE_Z = 525;
 const HELIX_TO_SCENE = 7 / PIER_HEIGHT; // pier is 7 scene units tall
 
+// Ground grid (scene units; the pier is 7 tall and the compass base 15 across).
+const GRID_SIZE = 160;          // width of the ground plane
+const GRID_CELL = 1;            // minor grid spacing
+const GRID_MAJOR_EVERY = 5;     // a major line every 5 cells
+const GRID_Y = -1.01;           // just under the compass base (its underside is at -1)
+
 // Alignment modes (ASCOM AlignmentModes)
 const ALT_AZ = 0, POLAR = 1;
 
@@ -75,6 +81,7 @@ class TelescopeViewer {
 
         this.setHemisphere(options.northern !== false);
         this.setBackground(this.backgroundUrl);
+        this.setGrid(options.grid !== false);
 
         // Camera: start from the server's saved view (saved / reset from the back of the card).
         this.setCamera(options.camera);
@@ -160,6 +167,8 @@ class TelescopeViewer {
         this.compassBase.rotation.x = Math.PI / 2; // cylinder axis along Helix Z
         this.compassBase.position.z = -thickness / 2;
 
+        this.ground = this.createGround(scene);
+
         this.pierMaterial = new B.StandardMaterial('Pier', scene);
         this.pierMaterial.diffuseColor = B.Color3.FromHexString('#34474f');
         this.pierMaterial.specularColor = new B.Color3(0.1, 0.1, 0.1);
@@ -170,6 +179,71 @@ class TelescopeViewer {
         this.modelNode.rotationQuaternion = B.Quaternion.Identity();
 
         return scene;
+    }
+
+    /**
+     * The ground: a large plane under the compass base with a tiled grid, fading out towards its
+     * edge so it has no hard border. It is see-through, so the background shows between the lines.
+     */
+    createGround(scene) {
+        const B = window.BABYLON;
+
+        // One texture tile = GRID_MAJOR_EVERY x GRID_MAJOR_EVERY cells, major lines on its edges.
+        const px = 512, step = px / GRID_MAJOR_EVERY;
+        const grid = new B.DynamicTexture('GridTexture', { width: px, height: px }, scene, true);
+        const ctx = grid.getContext();
+        ctx.clearRect(0, 0, px, px);
+        ctx.fillStyle = 'rgba(16, 24, 28, 0.45)'; // faint floor so the mount stands on something
+        ctx.fillRect(0, 0, px, px);
+        const line = (pos, width, color) => {
+            ctx.fillStyle = color;
+            ctx.fillRect(pos - width / 2, 0, width, px);
+            ctx.fillRect(0, pos - width / 2, px, width);
+        };
+        for (let i = 1; i < GRID_MAJOR_EVERY; i++) line(i * step, 2, 'rgba(82, 183, 136, 0.28)');
+        // Major lines straddle the tile edges, so each tile draws half of them.
+        line(0, 6, 'rgba(82, 183, 136, 0.65)');
+        line(px, 6, 'rgba(82, 183, 136, 0.65)');
+        grid.update();
+        grid.hasAlpha = true;
+        grid.wrapU = grid.wrapV = B.Texture.WRAP_ADDRESSMODE;
+        grid.uScale = grid.vScale = GRID_SIZE / (GRID_CELL * GRID_MAJOR_EVERY);
+        grid.anisotropicFilteringLevel = 8; // keeps lines crisp at low viewing angles
+
+        // Radial fade (not tiled): solid in the middle, gone at the edge.
+        const fadePx = 256;
+        const fade = new B.DynamicTexture('GridFade', { width: fadePx, height: fadePx }, scene, false);
+        const fctx = fade.getContext();
+        const gradient = fctx.createRadialGradient(fadePx / 2, fadePx / 2, 0, fadePx / 2, fadePx / 2, fadePx / 2);
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        gradient.addColorStop(0.3, 'rgba(255, 255, 255, 1)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        fctx.clearRect(0, 0, fadePx, fadePx);
+        fctx.fillStyle = gradient;
+        fctx.fillRect(0, 0, fadePx, fadePx);
+        fade.update();
+        fade.hasAlpha = true;
+
+        const material = new B.StandardMaterial('Ground', scene);
+        material.diffuseTexture = grid;
+        material.useAlphaFromDiffuseTexture = true;
+        material.opacityTexture = fade;
+        // Unshaded: with lighting off the texture shows through the emissive color, so make it white.
+        material.disableLighting = true;
+        material.emissiveColor = new B.Color3(1, 1, 1);
+        material.specularColor = new B.Color3(0, 0, 0);
+        material.backFaceCulling = false;   // the camera can tilt below the ground
+
+        const ground = B.MeshBuilder.CreateGround('Ground', { width: GRID_SIZE, height: GRID_SIZE }, scene);
+        ground.position.y = GRID_Y;
+        ground.material = material;
+        ground.isPickable = false;
+        return ground;
+    }
+
+    /** Shows or hides the ground grid. */
+    setGrid(visible) {
+        this.ground.setEnabled(!!visible);
     }
 
     /** Helix BoxVisual3D: Length = X, Width = Y, Height = Z, rotated about the X axis around a pivot. */
@@ -380,6 +454,10 @@ export function setModelColor(viewer, hex) {
 
 export function setBackground(viewer, url) {
     viewer.setBackground(url);
+}
+
+export function setGrid(viewer, visible) {
+    viewer.setGrid(visible);
 }
 
 export function setHemisphere(viewer, isNorthern) {

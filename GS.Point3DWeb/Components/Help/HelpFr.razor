@@ -1,0 +1,293 @@
+@* The user guide in French. Same sections and ids as HelpEn.razor; the names of buttons and settings
+   are the app's own French labels (Localization/Translations.fr.cs). *@
+
+<nav class="help-toc" aria-label="Sommaire" lang="fr">
+    <ol>
+        <li><a href="help#start">Premiers pas</a></li>
+        <li><a href="help#servers">Ajouter des serveurs</a></li>
+        <li><a href="help#list">La liste des serveurs</a></li>
+        <li><a href="help#views">Les vues</a></li>
+        <li><a href="help#camera">Déplacer le modèle</a></li>
+        <li><a href="help#front">Ce qu'affiche une vue</a></li>
+        <li><a href="help#settings">Paramètres de la vue</a></li>
+        <li><a href="help#top">La barre du haut</a></li>
+        <li><a href="help#network">Utiliser l'application depuis d'autres ordinateurs</a></li>
+        <li><a href="help#files">Où sont stockées les données</a></li>
+        <li><a href="help#trouble">Dépannage</a></li>
+    </ol>
+</nav>
+
+<article class="help-text" lang="fr">
+    <p class="lead">
+        GS Point3D Web affiche les montures de télescope sous forme de modèles 3D en direct, qui bougent comme
+        la monture. Chaque monture est lue par un serveur ASCOM Alpaca sur le réseau, ou par un pilote ASCOM
+        sur l'ordinateur où tourne l'application, et l'application fonctionne dans tout navigateur prenant en
+        charge WebGL.
+    </p>
+
+    <section id="start">
+        <h2>Premiers pas</h2>
+        <ol>
+            <li>Ajoutez une monture à la liste <strong>Montures de télescope</strong> à gauche : cherchez sur le
+                réseau avec <strong>Découverte Alpaca</strong>, choisissez un <strong>pilote ASCOM</strong>, ou
+                ajoutez-la par son adresse (voir <a href="help#servers">Ajouter des serveurs</a>).</li>
+            <li>Faites glisser la monture de la liste vers une vue à droite. Elle se connecte, puis le modèle se
+                charge et suit la monture.</li>
+        </ol>
+        <p>Tout ce que vous configurez est enregistré et sera là au prochain démarrage de l'application.</p>
+    </section>
+
+    <section id="servers">
+        <h2>Ajouter des serveurs</h2>
+        <p>Les boutons au-dessus de la liste des serveurs ajoutent des montures :</p>
+        <dl>
+            <dt>Ajouter (+)</dt>
+            <dd>Ajoute une entrée vierge (<code>http://127.0.0.1:32323/api/v1/telescope/0/</code>).
+                Double-cliquez dessus pour lui donner un nom et l'adresse de la monture.</dd>
+            <dt>Découverte Alpaca (loupe)</dt>
+            <dd>Cherche les télescopes Alpaca sur le réseau local (port UDP 32227) et liste ceux qui répondent.
+                Choisissez-en un pour l'ajouter. Un serveur situé sur un autre réseau ne peut pas être trouvé
+                ainsi ; ajoutez-le plutôt par son adresse.</dd>
+            <dt>Pilotes ASCOM (télescope)</dt>
+            <dd>Liste les pilotes de télescope ASCOM installés sur l'ordinateur qui exécute l'application.
+                N'apparaît que si l'application tourne sous Windows avec l'ASCOM Platform installée.</dd>
+        </dl>
+        <p>
+            Une adresse Alpaca ressemble à <code>http://host:port/api/v1/telescope/0/</code>, où le dernier
+            nombre est le numéro de l'appareil sur ce serveur. L'adresse d'un pilote ASCOM est
+            <code>ascom:</code> suivi de son ProgID, par exemple <code>ascom:ASCOM.Simulator.Telescope</code>.
+        </p>
+        <p class="note">Sans clé de fonctionnalité, vous pouvez ajouter jusqu'à cinq serveurs.</p>
+    </section>
+
+    <section id="list">
+        <h2>La liste des serveurs</h2>
+        <p>
+            Cliquez sur un serveur pour le sélectionner. Le point à côté est vert tant qu'il est connecté, et
+            le logo indique s'il s'agit d'un serveur Alpaca ou d'un pilote ASCOM. Les autres boutons agissent
+            sur le serveur sélectionné :
+        </p>
+        <dl>
+            <dt>Connecter / Déconnecter (prise)</dt>
+            <dd>Connecte ou déconnecte le serveur sélectionné.</dd>
+            <dt>Enregistrer (disquette)</dt>
+            <dd>Enregistre la liste des serveurs. Ajouter, modifier et supprimer des serveurs l'enregistre
+                aussi.</dd>
+            <dt>Supprimer (corbeille)</dt>
+            <dd>Retire le serveur sélectionné de la liste et de toutes les vues qui l'affichent.</dd>
+        </dl>
+        <h3>Modifier un serveur</h3>
+        <p>Double-cliquez sur un serveur, ou sélectionnez-le et appuyez sur <kbd>F2</kbd>. Vous pouvez
+            changer :</p>
+        <ul>
+            <li><strong>Nom du serveur</strong> : le nom affiché dans la liste et sur ses vues.</li>
+            <li><strong>Interrogation (secondes)</strong> : la fréquence à laquelle la monture est interrogée
+                sur sa position, de 0,5 à 5 secondes. Plus court est plus fluide ; plus long sollicite moins le
+                serveur.</li>
+            <li><strong>URL</strong> : l'adresse Alpaca, ou <code>ascom:&lt;ProgID&gt;</code>.</li>
+            <li><strong>Nom d'utilisateur</strong> et <strong>Mot de passe</strong> : seulement pour un serveur
+                Alpaca qui les demande.</li>
+        </ul>
+    </section>
+
+    <section id="views">
+        <h2>Les vues</h2>
+        <p>
+            La zone de droite affiche jusqu'à quatre vues, chacune avec sa propre monture. Choisissez leur
+            nombre avec <strong>Vues 1 2 3 4</strong> dans la barre du haut. Une vue masquée garde sa monture
+            et revient quand le nombre est augmenté.
+        </p>
+        <ul>
+            <li><strong>Afficher une monture :</strong> faites glisser un serveur de la liste vers une vue. Il
+                se connecte aussitôt. Déposer un serveur sur une vue déjà occupée remplace le précédent.</li>
+            <li><strong>Connecter / Déconnecter :</strong> le bouton en haut à droite du modèle. Après un
+                rechargement de la page, ou dans un autre onglet, les vues affichent leurs montures sans se
+                connecter ; appuyez sur <strong>Connecter</strong> pour commencer.</li>
+            <li><strong>Retirer :</strong> le <strong>×</strong> en haut de la vue retire la monture de cette
+                vue. Le serveur reste dans la liste.</li>
+            <li><strong>Paramètres :</strong> l'engrenage retourne la vue pour afficher ses paramètres
+                (<a href="help#settings">Paramètres de la vue</a>).</li>
+        </ul>
+        <p>
+            La disposition est partagée : chaque onglet de navigateur ou ordinateur qui affiche l'application
+            voit les mêmes vues et les mêmes montures.
+        </p>
+    </section>
+
+    <section id="camera">
+        <h2>Déplacer le modèle</h2>
+        <table>
+            <thead><tr><th>Pour</th><th>Souris</th><th>Écran tactile</th></tr></thead>
+            <tbody>
+                <tr><td>Faire tourner le modèle</td><td>Faire glisser avec le bouton gauche</td><td>Faire glisser avec un doigt</td></tr>
+                <tr><td>Zoomer</td><td>Molette</td><td>Pincer</td></tr>
+                <tr><td>Décaler (déplacer latéralement)</td><td>Faire glisser avec le bouton droit, ou <kbd>Ctrl</kbd> + bouton gauche</td><td>Faire glisser avec deux doigts</td></tr>
+            </tbody>
+        </table>
+        <p>
+            Pour garder une vue qui vous plaît, retournez la carte et utilisez <strong>Enregistrer la vue
+            actuelle</strong> sous <strong>Caméra</strong>. Chaque vue de cette monture s'ouvrira ensuite
+            ainsi.
+        </p>
+    </section>
+
+    <section id="front">
+        <h2>Ce qu'affiche une vue</h2>
+        <h3>En-tête</h3>
+        <p>
+            Le nom de la monture et, à côté, le modèle et le type de monture (par exemple
+            <em>Réflecteur · Monture allemande</em>). Le type de monture est lu sur la monture à la
+            connexion.
+        </p>
+        <h3>Coordonnées</h3>
+        <p>En haut du modèle :</p>
+        <ul>
+            <li><strong>Ra</strong> et <strong>Dec</strong> : la direction du ciel visée par le télescope.
+                Double-cliquez sur Ra pour passer des heures aux degrés.</li>
+            <li><strong>Az</strong> et <strong>Alt</strong> : la même position en azimut et en hauteur.</li>
+            <li><strong>Lha</strong> : l'angle horaire local.</li>
+            <li><strong>Lst</strong> : le temps sidéral local, toujours en heures.</li>
+        </ul>
+        <p>Chacune peut être masquée dans les paramètres de la vue.</p>
+        <h3>État de la monture</h3>
+        <p>
+            Pour les serveurs qui le donnent en une seule réponse (<code>devicestate</code> : ASCOM Platform 7
+            et pilotes ITelescopeV4), un bandeau en bas du modèle affiche <strong>Suivi</strong>, <strong>En
+            mouvement</strong>, <strong>Parquée</strong>, <strong>En position d'origine</strong> et
+            <strong>Guidage</strong> (un point plein si actif, un point creux sinon), le côté du pilier et
+            l'heure UTC de la monture. Dans une vue étroite, certains sont omis pour gagner de la place.
+        </p>
+        <h3>Barre d'état</h3>
+        <ul>
+            <li><strong>X, Y, Z</strong> : les deux angles d'axe de la monture et l'inclinaison, comme dans
+                GSServer.</li>
+            <li>L'état : connexion en cours, connecté, ou la dernière erreur.</li>
+            <li>Une horloge indiquant depuis combien de temps la vue est connectée
+                (heures:minutes:secondes).</li>
+        </ul>
+    </section>
+
+    <section id="settings">
+        <h2>Paramètres de la vue</h2>
+        <p>
+            L'engrenage en haut d'une vue la retourne. Les changements s'appliquent immédiatement et sont
+            enregistrés avec ce serveur, si bien que toutes les vues de la même monture les utilisent. Appuyez
+            sur <strong>Terminé</strong> pour la retourner à nouveau.
+        </p>
+        <h3>Modèle 3D</h3>
+        <ul>
+            <li><strong>Modèle</strong> : le télescope dessiné sur la monture : réflecteur, réfracteur,
+                Schmidt-Cassegrain, Ritchey-Chrétien (tube ou treillis), double télescope, ou celui par
+                défaut.</li>
+            <li><strong>Mode polaire</strong> : de quel côté d'une monture polaire (à fourche) se trouve le
+                télescope.</li>
+            <li><strong>Ajustement RA</strong> et <strong>Ajustement Dec</strong> : font tourner les axes du
+                modèle d'une valeur fixe, si le modèle ne correspond pas à la vraie monture.
+                <strong>Réinitialiser les ajustements</strong> les remet à zéro.</li>
+            <li><strong>Monture</strong> : le type de monture et la latitude, lus sur la monture à la
+                connexion.</li>
+        </ul>
+        <h3>Apparence</h3>
+        <ul>
+            <li><strong>Couleur du modèle</strong> : l'une des sept couleurs prédéfinies, ou n'importe quelle
+                couleur personnalisée.</li>
+            <li><strong>Grille au sol</strong> : une grille sur le sol sous la monture.</li>
+            <li><strong>Arrière-plan</strong> : une image de la nébuleuse du Cœur, de la nébuleuse de la
+                Rosette, de la galaxie du Tourbillon (M51) ou de la galaxie du Triangle (M33), ou un ciel sombre
+                uni.</li>
+            <li><strong>Réinitialiser l'apparence</strong> rétablit ces réglages par défaut.</li>
+        </ul>
+        <h3>Coordonnées au recto</h3>
+        <p>
+            Choisissez les coordonnées affichées sur le modèle, si le bandeau de l'<strong>état de la
+            monture</strong> est affiché, et si Ra est affichée en heures ou en degrés.
+        </p>
+        <h3>Caméra</h3>
+        <ul>
+            <li><strong>Enregistrer la vue actuelle</strong> : retient l'orientation, le zoom et le décalage du
+                modèle au recto.</li>
+            <li><strong>Revenir à la vue enregistrée</strong> : ramène la caméra à la vue enregistrée (ou à la
+                vue par défaut s'il n'y en a pas).</li>
+            <li><strong>Effacer la vue enregistrée</strong> : oublie la vue enregistrée et utilise la vue par
+                défaut.</li>
+        </ul>
+    </section>
+
+    <section id="top">
+        <h2>La barre du haut</h2>
+        <ul>
+            <li><strong>Version</strong> : la version de l'application, à côté de son nom.</li>
+            <li><strong>Connecté(s)</strong> : combien de serveurs de la liste sont connectés.</li>
+            <li><strong>Journal</strong> : ouvre le journal dans sa propre fenêtre. Il peut n'afficher que les
+                avertissements et les erreurs, suivre le journal à mesure qu'il grandit et télécharger le
+                fichier entier.</li>
+            <li><strong>Aide</strong> (?) : ouvre ce guide.</li>
+            <li><strong>Vues</strong> : le nombre de vues à afficher (1 à 4).</li>
+            <li><strong>Langue</strong> (globe) : English, Deutsch, Español, Français, Italiano ou 中文. Le
+                navigateur retient ce choix.</li>
+        </ul>
+    </section>
+
+    <section id="network">
+        <h2>Utiliser l'application depuis d'autres ordinateurs</h2>
+        <p>
+            Par défaut, l'application n'accepte que les connexions de l'ordinateur sur lequel elle tourne, à
+            l'adresse <code>http://localhost:5000</code>. Pour l'ouvrir depuis d'autres ordinateurs ou une
+            tablette, démarrez-la avec l'adresse sur laquelle elle doit écouter, puis ouvrez dans le navigateur
+            le nom ou l'adresse IP de cet ordinateur avec le port :
+        </p>
+        <pre><code>GS.Point3DWeb --urls "http://0.0.0.0:5000"</code></pre>
+        <p class="warning">
+            Toute personne qui peut atteindre cette adresse peut connecter et déconnecter vos montures et
+            modifier la liste des serveurs : ne le faites que sur un réseau de confiance.
+        </p>
+    </section>
+
+    <section id="files">
+        <h2>Où sont stockées les données</h2>
+        <table>
+            <thead><tr><th>Quoi</th><th>Windows</th><th>Linux / macOS</th></tr></thead>
+            <tbody>
+                <tr><td>Liste des serveurs et paramètres des vues (<code>servers.json</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>Clé de fonctionnalité (<code>feature.key</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>Fichiers journaux (<code>point3dweb-yyyyMMdd.log</code> ; les 14 derniers sont conservés)</td><td><code>Documents\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb/logs</code></td></tr>
+            </tbody>
+        </table>
+        <p>
+            Si le dossier Documents n'est pas accessible en écriture (par exemple à cause de l'accès contrôlé
+            aux dossiers de la Sécurité Windows), les journaux vont dans
+            <code>%APPDATA%\GS.Point3DWeb\logs</code>. Pour transférer votre configuration sur un autre
+            ordinateur, copiez <code>servers.json</code>.
+        </p>
+    </section>
+
+    <section id="trouble">
+        <h2>Dépannage</h2>
+        <dl>
+            <dt>La découverte Alpaca ne trouve rien</dt>
+            <dd>Vérifiez que le serveur Alpaca tourne et que sa découverte (discovery) est activée, et qu'aucun
+                pare-feu ne bloque le port UDP 32227. La découverte n'atteint que le réseau local ; ajoutez les
+                autres serveurs par leur adresse.</dd>
+            <dt>Une vue ne se connecte pas</dt>
+            <dd>Vérifiez l'adresse (double-clic sur le serveur dans la liste) et que le serveur répond dans un
+                navigateur à la même adresse. La barre d'état de la vue et le <strong>Journal</strong>
+                affichent l'erreur.</dd>
+            <dt>Le modèle est vide ou indique qu'il n'a pas pu se charger</dt>
+            <dd>Le navigateur doit prendre en charge WebGL. La vue réessaie d'elle-même de charger le modèle
+                après un court délai ; recharger la page fonctionne aussi.</dd>
+            <dt>Le modèle pointe dans la mauvaise direction</dt>
+            <dd>Vérifiez la latitude du site dans le pilote de la monture, puis utilisez <strong>Ajustement
+                RA</strong> et <strong>Ajustement Dec</strong> dans les paramètres de la vue.</dd>
+            <dt>Pas de bandeau d'état de la monture</dt>
+            <dd>Le serveur ne fournit pas <code>devicestate</code> (pilotes plus anciens), ou le bandeau est
+                désactivé dans <strong>Coordonnées au recto</strong>.</dd>
+            <dt>Pas de bouton Pilotes ASCOM</dt>
+            <dd>Les pilotes ASCOM ne sont utilisables que si l'application tourne sous Windows avec l'ASCOM
+                Platform installée.</dd>
+            <dt>La page indique une reconnexion au serveur</dt>
+            <dd>Le navigateur a perdu le contact avec l'application (elle a été fermée ou redémarrée, ou le
+                réseau a été coupé). La page tente de se reconnecter d'elle-même ; si elle n'y parvient pas,
+                appuyez sur <strong>Réessayer</strong> ou rechargez la page.</dd>
+        </dl>
+    </section>
+</article>

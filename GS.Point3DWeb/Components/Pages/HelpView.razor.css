@@ -33,7 +33,7 @@
     display: flex;
 }
 
-.help-toc {
+.help-body ::deep .help-toc {
     flex: none;
     width: 14rem;
     padding: 1rem .5rem 1rem 1rem;
@@ -41,28 +41,28 @@
     border-right: 1px solid var(--line);
 }
 
-    .help-toc ol {
+    .help-body ::deep .help-toc ol {
         margin: 0;
         padding-left: 1.3rem;
         font-size: .9rem;
         color: var(--mare);
     }
 
-    .help-toc li {
+    .help-body ::deep .help-toc li {
         margin: .2rem 0;
     }
 
-    .help-toc a {
+    .help-body ::deep .help-toc a {
         color: var(--moon);
         text-decoration: none;
     }
 
-        .help-toc a:hover {
+        .help-body ::deep .help-toc a:hover {
             color: var(--green);
             text-decoration: underline;
         }
 
-.help-text {
+.help-body ::deep .help-text {
     flex: 1;
     min-width: 0;
     padding: 1rem 1.5rem 3rem;
@@ -71,21 +71,21 @@
     font-size: .95rem;
 }
 
-    .help-text > * {
+    .help-body ::deep .help-text > * {
         max-width: 48rem;
     }
 
-    .help-text .lead {
+    .help-body ::deep .help-text .lead {
         margin-top: 0;
         font-size: 1.05rem;
     }
 
-    .help-text section {
+    .help-body ::deep .help-text section {
         scroll-margin-top: 1rem;
         padding-top: .5rem;
     }
 
-    .help-text h2 {
+    .help-body ::deep .help-text h2 {
         margin: 1.5rem 0 .6rem;
         padding-bottom: .3rem;
         border-bottom: 1px solid var(--line);
@@ -94,41 +94,41 @@
         color: var(--yellow);
     }
 
-    .help-text h3 {
+    .help-body ::deep .help-text h3 {
         margin: 1.1rem 0 .4rem;
         font-size: 1.05rem;
         font-weight: 600;
         color: var(--moon);
     }
 
-    .help-text p,
-    .help-text ul,
-    .help-text ol,
-    .help-text dl {
+    .help-body ::deep .help-text p,
+    .help-body ::deep .help-text ul,
+    .help-body ::deep .help-text ol,
+    .help-body ::deep .help-text dl {
         margin: .5rem 0;
     }
 
-    .help-text li {
+    .help-body ::deep .help-text li {
         margin: .25rem 0;
     }
 
-    .help-text dt {
+    .help-body ::deep .help-text dt {
         margin-top: .6rem;
         font-weight: 600;
     }
 
-    .help-text dd {
+    .help-body ::deep .help-text dd {
         margin: .15rem 0 0 1.2rem;
         color: var(--mare);
     }
 
-    .help-text strong {
+    .help-body ::deep .help-text strong {
         color: var(--moon);
         font-weight: 600;
     }
 
-    .help-text code,
-    .help-text kbd {
+    .help-body ::deep .help-text code,
+    .help-body ::deep .help-text kbd {
         font-family: var(--font-code);
         font-size: .85em;
         padding: .05rem .3rem;
@@ -138,7 +138,7 @@
         overflow-wrap: anywhere;
     }
 
-    .help-text pre {
+    .help-body ::deep .help-text pre {
         padding: .6rem .8rem;
         border: 1px solid var(--line);
         border-radius: var(--radius-sm);
@@ -146,42 +146,42 @@
         overflow-x: auto;
     }
 
-        .help-text pre code {
+        .help-body ::deep .help-text pre code {
             padding: 0;
             border: 0;
             background: none;
         }
 
-    .help-text table {
+    .help-body ::deep .help-text table {
         width: 100%;
         border-collapse: collapse;
         margin: .6rem 0;
         font-size: .9rem;
     }
 
-    .help-text th,
-    .help-text td {
+    .help-body ::deep .help-text th,
+    .help-body ::deep .help-text td {
         padding: .4rem .6rem;
         border: 1px solid var(--line);
         text-align: left;
         vertical-align: top;
     }
 
-    .help-text th {
+    .help-body ::deep .help-text th {
         background: var(--panel);
         color: var(--yellow);
         font-weight: 600;
     }
 
-    .help-text .note,
-    .help-text .warning {
+    .help-body ::deep .help-text .note,
+    .help-body ::deep .help-text .warning {
         padding: .5rem .8rem;
         border-left: 3px solid var(--green);
         border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
         background: var(--green-soft);
     }
 
-    .help-text .warning {
+    .help-body ::deep .help-text .warning {
         border-left-color: var(--yellow);
         background: var(--yellow-soft);
     }
@@ -196,14 +196,14 @@
         flex-direction: column;
     }
 
-    .help-toc {
+    .help-body ::deep .help-toc {
         width: auto;
         padding: .75rem 1rem;
         border-right: 0;
         border-bottom: 1px solid var(--line);
     }
 
-    .help-text {
+    .help-body ::deep .help-text {
         padding: 1rem 1rem 2rem;
         overflow-y: visible;
     }

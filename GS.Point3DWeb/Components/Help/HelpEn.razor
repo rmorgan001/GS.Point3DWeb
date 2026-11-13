@@ -1,0 +1,275 @@
+@* The user guide in English (also used for any language without its own guide). Shown by
+   Pages/HelpView.razor; the other languages are Help<Language>.razor beside it, with the same
+   sections and ids. *@
+
+<nav class="help-toc" aria-label="Contents" lang="en">
+    <ol>
+        <li><a href="help#start">Getting started</a></li>
+        <li><a href="help#servers">Adding servers</a></li>
+        <li><a href="help#list">The server list</a></li>
+        <li><a href="help#views">Views</a></li>
+        <li><a href="help#camera">Moving the model</a></li>
+        <li><a href="help#front">What a view shows</a></li>
+        <li><a href="help#settings">View settings</a></li>
+        <li><a href="help#top">The top bar</a></li>
+        <li><a href="help#network">Using it from other computers</a></li>
+        <li><a href="help#files">Where things are stored</a></li>
+        <li><a href="help#trouble">Troubleshooting</a></li>
+    </ol>
+</nav>
+
+<article class="help-text" lang="en">
+    <p class="lead">
+        GS Point3D Web shows telescope mounts as live 3D models that move as the mount does. It reads
+        each mount through an ASCOM Alpaca server on the network, or through an ASCOM driver on the
+        computer the app runs on, and works in any browser with WebGL.
+    </p>
+
+    <section id="start">
+        <h2>Getting started</h2>
+        <ol>
+            <li>Add a mount to the <strong>Telescope Mounts</strong> list on the left: search the network
+                with <strong>Alpaca Discovery</strong>, pick an <strong>ASCOM driver</strong>, or add one by
+                address (see <a href="help#servers">Adding servers</a>).</li>
+            <li>Drag the mount from the list onto a view on the right. It connects, and the model loads and
+                follows the mount.</li>
+        </ol>
+        <p>Everything you set up is saved, and is there the next time the app starts.</p>
+    </section>
+
+    <section id="servers">
+        <h2>Adding servers</h2>
+        <p>The buttons above the server list add mounts:</p>
+        <dl>
+            <dt>Add (+)</dt>
+            <dd>Adds a blank entry (<code>http://127.0.0.1:32323/api/v1/telescope/0/</code>). Double-click it
+                to give it a name and the mount's address.</dd>
+            <dt>Alpaca Discovery (magnifier)</dt>
+            <dd>Searches the local network for Alpaca telescopes (UDP port 32227) and lists the ones that
+                answer. Pick one to add it. A server on another network can't be found this way; add it by
+                address instead.</dd>
+            <dt>ASCOM Drivers (telescope)</dt>
+            <dd>Lists the ASCOM telescope drivers installed on the computer running the app. Only shown when
+                the app runs on Windows with the ASCOM Platform installed.</dd>
+        </dl>
+        <p>
+            An Alpaca address looks like <code>http://host:port/api/v1/telescope/0/</code>, where the last
+            number is the device number on that server. An ASCOM driver's address is
+            <code>ascom:</code> followed by its ProgID, for example <code>ascom:ASCOM.Simulator.Telescope</code>.
+        </p>
+        <p class="note">Without a feature key, up to five servers can be added.</p>
+    </section>
+
+    <section id="list">
+        <h2>The server list</h2>
+        <p>
+            Click a server to select it. The dot beside it is green while it is connected, and the logo shows
+            whether it is an Alpaca server or an ASCOM driver. The other buttons act on the selected server:
+        </p>
+        <dl>
+            <dt>Connect / Disconnect (plug)</dt>
+            <dd>Connects or disconnects the selected server.</dd>
+            <dt>Save (disk)</dt>
+            <dd>Saves the server list. Adding, editing and deleting servers also save it.</dd>
+            <dt>Delete (bin)</dt>
+            <dd>Removes the selected server from the list and from any view showing it.</dd>
+        </dl>
+        <h3>Editing a server</h3>
+        <p>Double-click a server, or select it and press <kbd>F2</kbd>. You can change:</p>
+        <ul>
+            <li><strong>Server Name</strong>: the name shown in the list and on its views.</li>
+            <li><strong>Polling (seconds)</strong>: how often the mount is asked for its position,
+                0.5 to 5 seconds. Shorter is smoother; longer puts less load on the server.</li>
+            <li><strong>Url</strong>: the Alpaca address, or <code>ascom:&lt;ProgID&gt;</code>.</li>
+            <li><strong>User Name</strong> and <strong>Password</strong>: only for an Alpaca server that
+                asks for them.</li>
+        </ul>
+    </section>
+
+    <section id="views">
+        <h2>Views</h2>
+        <p>
+            The area on the right shows up to four views, each with its own mount. Choose how many with
+            <strong>Views 1 2 3 4</strong> in the top bar. A view that is hidden keeps its mount, and comes
+            back when the number is raised again.
+        </p>
+        <ul>
+            <li><strong>Show a mount:</strong> drag a server from the list onto a view. It connects straight
+                away. Dropping a server on a view that already has one replaces it.</li>
+            <li><strong>Connect / Disconnect:</strong> the button at the top right of the model. After a
+                reload, or in another tab, views show their mounts without connecting; press
+                <strong>Connect</strong> to start.</li>
+            <li><strong>Remove:</strong> the <strong>×</strong> at the top of the view takes the mount off
+                that view. The server stays in the list.</li>
+            <li><strong>Settings:</strong> the gear turns the view over to its settings
+                (<a href="help#settings">View settings</a>).</li>
+        </ul>
+        <p>
+            The layout is shared: every browser tab or computer showing the app sees the same views and
+            mounts.
+        </p>
+    </section>
+
+    <section id="camera">
+        <h2>Moving the model</h2>
+        <table>
+            <thead><tr><th>To</th><th>Mouse</th><th>Touch</th></tr></thead>
+            <tbody>
+                <tr><td>Turn the model</td><td>Drag with the left button</td><td>Drag with one finger</td></tr>
+                <tr><td>Zoom</td><td>Scroll wheel</td><td>Pinch</td></tr>
+                <tr><td>Pan (move sideways)</td><td>Drag with the right button, or <kbd>Ctrl</kbd> + left button</td><td>Drag with two fingers</td></tr>
+            </tbody>
+        </table>
+        <p>
+            To keep a view you like, turn the card over and use <strong>Save current view</strong> under
+            <strong>Camera</strong>. Each view of that mount then opens at it.
+        </p>
+    </section>
+
+    <section id="front">
+        <h2>What a view shows</h2>
+        <h3>Header</h3>
+        <p>
+            The mount's name and, beside it, the model and mount type (for example
+            <em>Reflector · German polar</em>). The mount type is read from the mount when it connects.
+        </p>
+        <h3>Coordinates</h3>
+        <p>Along the top of the model:</p>
+        <ul>
+            <li><strong>Ra</strong> and <strong>Dec</strong>: where the telescope points on the sky.
+                Double-click Ra to switch between hours and degrees.</li>
+            <li><strong>Az</strong> and <strong>Alt</strong>: the same position as azimuth and altitude.</li>
+            <li><strong>Lha</strong>: the local hour angle.</li>
+            <li><strong>Lst</strong>: the local sidereal time, always in hours.</li>
+        </ul>
+        <p>Each one can be hidden in the view settings.</p>
+        <h3>Mount state</h3>
+        <p>
+            For servers that report it in one answer (<code>devicestate</code>: ASCOM Platform 7 and
+            ITelescopeV4 drivers), a strip along the bottom of the model shows <strong>Tracking</strong>,
+            <strong>Slewing</strong>, <strong>Parked</strong>, <strong>At home</strong> and
+            <strong>Guiding</strong> (a filled dot when on, a hollow one when off), the side of the pier, and
+            the mount's own UTC time. In a narrow view some of these are left out to make room.
+        </p>
+        <h3>Status bar</h3>
+        <ul>
+            <li><strong>X, Y, Z</strong>: the mount's two axis angles and the tilt, as in GSServer.</li>
+            <li>The status: connecting, connected, or the last error.</li>
+            <li>A clock showing how long the view has been connected (hours:minutes:seconds).</li>
+        </ul>
+    </section>
+
+    <section id="settings">
+        <h2>View settings</h2>
+        <p>
+            The gear at the top of a view turns it over. Changes apply straight away and are saved with that
+            server, so every view of the same mount uses them. Press <strong>Done</strong> to turn back.
+        </p>
+        <h3>3D Model</h3>
+        <ul>
+            <li><strong>Model</strong>: the telescope drawn on the mount: reflector, refractor,
+                Schmidt-Cassegrain, Ritchey-Chrétien (tube or truss), dual telescope, or the default.</li>
+            <li><strong>Polar mode</strong>: which side of a polar (fork) mount the telescope is on.</li>
+            <li><strong>RA adjust</strong> and <strong>Dec adjust</strong>: turn the model's axes by a fixed
+                amount, if the model doesn't line up with the real mount. <strong>Reset adjustments</strong>
+                sets them back to zero.</li>
+            <li><strong>Mount</strong>: the mount type and latitude, read from the mount when it connects.</li>
+        </ul>
+        <h3>Appearance</h3>
+        <ul>
+            <li><strong>Model color</strong>: one of seven preset colours, or any custom colour.</li>
+            <li><strong>Ground grid</strong>: a grid on the ground under the mount.</li>
+            <li><strong>Background</strong>: a picture of the Heart nebula, the Rosette nebula, the Whirlpool
+                galaxy (M51) or the Triangulum galaxy (M33), or a plain dark sky.</li>
+            <li><strong>Reset appearance</strong> sets these back to their defaults.</li>
+        </ul>
+        <h3>Coordinates on the front</h3>
+        <p>
+            Choose which coordinates show over the model, whether the <strong>mount state</strong> strip
+            shows, and whether Ra is shown in hours or degrees.
+        </p>
+        <h3>Camera</h3>
+        <ul>
+            <li><strong>Save current view</strong>: remembers how the model is turned, zoomed and panned on
+                the front.</li>
+            <li><strong>Reset to saved view</strong>: moves the camera back to the saved view (or the default
+                if none is saved).</li>
+            <li><strong>Clear saved view</strong>: forgets the saved view and uses the default.</li>
+        </ul>
+    </section>
+
+    <section id="top">
+        <h2>The top bar</h2>
+        <ul>
+            <li><strong>Version</strong>: the app's version, beside its name.</li>
+            <li><strong>Connected</strong>: how many servers in the list are connected.</li>
+            <li><strong>Log</strong>: opens the log in its own window. It can show only warnings and
+                errors, follow the log as it grows, and download the whole file.</li>
+            <li><strong>Help</strong> (?): opens this guide.</li>
+            <li><strong>Views</strong>: how many views to show (1 to 4).</li>
+            <li><strong>Language</strong> (globe): English, Deutsch, Español, Français, Italiano or 中文.
+                The choice is remembered by the browser.</li>
+        </ul>
+    </section>
+
+    <section id="network">
+        <h2>Using it from other computers</h2>
+        <p>
+            By default the app only accepts connections from the computer it runs on, at
+            <code>http://localhost:5000</code>. To open it from other computers or a tablet, start it with
+            the address to listen on, then browse to that computer's name or IP address and port:
+        </p>
+        <pre><code>GS.Point3DWeb --urls "http://0.0.0.0:5000"</code></pre>
+        <p class="warning">
+            Anyone who can reach that address can connect and disconnect your mounts and change the server
+            list, so only do this on a network you trust.
+        </p>
+    </section>
+
+    <section id="files">
+        <h2>Where things are stored</h2>
+        <table>
+            <thead><tr><th>What</th><th>Windows</th><th>Linux / macOS</th></tr></thead>
+            <tbody>
+                <tr><td>Server list and view settings (<code>servers.json</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>Feature key (<code>feature.key</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>Log files (<code>point3dweb-yyyyMMdd.log</code>; the last 14 are kept)</td><td><code>Documents\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb/logs</code></td></tr>
+            </tbody>
+        </table>
+        <p>
+            If the Documents folder can't be written (for example because of Windows Security's Controlled
+            folder access), the logs go to <code>%APPDATA%\GS.Point3DWeb\logs</code> instead. To move your
+            setup to another computer, copy <code>servers.json</code>.
+        </p>
+    </section>
+
+    <section id="trouble">
+        <h2>Troubleshooting</h2>
+        <dl>
+            <dt>Alpaca Discovery finds nothing</dt>
+            <dd>Check the Alpaca server is running and has discovery turned on, and that a firewall isn't
+                blocking UDP port 32227. Discovery only reaches the local network; add other servers by
+                address.</dd>
+            <dt>A view won't connect</dt>
+            <dd>Check the address (double-click the server in the list) and that the server answers in a
+                browser at the same address. The view's status bar, and <strong>Log</strong>, show the
+                error.</dd>
+            <dt>The model is empty or says it failed to load</dt>
+            <dd>The browser needs WebGL. The view tries loading the model again by itself after a short
+                wait; reloading the page also works.</dd>
+            <dt>The model points the wrong way</dt>
+            <dd>Check the mount's site latitude in its driver, then use <strong>RA adjust</strong> and
+                <strong>Dec adjust</strong> in the view settings.</dd>
+            <dt>No mount state strip</dt>
+            <dd>The server doesn't report <code>devicestate</code> (older drivers), or the strip is turned off
+                in <strong>Coordinates on the front</strong>.</dd>
+            <dt>No ASCOM Drivers button</dt>
+            <dd>ASCOM drivers can only be used when the app runs on Windows with the ASCOM Platform
+                installed.</dd>
+            <dt>The page says it is rejoining the server</dt>
+            <dd>The browser lost touch with the app (it was closed or restarted, or the network dropped). The
+                page tries to rejoin by itself; if it can't, press <strong>Retry</strong> or reload the
+                page.</dd>
+        </dl>
+    </section>
+</article>

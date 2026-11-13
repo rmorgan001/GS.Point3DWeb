@@ -1,0 +1,290 @@
+@* The user guide in Italian. Same sections and ids as HelpEn.razor; the names of buttons and settings
+   are the app's own Italian labels (Localization/Translations.it.cs). *@
+
+<nav class="help-toc" aria-label="Indice" lang="it">
+    <ol>
+        <li><a href="help#start">Per iniziare</a></li>
+        <li><a href="help#servers">Aggiungere server</a></li>
+        <li><a href="help#list">L'elenco dei server</a></li>
+        <li><a href="help#views">Viste</a></li>
+        <li><a href="help#camera">Muovere il modello</a></li>
+        <li><a href="help#front">Cosa mostra una vista</a></li>
+        <li><a href="help#settings">Impostazioni vista</a></li>
+        <li><a href="help#top">La barra superiore</a></li>
+        <li><a href="help#network">Usarla da altri computer</a></li>
+        <li><a href="help#files">Dove vengono salvati i dati</a></li>
+        <li><a href="help#trouble">Risoluzione dei problemi</a></li>
+    </ol>
+</nav>
+
+<article class="help-text" lang="it">
+    <p class="lead">
+        GS Point3D Web mostra le montature per telescopio come modelli 3D dal vivo che si muovono come la
+        montatura. Legge ogni montatura tramite un server ASCOM Alpaca in rete, oppure tramite un driver ASCOM
+        sul computer su cui gira l'app, e funziona in qualsiasi browser con WebGL.
+    </p>
+
+    <section id="start">
+        <h2>Per iniziare</h2>
+        <ol>
+            <li>Aggiungete una montatura all'elenco <strong>Montature per telescopio</strong> a sinistra:
+                cercate in rete con <strong>Rilevamento Alpaca</strong>, scegliete un <strong>driver
+                ASCOM</strong> oppure aggiungetela tramite indirizzo (vedere
+                <a href="help#servers">Aggiungere server</a>).</li>
+            <li>Trascinate la montatura dall'elenco su una vista a destra. Si connette, e il modello si carica e
+                segue la montatura.</li>
+        </ol>
+        <p>Tutto ciò che impostate viene salvato e lo ritroverete al prossimo avvio dell'app.</p>
+    </section>
+
+    <section id="servers">
+        <h2>Aggiungere server</h2>
+        <p>I pulsanti sopra l'elenco dei server aggiungono montature:</p>
+        <dl>
+            <dt>Aggiungi (+)</dt>
+            <dd>Aggiunge una voce vuota (<code>http://127.0.0.1:32323/api/v1/telescope/0/</code>). Fate doppio
+                clic su di essa per darle un nome e l'indirizzo della montatura.</dd>
+            <dt>Rilevamento Alpaca (lente)</dt>
+            <dd>Cerca telescopi Alpaca nella rete locale (porta UDP 32227) ed elenca quelli che rispondono.
+                Sceglietene uno per aggiungerlo. Un server su un'altra rete non si trova in questo modo;
+                aggiungetelo invece tramite indirizzo.</dd>
+            <dt>Driver ASCOM (telescopio)</dt>
+            <dd>Elenca i driver per telescopio ASCOM installati sul computer su cui gira l'app. Compare solo
+                quando l'app gira su Windows con ASCOM Platform installata.</dd>
+        </dl>
+        <p>
+            Un indirizzo Alpaca ha la forma <code>http://host:port/api/v1/telescope/0/</code>, dove l'ultimo
+            numero è il numero del dispositivo su quel server. L'indirizzo di un driver ASCOM è
+            <code>ascom:</code> seguito dal suo ProgID, ad esempio <code>ascom:ASCOM.Simulator.Telescope</code>.
+        </p>
+        <p class="note">Senza una chiave funzionalità si possono aggiungere fino a cinque server.</p>
+    </section>
+
+    <section id="list">
+        <h2>L'elenco dei server</h2>
+        <p>
+            Fate clic su un server per selezionarlo. Il punto accanto è verde finché è connesso, e il logo
+            indica se si tratta di un server Alpaca o di un driver ASCOM. Gli altri pulsanti agiscono sul
+            server selezionato:
+        </p>
+        <dl>
+            <dt>Connetti / Disconnetti (spina)</dt>
+            <dd>Connette o disconnette il server selezionato.</dd>
+            <dt>Salva (dischetto)</dt>
+            <dd>Salva l'elenco dei server. Anche aggiungere, modificare ed eliminare server lo salva.</dd>
+            <dt>Elimina (cestino)</dt>
+            <dd>Rimuove il server selezionato dall'elenco e da ogni vista che lo mostra.</dd>
+        </dl>
+        <h3>Modificare un server</h3>
+        <p>Fate doppio clic su un server, oppure selezionatelo e premete <kbd>F2</kbd>. Potete cambiare:</p>
+        <ul>
+            <li><strong>Nome server</strong>: il nome mostrato nell'elenco e nelle sue viste.</li>
+            <li><strong>Polling (secondi)</strong>: ogni quanto si chiede alla montatura la sua posizione, da
+                0,5 a 5 secondi. Più breve è più fluido; più lungo carica meno il server.</li>
+            <li><strong>URL</strong>: l'indirizzo Alpaca, oppure <code>ascom:&lt;ProgID&gt;</code>.</li>
+            <li><strong>Nome utente</strong> e <strong>Password</strong>: solo per un server Alpaca che li
+                richiede.</li>
+        </ul>
+    </section>
+
+    <section id="views">
+        <h2>Viste</h2>
+        <p>
+            L'area a destra mostra fino a quattro viste, ciascuna con la propria montatura. Scegliete quante
+            con <strong>Viste 1 2 3 4</strong> nella barra superiore. Una vista nascosta mantiene la sua
+            montatura e ricompare quando il numero viene aumentato.
+        </p>
+        <ul>
+            <li><strong>Mostrare una montatura:</strong> trascinate un server dall'elenco su una vista. Si
+                connette subito. Un server rilasciato su una vista già occupata sostituisce quello
+                presente.</li>
+            <li><strong>Connetti / Disconnetti:</strong> il pulsante in alto a destra del modello. Dopo aver
+                ricaricato la pagina, o in un'altra scheda, le viste mostrano le loro montature senza
+                connettersi; premete <strong>Connetti</strong> per iniziare.</li>
+            <li><strong>Rimuovere:</strong> la <strong>×</strong> in alto nella vista toglie la montatura da
+                quella vista. Il server resta nell'elenco.</li>
+            <li><strong>Impostazioni:</strong> l'ingranaggio gira la vista e mostra le sue impostazioni
+                (<a href="help#settings">Impostazioni vista</a>).</li>
+        </ul>
+        <p>
+            La disposizione è condivisa: ogni scheda del browser o computer che mostra l'app vede le stesse
+            viste e montature.
+        </p>
+    </section>
+
+    <section id="camera">
+        <h2>Muovere il modello</h2>
+        <table>
+            <thead><tr><th>Per</th><th>Mouse</th><th>Touch</th></tr></thead>
+            <tbody>
+                <tr><td>Ruotare il modello</td><td>Trascinare con il tasto sinistro</td><td>Trascinare con un dito</td></tr>
+                <tr><td>Ingrandire o ridurre</td><td>Rotellina</td><td>Pizzicare</td></tr>
+                <tr><td>Spostare (di lato)</td><td>Trascinare con il tasto destro, oppure <kbd>Ctrl</kbd> + tasto sinistro</td><td>Trascinare con due dita</td></tr>
+            </tbody>
+        </table>
+        <p>
+            Per conservare una vista che vi piace, girate la scheda e usate <strong>Salva vista
+            corrente</strong> in <strong>Telecamera</strong>. Ogni vista di quella montatura si aprirà
+            così.
+        </p>
+    </section>
+
+    <section id="front">
+        <h2>Cosa mostra una vista</h2>
+        <h3>Intestazione</h3>
+        <p>
+            Il nome della montatura e, accanto, il modello e il tipo di montatura (ad esempio
+            <em>Riflettore · Montatura alla tedesca</em>). Il tipo di montatura viene letto dalla montatura
+            quando si connette.
+        </p>
+        <h3>Coordinate</h3>
+        <p>Lungo la parte superiore del modello:</p>
+        <ul>
+            <li><strong>Ra</strong> e <strong>Dec</strong>: dove punta il telescopio nel cielo. Fate doppio clic
+                su Ra per passare da ore a gradi.</li>
+            <li><strong>Az</strong> e <strong>Alt</strong>: la stessa posizione come azimut e altezza.</li>
+            <li><strong>Lha</strong>: l'angolo orario locale.</li>
+            <li><strong>Lst</strong>: il tempo siderale locale, sempre in ore.</li>
+        </ul>
+        <p>Ognuna si può nascondere nelle impostazioni della vista.</p>
+        <h3>Stato della montatura</h3>
+        <p>
+            Per i server che lo riportano in un'unica risposta (<code>devicestate</code>: ASCOM Platform 7 e
+            driver ITelescopeV4), una striscia in fondo al modello mostra <strong>Inseguimento</strong>,
+            <strong>In movimento</strong>, <strong>Parcheggiata</strong>, <strong>In posizione
+            iniziale</strong> e <strong>Guida</strong> (un punto pieno se attivo, vuoto se no), il lato del
+            pilastro e l'ora UTC della montatura. In una vista stretta alcuni vengono omessi per fare
+            spazio.
+        </p>
+        <h3>Barra di stato</h3>
+        <ul>
+            <li><strong>X, Y, Z</strong>: i due angoli degli assi della montatura e l'inclinazione, come in
+                GSServer.</li>
+            <li>Lo stato: connessione in corso, connesso, oppure l'ultimo errore.</li>
+            <li>Un orologio che mostra da quanto tempo la vista è connessa (ore:minuti:secondi).</li>
+        </ul>
+    </section>
+
+    <section id="settings">
+        <h2>Impostazioni vista</h2>
+        <p>
+            L'ingranaggio in alto in una vista la gira. Le modifiche si applicano subito e vengono salvate con
+            quel server, così ogni vista della stessa montatura le usa. Premete <strong>Fine</strong> per
+            tornare indietro.
+        </p>
+        <h3>Modello 3D</h3>
+        <ul>
+            <li><strong>Modello</strong>: il telescopio disegnato sulla montatura: riflettore, rifrattore,
+                Schmidt-Cassegrain, Ritchey-Chrétien (tubo o traliccio), doppio telescopio oppure quello
+                predefinito.</li>
+            <li><strong>Modalità polare</strong>: su quale lato di una montatura polare (a forcella) si trova il
+                telescopio.</li>
+            <li><strong>Regolazione RA</strong> e <strong>Regolazione Dec</strong>: ruotano gli assi del modello
+                di un valore fisso, se il modello non corrisponde alla montatura reale. <strong>Reimposta
+                regolazioni</strong> le riporta a zero.</li>
+            <li><strong>Montatura</strong>: il tipo di montatura e la latitudine, letti dalla montatura quando
+                si connette.</li>
+        </ul>
+        <h3>Aspetto</h3>
+        <ul>
+            <li><strong>Colore del modello</strong>: uno di sette colori predefiniti, oppure qualsiasi colore
+                personalizzato.</li>
+            <li><strong>Griglia del terreno</strong>: una griglia sul terreno sotto la montatura.</li>
+            <li><strong>Sfondo</strong>: un'immagine della nebulosa Cuore, della nebulosa Rosetta, della
+                galassia Vortice (M51) o della galassia del Triangolo (M33), oppure un cielo scuro
+                uniforme.</li>
+            <li><strong>Reimposta aspetto</strong> riporta questi valori a quelli predefiniti.</li>
+        </ul>
+        <h3>Coordinate sul fronte</h3>
+        <p>
+            Scegliete quali coordinate compaiono sul modello, se viene mostrata la striscia dello
+            <strong>stato della montatura</strong> e se Ra è mostrata in ore o in gradi.
+        </p>
+        <h3>Telecamera</h3>
+        <ul>
+            <li><strong>Salva vista corrente</strong>: memorizza come il modello è ruotato, ingrandito e
+                spostato sul fronte.</li>
+            <li><strong>Torna alla vista salvata</strong>: riporta la telecamera alla vista salvata (o a quella
+                predefinita se non ce n'è una).</li>
+            <li><strong>Cancella vista salvata</strong>: dimentica la vista salvata e usa quella
+                predefinita.</li>
+        </ul>
+    </section>
+
+    <section id="top">
+        <h2>La barra superiore</h2>
+        <ul>
+            <li><strong>Versione</strong>: la versione dell'app, accanto al suo nome.</li>
+            <li><strong>Connessi</strong>: quanti server dell'elenco sono connessi.</li>
+            <li><strong>Log</strong>: apre il log in una finestra separata. Può mostrare solo avvisi ed errori,
+                seguire il log mentre cresce e scaricare l'intero file.</li>
+            <li><strong>Guida</strong> (?): apre questa guida.</li>
+            <li><strong>Viste</strong>: quante viste mostrare (da 1 a 4).</li>
+            <li><strong>Lingua</strong> (globo): English, Deutsch, Español, Français, Italiano o 中文. Il browser
+                ricorda la scelta.</li>
+        </ul>
+    </section>
+
+    <section id="network">
+        <h2>Usarla da altri computer</h2>
+        <p>
+            Per impostazione predefinita l'app accetta connessioni solo dal computer su cui gira, all'indirizzo
+            <code>http://localhost:5000</code>. Per aprirla da altri computer o da un tablet, avviatela con
+            l'indirizzo su cui deve restare in ascolto, poi aprite nel browser il nome o l'indirizzo IP di quel
+            computer con la porta:
+        </p>
+        <pre><code>GS.Point3DWeb --urls "http://0.0.0.0:5000"</code></pre>
+        <p class="warning">
+            Chiunque raggiunga quell'indirizzo può connettere e disconnettere le vostre montature e modificare
+            l'elenco dei server, quindi fatelo solo su una rete di cui vi fidate.
+        </p>
+    </section>
+
+    <section id="files">
+        <h2>Dove vengono salvati i dati</h2>
+        <table>
+            <thead><tr><th>Cosa</th><th>Windows</th><th>Linux / macOS</th></tr></thead>
+            <tbody>
+                <tr><td>Elenco dei server e impostazioni delle viste (<code>servers.json</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>Chiave funzionalità (<code>feature.key</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>File di log (<code>point3dweb-yyyyMMdd.log</code>; vengono conservati gli ultimi 14)</td><td><code>Documents\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb/logs</code></td></tr>
+            </tbody>
+        </table>
+        <p>
+            Se non è possibile scrivere nella cartella Documenti (ad esempio per l'accesso controllato alle
+            cartelle di Sicurezza di Windows), i log finiscono invece in
+            <code>%APPDATA%\GS.Point3DWeb\logs</code>. Per trasferire la vostra configurazione su un altro
+            computer, copiate <code>servers.json</code>.
+        </p>
+    </section>
+
+    <section id="trouble">
+        <h2>Risoluzione dei problemi</h2>
+        <dl>
+            <dt>Il rilevamento Alpaca non trova nulla</dt>
+            <dd>Verificate che il server Alpaca sia in esecuzione e abbia il rilevamento (discovery) attivo, e
+                che un firewall non blocchi la porta UDP 32227. Il rilevamento raggiunge solo la rete locale;
+                aggiungete gli altri server tramite indirizzo.</dd>
+            <dt>Una vista non si connette</dt>
+            <dd>Verificate l'indirizzo (doppio clic sul server nell'elenco) e che il server risponda in un
+                browser allo stesso indirizzo. La barra di stato della vista e il <strong>Log</strong> mostrano
+                l'errore.</dd>
+            <dt>Il modello è vuoto o indica che non è stato possibile caricarlo</dt>
+            <dd>Il browser deve supportare WebGL. La vista riprova da sola a caricare il modello dopo poco;
+                anche ricaricare la pagina funziona.</dd>
+            <dt>Il modello punta nella direzione sbagliata</dt>
+            <dd>Verificate la latitudine del sito nel driver della montatura, poi usate <strong>Regolazione
+                RA</strong> e <strong>Regolazione Dec</strong> nelle impostazioni della vista.</dd>
+            <dt>Manca la striscia dello stato della montatura</dt>
+            <dd>Il server non riporta <code>devicestate</code> (driver più vecchi), oppure la striscia è
+                disattivata in <strong>Coordinate sul fronte</strong>.</dd>
+            <dt>Manca il pulsante Driver ASCOM</dt>
+            <dd>I driver ASCOM si possono usare solo quando l'app gira su Windows con ASCOM Platform
+                installata.</dd>
+            <dt>La pagina indica che si sta riconnettendo al server</dt>
+            <dd>Il browser ha perso il contatto con l'app (è stata chiusa o riavviata, oppure la rete si è
+                interrotta). La pagina prova a riconnettersi da sola; se non ci riesce, premete
+                <strong>Riprova</strong> o ricaricate la pagina.</dd>
+        </dl>
+    </section>
+</article>

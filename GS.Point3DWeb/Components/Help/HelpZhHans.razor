@@ -1,0 +1,225 @@
+@* The user guide in Simplified Chinese. Same sections and ids as HelpEn.razor; the names of buttons and
+   settings are the app's own Chinese labels (Localization/Translations.zh-Hans.cs). *@
+
+<nav class="help-toc" aria-label="目录" lang="zh-Hans">
+    <ol>
+        <li><a href="help#start">快速入门</a></li>
+        <li><a href="help#servers">添加服务器</a></li>
+        <li><a href="help#list">服务器列表</a></li>
+        <li><a href="help#views">视图</a></li>
+        <li><a href="help#camera">移动模型</a></li>
+        <li><a href="help#front">视图显示的内容</a></li>
+        <li><a href="help#settings">视图设置</a></li>
+        <li><a href="help#top">顶部栏</a></li>
+        <li><a href="help#network">从其他计算机使用</a></li>
+        <li><a href="help#files">数据存放位置</a></li>
+        <li><a href="help#trouble">故障排除</a></li>
+    </ol>
+</nav>
+
+<article class="help-text" lang="zh-Hans">
+    <p class="lead">
+        GS Point3D Web 将望远镜支架显示为实时 3D 模型，模型会随支架一起转动。它通过网络上的 ASCOM Alpaca
+        服务器，或运行本应用的计算机上的 ASCOM 驱动读取每台支架，可在任何支持 WebGL 的浏览器中使用。
+    </p>
+
+    <section id="start">
+        <h2>快速入门</h2>
+        <ol>
+            <li>在左侧的<strong>望远镜支架</strong>列表中添加一台支架：用 <strong>Alpaca 发现</strong>搜索网络，选择一个 <strong>ASCOM 驱动</strong>，或按地址添加（参见<a href="help#servers">添加服务器</a>）。</li>
+            <li>将支架从列表拖到右侧的某个视图上。它会自动连接，模型随即加载并跟随支架转动。</li>
+        </ol>
+        <p>您设置的一切都会被保存，下次启动应用时依然存在。</p>
+    </section>
+
+    <section id="servers">
+        <h2>添加服务器</h2>
+        <p>服务器列表上方的按钮用于添加支架：</p>
+        <dl>
+            <dt>添加（+）</dt>
+            <dd>添加一个空白条目（<code>http://127.0.0.1:32323/api/v1/telescope/0/</code>）。双击它，为其设置名称和支架的地址。</dd>
+            <dt>Alpaca 发现（放大镜）</dt>
+            <dd>在本地网络中搜索 Alpaca 望远镜（UDP 端口 32227），并列出作出响应的设备。选择其中一个即可添加。其他网络中的服务器无法用这种方式找到，请改为按地址添加。</dd>
+            <dt>ASCOM 驱动（望远镜）</dt>
+            <dd>列出运行本应用的计算机上安装的 ASCOM 望远镜驱动。仅当应用在安装了 ASCOM Platform 的 Windows
+                上运行时才会显示。</dd>
+        </dl>
+        <p>
+            Alpaca 地址的格式为 <code>http://host:port/api/v1/telescope/0/</code>，最后一个数字是该服务器上的设备编号。ASCOM 驱动的地址是 <code>ascom:</code> 加上其 ProgID，例如
+            <code>ascom:ASCOM.Simulator.Telescope</code>。
+        </p>
+        <p class="note">没有功能密钥时，最多可添加五个服务器。</p>
+    </section>
+
+    <section id="list">
+        <h2>服务器列表</h2>
+        <p>
+            单击服务器即可选中。连接期间，其旁边的圆点显示为绿色；图标表示它是 Alpaca 服务器还是 ASCOM 驱动。其余按钮作用于选中的服务器：
+        </p>
+        <dl>
+            <dt>连接 / 断开（插头）</dt>
+            <dd>连接或断开选中的服务器。</dd>
+            <dt>保存（磁盘）</dt>
+            <dd>保存服务器列表。添加、编辑和删除服务器时也会自动保存。</dd>
+            <dt>删除（垃圾桶）</dt>
+            <dd>将选中的服务器从列表中删除，并从显示它的所有视图中移除。</dd>
+        </dl>
+        <h3>编辑服务器</h3>
+        <p>双击服务器，或选中后按 <kbd>F2</kbd>。可以更改：</p>
+        <ul>
+            <li><strong>服务器名称</strong>：在列表和其视图上显示的名称。</li>
+            <li><strong>轮询（秒）</strong>：向支架查询位置的频率，0.5 到 5 秒。间隔越短越流畅；越长则服务器负担越轻。</li>
+            <li><strong>URL</strong>：Alpaca 地址，或 <code>ascom:&lt;ProgID&gt;</code>。</li>
+            <li><strong>用户名</strong>和<strong>密码</strong>：仅当 Alpaca 服务器要求时填写。</li>
+        </ul>
+    </section>
+
+    <section id="views">
+        <h2>视图</h2>
+        <p>
+            右侧区域最多显示四个视图，每个视图显示各自的支架。用顶部栏中的<strong>视图 1 2 3 4</strong>选择数量。被隐藏的视图会保留其支架，数量调大后会重新出现。
+        </p>
+        <ul>
+            <li><strong>显示支架：</strong>将服务器从列表拖到某个视图上，它会立即连接。拖到已有支架的视图上会替换原来的支架。</li>
+            <li><strong>连接 / 断开：</strong>模型右上方的按钮。重新加载页面后或在其他标签页中，视图只显示支架而不连接；按<strong>连接</strong>即可开始。</li>
+            <li><strong>移除：</strong>视图顶部的 <strong>×</strong> 将支架从该视图中移除，服务器仍保留在列表中。</li>
+            <li><strong>设置：</strong>齿轮按钮将视图翻转到其设置（<a href="help#settings">视图设置</a>）。</li>
+        </ul>
+        <p>
+            布局是共享的：显示本应用的每个浏览器标签页或计算机都会看到相同的视图和支架。
+        </p>
+    </section>
+
+    <section id="camera">
+        <h2>移动模型</h2>
+        <table>
+            <thead><tr><th>操作</th><th>鼠标</th><th>触摸</th></tr></thead>
+            <tbody>
+                <tr><td>旋转模型</td><td>按住左键拖动</td><td>单指拖动</td></tr>
+                <tr><td>缩放</td><td>滚轮</td><td>双指捏合</td></tr>
+                <tr><td>平移（左右上下移动）</td><td>按住右键拖动，或按住 <kbd>Ctrl</kbd> + 左键拖动</td><td>双指拖动</td></tr>
+            </tbody>
+        </table>
+        <p>
+            要保留满意的视角，请翻转卡片，在<strong>相机</strong>下使用<strong>保存当前视图</strong>。之后该支架的每个视图都会以此视角打开。
+        </p>
+    </section>
+
+    <section id="front">
+        <h2>视图显示的内容</h2>
+        <h3>标题</h3>
+        <p>
+            支架的名称，旁边是模型和支架类型（例如<em>反射式 · 德式赤道仪</em>）。支架类型在连接时从支架读取。
+        </p>
+        <h3>坐标</h3>
+        <p>显示在模型上方：</p>
+        <ul>
+            <li><strong>Ra</strong> 和 <strong>Dec</strong>：望远镜在天空中指向的位置。双击 Ra 可在小时和度之间切换。</li>
+            <li><strong>Az</strong> 和 <strong>Alt</strong>：以方位角和高度角表示的同一位置。</li>
+            <li><strong>Lha</strong>：本地时角。</li>
+            <li><strong>Lst</strong>：地方恒星时，始终以小时表示。</li>
+        </ul>
+        <p>每一项都可以在视图设置中隐藏。</p>
+        <h3>赤道仪状态</h3>
+        <p>
+            对于在一次应答中报告状态的服务器（<code>devicestate</code>：ASCOM Platform 7 和 ITelescopeV4 驱动），模型底部的状态条会显示<strong>跟踪</strong>、<strong>转动中</strong>、<strong>已停放</strong>、<strong>在原位</strong>和<strong>导星</strong>（开启时为实心圆点，关闭时为空心圆点）、镜筒朝向，以及支架自身的
+            UTC 时间。视图较窄时，部分项目会被省略以节省空间。
+        </p>
+        <h3>状态栏</h3>
+        <ul>
+            <li><strong>X、Y、Z</strong>：支架两个轴的角度和倾斜角，与 GSServer 相同。</li>
+            <li>状态：正在连接、已连接，或最近一次错误。</li>
+            <li>一个计时器，显示该视图已连接的时长（时:分:秒）。</li>
+        </ul>
+    </section>
+
+    <section id="settings">
+        <h2>视图设置</h2>
+        <p>
+            视图顶部的齿轮按钮会将其翻转。更改立即生效，并随该服务器一起保存，因此同一支架的所有视图都会使用这些设置。按<strong>完成</strong>翻转回来。
+        </p>
+        <h3>3D 模型</h3>
+        <ul>
+            <li><strong>模型</strong>：画在支架上的望远镜：反射式、折射式、施密特-卡塞格林、里奇-克莱琴（镜筒式或桁架式）、双望远镜，或默认模型。</li>
+            <li><strong>极轴模式</strong>：望远镜位于极轴（叉式）支架的哪一侧。</li>
+            <li><strong>RA 调整</strong>和 <strong>Dec 调整</strong>：如果模型与实际支架不一致，可将模型的轴旋转一个固定角度。<strong>重置调整</strong>将其恢复为零。</li>
+            <li><strong>支架</strong>：支架类型和纬度，在连接时从支架读取。</li>
+        </ul>
+        <h3>外观</h3>
+        <ul>
+            <li><strong>模型颜色</strong>：七种预设颜色之一，或任意自定义颜色。</li>
+            <li><strong>地面网格</strong>：支架下方地面上的网格。</li>
+            <li><strong>背景</strong>：心状星云、玫瑰星云、涡状星系（M51）或三角座星系（M33）的图片，或纯暗色天空。</li>
+            <li><strong>重置外观</strong>将这些设置恢复为默认值。</li>
+        </ul>
+        <h3>正面显示的坐标</h3>
+        <p>
+            选择在模型上显示哪些坐标、是否显示<strong>赤道仪状态</strong>条，以及 Ra 以小时还是度显示。
+        </p>
+        <h3>相机</h3>
+        <ul>
+            <li><strong>保存当前视图</strong>：记住模型在正面的旋转、缩放和平移状态。</li>
+            <li><strong>恢复到保存的视图</strong>：将相机移回保存的视图（若未保存，则为默认视图）。</li>
+            <li><strong>清除保存的视图</strong>：删除保存的视图并使用默认视图。</li>
+        </ul>
+    </section>
+
+    <section id="top">
+        <h2>顶部栏</h2>
+        <ul>
+            <li><strong>版本</strong>：应用的版本，显示在名称旁边。</li>
+            <li><strong>已连接</strong>：列表中已连接的服务器数量。</li>
+            <li><strong>日志</strong>：在单独的窗口中打开日志。可以只显示警告和错误、随日志增长自动跟随，并下载整个文件。</li>
+            <li><strong>帮助</strong>（?）：打开本指南。</li>
+            <li><strong>视图</strong>：显示的视图数量（1 到 4）。</li>
+            <li><strong>语言</strong>（地球图标）：English、Deutsch、Español、Français、Italiano 或中文。浏览器会记住您的选择。</li>
+        </ul>
+    </section>
+
+    <section id="network">
+        <h2>从其他计算机使用</h2>
+        <p>
+            默认情况下，应用只接受来自其所在计算机的连接，地址为 <code>http://localhost:5000</code>。要从其他计算机或平板电脑打开它，请在启动时指定监听地址，然后在浏览器中打开该计算机的名称或 IP 地址加端口：
+        </p>
+        <pre><code>GS.Point3DWeb --urls "http://0.0.0.0:5000"</code></pre>
+        <p class="warning">
+            任何能访问该地址的人都可以连接和断开您的支架并修改服务器列表，因此请只在可信的网络中这样做。
+        </p>
+    </section>
+
+    <section id="files">
+        <h2>数据存放位置</h2>
+        <table>
+            <thead><tr><th>内容</th><th>Windows</th><th>Linux / macOS</th></tr></thead>
+            <tbody>
+                <tr><td>服务器列表和视图设置（<code>servers.json</code>）</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>功能密钥（<code>feature.key</code>）</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>日志文件（<code>point3dweb-yyyyMMdd.log</code>；保留最近 14 个）</td><td><code>Documents\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb/logs</code></td></tr>
+            </tbody>
+        </table>
+        <p>
+            如果无法写入“文档”文件夹（例如由于 Windows 安全中心的“受控制文件夹的访问权限”），日志会改存到
+            <code>%APPDATA%\GS.Point3DWeb\logs</code>。要将设置迁移到另一台计算机，请复制 <code>servers.json</code>。
+        </p>
+    </section>
+
+    <section id="trouble">
+        <h2>故障排除</h2>
+        <dl>
+            <dt>Alpaca 发现找不到任何设备</dt>
+            <dd>请确认 Alpaca 服务器正在运行并已开启发现（discovery）功能，且防火墙没有阻止 UDP 端口 32227。发现功能只能到达本地网络；其他服务器请按地址添加。</dd>
+            <dt>视图无法连接</dt>
+            <dd>请检查地址（在列表中双击该服务器），并确认在浏览器中访问同一地址时服务器有响应。视图的状态栏和<strong>日志</strong>会显示错误信息。</dd>
+            <dt>模型为空或提示加载失败</dt>
+            <dd>浏览器需要支持 WebGL。视图会在稍后自动重新加载模型；重新加载页面也可以。</dd>
+            <dt>模型指向错误的方向</dt>
+            <dd>请在支架的驱动中检查观测地点的纬度，然后在视图设置中使用 <strong>RA 调整</strong>和<strong>Dec 调整</strong>。</dd>
+            <dt>没有赤道仪状态条</dt>
+            <dd>服务器不报告 <code>devicestate</code>（较旧的驱动），或者已在<strong>正面显示的坐标</strong>中关闭了状态条。</dd>
+            <dt>没有 ASCOM 驱动按钮</dt>
+            <dd>只有当应用在安装了 ASCOM Platform 的 Windows 上运行时，才能使用 ASCOM 驱动。</dd>
+            <dt>页面提示正在重新连接服务器</dt>
+            <dd>浏览器与应用失去了联系（应用已关闭或重启，或网络中断）。页面会自动尝试重新连接；如果失败，请按<strong>重试</strong>或重新加载页面。</dd>
+        </dl>
+    </section>
+</article>

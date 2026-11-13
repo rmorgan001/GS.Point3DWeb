@@ -1,0 +1,296 @@
+@* The user guide in German. Same sections and ids as HelpEn.razor; the names of buttons and settings
+   are the app's own German labels (Localization/Translations.de.cs). *@
+
+<nav class="help-toc" aria-label="Inhalt" lang="de">
+    <ol>
+        <li><a href="help#start">Erste Schritte</a></li>
+        <li><a href="help#servers">Server hinzufügen</a></li>
+        <li><a href="help#list">Die Serverliste</a></li>
+        <li><a href="help#views">Ansichten</a></li>
+        <li><a href="help#camera">Das Modell bewegen</a></li>
+        <li><a href="help#front">Was eine Ansicht zeigt</a></li>
+        <li><a href="help#settings">Ansichtseinstellungen</a></li>
+        <li><a href="help#top">Die obere Leiste</a></li>
+        <li><a href="help#network">Von anderen Computern aus nutzen</a></li>
+        <li><a href="help#files">Wo Daten gespeichert werden</a></li>
+        <li><a href="help#trouble">Fehlerbehebung</a></li>
+    </ol>
+</nav>
+
+<article class="help-text" lang="de">
+    <p class="lead">
+        GS Point3D Web zeigt Teleskopmontierungen als live mitlaufende 3D-Modelle, die sich bewegen wie die
+        Montierung selbst. Jede Montierung wird über einen ASCOM-Alpaca-Server im Netzwerk gelesen oder über
+        einen ASCOM-Treiber auf dem Computer, auf dem die App läuft. Die App funktioniert in jedem Browser
+        mit WebGL.
+    </p>
+
+    <section id="start">
+        <h2>Erste Schritte</h2>
+        <ol>
+            <li>Fügen Sie der Liste <strong>Teleskopmontierungen</strong> links eine Montierung hinzu: Suchen
+                Sie das Netzwerk mit der <strong>Alpaca-Suche</strong> ab, wählen Sie einen
+                <strong>ASCOM-Treiber</strong> oder fügen Sie eine über ihre Adresse hinzu (siehe
+                <a href="help#servers">Server hinzufügen</a>).</li>
+            <li>Ziehen Sie die Montierung aus der Liste auf eine Ansicht rechts. Sie wird verbunden, das Modell
+                wird geladen und folgt der Montierung.</li>
+        </ol>
+        <p>Alles, was Sie einrichten, wird gespeichert und ist beim nächsten Start der App wieder da.</p>
+    </section>
+
+    <section id="servers">
+        <h2>Server hinzufügen</h2>
+        <p>Mit den Schaltflächen über der Serverliste fügen Sie Montierungen hinzu:</p>
+        <dl>
+            <dt>Hinzufügen (+)</dt>
+            <dd>Fügt einen leeren Eintrag hinzu (<code>http://127.0.0.1:32323/api/v1/telescope/0/</code>).
+                Doppelklicken Sie darauf, um ihm einen Namen und die Adresse der Montierung zu geben.</dd>
+            <dt>Alpaca-Suche (Lupe)</dt>
+            <dd>Sucht im lokalen Netzwerk nach Alpaca-Teleskopen (UDP-Port 32227) und listet die auf, die
+                antworten. Wählen Sie eines aus, um es hinzuzufügen. Ein Server in einem anderen Netzwerk wird
+                so nicht gefunden; fügen Sie ihn stattdessen über seine Adresse hinzu.</dd>
+            <dt>ASCOM-Treiber (Teleskop)</dt>
+            <dd>Listet die ASCOM-Teleskoptreiber auf, die auf dem Computer mit der App installiert sind. Nur
+                sichtbar, wenn die App unter Windows mit installierter ASCOM Platform läuft.</dd>
+        </dl>
+        <p>
+            Eine Alpaca-Adresse sieht so aus: <code>http://host:port/api/v1/telescope/0/</code>. Die letzte
+            Zahl ist die Gerätenummer auf diesem Server. Die Adresse eines ASCOM-Treibers ist
+            <code>ascom:</code> gefolgt von seiner ProgID, zum Beispiel
+            <code>ascom:ASCOM.Simulator.Telescope</code>.
+        </p>
+        <p class="note">Ohne Funktionsschlüssel können bis zu fünf Server hinzugefügt werden.</p>
+    </section>
+
+    <section id="list">
+        <h2>Die Serverliste</h2>
+        <p>
+            Klicken Sie auf einen Server, um ihn auszuwählen. Der Punkt daneben ist grün, solange er
+            verbunden ist, und das Logo zeigt, ob es ein Alpaca-Server oder ein ASCOM-Treiber ist. Die übrigen
+            Schaltflächen wirken auf den ausgewählten Server:
+        </p>
+        <dl>
+            <dt>Verbinden / Trennen (Stecker)</dt>
+            <dd>Verbindet den ausgewählten Server oder trennt ihn.</dd>
+            <dt>Speichern (Diskette)</dt>
+            <dd>Speichert die Serverliste. Auch das Hinzufügen, Bearbeiten und Löschen von Servern speichert
+                sie.</dd>
+            <dt>Löschen (Papierkorb)</dt>
+            <dd>Entfernt den ausgewählten Server aus der Liste und aus jeder Ansicht, die ihn zeigt.</dd>
+        </dl>
+        <h3>Einen Server bearbeiten</h3>
+        <p>Doppelklicken Sie auf einen Server, oder wählen Sie ihn aus und drücken Sie <kbd>F2</kbd>. Sie
+            können ändern:</p>
+        <ul>
+            <li><strong>Servername</strong>: der Name in der Liste und auf seinen Ansichten.</li>
+            <li><strong>Abfrage (Sekunden)</strong>: wie oft die Montierung nach ihrer Position gefragt wird,
+                0,5 bis 5 Sekunden. Kürzer läuft flüssiger; länger belastet den Server weniger.</li>
+            <li><strong>URL</strong>: die Alpaca-Adresse oder <code>ascom:&lt;ProgID&gt;</code>.</li>
+            <li><strong>Benutzername</strong> und <strong>Passwort</strong>: nur für einen Alpaca-Server, der
+                danach fragt.</li>
+        </ul>
+    </section>
+
+    <section id="views">
+        <h2>Ansichten</h2>
+        <p>
+            Der Bereich rechts zeigt bis zu vier Ansichten, jede mit ihrer eigenen Montierung. Wie viele, wählen
+            Sie mit <strong>Ansichten 1 2 3 4</strong> in der oberen Leiste. Eine ausgeblendete Ansicht behält
+            ihre Montierung und erscheint wieder, wenn die Zahl erhöht wird.
+        </p>
+        <ul>
+            <li><strong>Eine Montierung anzeigen:</strong> Ziehen Sie einen Server aus der Liste auf eine
+                Ansicht. Er wird sofort verbunden. Ein Server, der auf eine belegte Ansicht gezogen wird,
+                ersetzt den bisherigen.</li>
+            <li><strong>Verbinden / Trennen:</strong> die Schaltfläche oben rechts im Modell. Nach dem Neuladen
+                oder in einem anderen Tab zeigen die Ansichten ihre Montierungen ohne Verbindung; drücken Sie
+                <strong>Verbinden</strong>, um zu starten.</li>
+            <li><strong>Entfernen:</strong> Das <strong>×</strong> oben in der Ansicht nimmt die Montierung aus
+                dieser Ansicht. Der Server bleibt in der Liste.</li>
+            <li><strong>Einstellungen:</strong> Das Zahnrad dreht die Ansicht um zu ihren Einstellungen
+                (<a href="help#settings">Ansichtseinstellungen</a>).</li>
+        </ul>
+        <p>
+            Die Anordnung wird geteilt: Jeder Browser-Tab und jeder Computer, der die App anzeigt, sieht
+            dieselben Ansichten und Montierungen.
+        </p>
+    </section>
+
+    <section id="camera">
+        <h2>Das Modell bewegen</h2>
+        <table>
+            <thead><tr><th>Um</th><th>Maus</th><th>Touch</th></tr></thead>
+            <tbody>
+                <tr><td>das Modell zu drehen</td><td>Mit der linken Taste ziehen</td><td>Mit einem Finger ziehen</td></tr>
+                <tr><td>zu zoomen</td><td>Mausrad</td><td>Zwei Finger zusammen- oder auseinanderziehen</td></tr>
+                <tr><td>zu verschieben (seitlich)</td><td>Mit der rechten Taste ziehen, oder <kbd>Strg</kbd> + linke Taste</td><td>Mit zwei Fingern ziehen</td></tr>
+            </tbody>
+        </table>
+        <p>
+            Um eine gelungene Ansicht zu behalten, drehen Sie die Karte um und verwenden Sie
+            <strong>Aktuelle Ansicht speichern</strong> unter <strong>Kamera</strong>. Jede Ansicht dieser
+            Montierung öffnet sich dann so.
+        </p>
+    </section>
+
+    <section id="front">
+        <h2>Was eine Ansicht zeigt</h2>
+        <h3>Kopfzeile</h3>
+        <p>
+            Der Name der Montierung und daneben das Modell und der Montierungstyp (zum Beispiel
+            <em>Spiegelteleskop · Deutsche Montierung</em>). Der Montierungstyp wird beim Verbinden von der
+            Montierung gelesen.
+        </p>
+        <h3>Koordinaten</h3>
+        <p>Am oberen Rand des Modells:</p>
+        <ul>
+            <li><strong>Ra</strong> und <strong>Dec</strong>: wohin das Teleskop am Himmel zeigt. Doppelklicken
+                Sie auf Ra, um zwischen Stunden und Grad zu wechseln.</li>
+            <li><strong>Az</strong> und <strong>Alt</strong>: dieselbe Position als Azimut und Höhe.</li>
+            <li><strong>Lha</strong>: der lokale Stundenwinkel.</li>
+            <li><strong>Lst</strong>: die lokale Sternzeit, immer in Stunden.</li>
+        </ul>
+        <p>Jede davon lässt sich in den Ansichtseinstellungen ausblenden.</p>
+        <h3>Montierungsstatus</h3>
+        <p>
+            Bei Servern, die ihn in einer Antwort melden (<code>devicestate</code>: ASCOM Platform 7 und
+            ITelescopeV4-Treiber), zeigt eine Leiste am unteren Rand des Modells <strong>Nachführung</strong>,
+            <strong>Schwenkt</strong>, <strong>Geparkt</strong>, <strong>In Grundstellung</strong> und
+            <strong>Guiding</strong> (ein gefüllter Punkt für an, ein leerer für aus), die Pierseite und die
+            UTC-Zeit der Montierung. In einer schmalen Ansicht werden einige davon weggelassen, um Platz zu
+            sparen.
+        </p>
+        <h3>Statusleiste</h3>
+        <ul>
+            <li><strong>X, Y, Z</strong>: die beiden Achswinkel der Montierung und die Neigung, wie in
+                GSServer.</li>
+            <li>Der Status: verbindet, verbunden oder der letzte Fehler.</li>
+            <li>Eine Uhr, die zeigt, wie lange die Ansicht verbunden ist (Stunden:Minuten:Sekunden).</li>
+        </ul>
+    </section>
+
+    <section id="settings">
+        <h2>Ansichtseinstellungen</h2>
+        <p>
+            Das Zahnrad oben in einer Ansicht dreht sie um. Änderungen gelten sofort und werden mit diesem
+            Server gespeichert, sodass jede Ansicht derselben Montierung sie verwendet. Mit
+            <strong>Fertig</strong> drehen Sie sie zurück.
+        </p>
+        <h3>3D-Modell</h3>
+        <ul>
+            <li><strong>Modell</strong>: das Teleskop auf der Montierung: Spiegelteleskop, Refraktor,
+                Schmidt-Cassegrain, Ritchey-Chrétien (Tubus oder Gitterrohr), Doppelteleskop oder
+                Standard.</li>
+            <li><strong>Polar-Modus</strong>: auf welcher Seite einer Polar-(Gabel-)Montierung das Teleskop
+                sitzt.</li>
+            <li><strong>RA-Korrektur</strong> und <strong>Dec-Korrektur</strong>: drehen die Achsen des Modells
+                um einen festen Betrag, falls das Modell nicht mit der echten Montierung übereinstimmt.
+                <strong>Korrekturen zurücksetzen</strong> setzt sie wieder auf null.</li>
+            <li><strong>Montierung</strong>: Montierungstyp und Breitengrad, beim Verbinden von der Montierung
+                gelesen.</li>
+        </ul>
+        <h3>Darstellung</h3>
+        <ul>
+            <li><strong>Modellfarbe</strong>: eine von sieben vorgegebenen Farben oder eine beliebige eigene
+                Farbe.</li>
+            <li><strong>Bodenraster</strong>: ein Raster auf dem Boden unter der Montierung.</li>
+            <li><strong>Hintergrund</strong>: ein Bild des Herznebels, des Rosettennebels, der
+                Whirlpool-Galaxie (M51) oder der Dreiecksgalaxie (M33), oder ein einfacher dunkler Himmel.</li>
+            <li><strong>Darstellung zurücksetzen</strong> stellt diese Werte wieder her.</li>
+        </ul>
+        <h3>Koordinaten auf der Vorderseite</h3>
+        <p>
+            Wählen Sie, welche Koordinaten über dem Modell erscheinen, ob die Leiste mit dem
+            <strong>Montierungsstatus</strong> angezeigt wird und ob Ra in Stunden oder Grad angezeigt
+            wird.
+        </p>
+        <h3>Kamera</h3>
+        <ul>
+            <li><strong>Aktuelle Ansicht speichern</strong>: merkt sich, wie das Modell auf der Vorderseite
+                gedreht, gezoomt und verschoben ist.</li>
+            <li><strong>Auf gespeicherte Ansicht zurücksetzen</strong>: bringt die Kamera zur gespeicherten
+                Ansicht zurück (oder zur Standardansicht, wenn keine gespeichert ist).</li>
+            <li><strong>Gespeicherte Ansicht löschen</strong>: vergisst die gespeicherte Ansicht und verwendet
+                die Standardansicht.</li>
+        </ul>
+    </section>
+
+    <section id="top">
+        <h2>Die obere Leiste</h2>
+        <ul>
+            <li><strong>Version</strong>: die Version der App, neben ihrem Namen.</li>
+            <li><strong>Verbunden</strong>: wie viele Server der Liste verbunden sind.</li>
+            <li><strong>Protokoll</strong>: öffnet das Protokoll in einem eigenen Fenster. Es kann nur
+                Warnungen und Fehler zeigen, dem wachsenden Protokoll folgen und die ganze Datei
+                herunterladen.</li>
+            <li><strong>Hilfe</strong> (?): öffnet diese Anleitung.</li>
+            <li><strong>Ansichten</strong>: wie viele Ansichten angezeigt werden (1 bis 4).</li>
+            <li><strong>Sprache</strong> (Globus): English, Deutsch, Español, Français, Italiano oder 中文.
+                Der Browser merkt sich die Wahl.</li>
+        </ul>
+    </section>
+
+    <section id="network">
+        <h2>Von anderen Computern aus nutzen</h2>
+        <p>
+            Standardmäßig nimmt die App nur Verbindungen vom eigenen Computer an, unter
+            <code>http://localhost:5000</code>. Um sie von anderen Computern oder einem Tablet aus zu öffnen,
+            starten Sie sie mit der Adresse, auf der sie lauschen soll, und rufen Sie dann den Namen oder die
+            IP-Adresse dieses Computers mit dem Port auf:
+        </p>
+        <pre><code>GS.Point3DWeb --urls "http://0.0.0.0:5000"</code></pre>
+        <p class="warning">
+            Jeder, der diese Adresse erreicht, kann Ihre Montierungen verbinden und trennen und die
+            Serverliste ändern. Tun Sie das also nur in einem Netzwerk, dem Sie vertrauen.
+        </p>
+    </section>
+
+    <section id="files">
+        <h2>Wo Daten gespeichert werden</h2>
+        <table>
+            <thead><tr><th>Was</th><th>Windows</th><th>Linux / macOS</th></tr></thead>
+            <tbody>
+                <tr><td>Serverliste und Ansichtseinstellungen (<code>servers.json</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>Funktionsschlüssel (<code>feature.key</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>Protokolldateien (<code>point3dweb-yyyyMMdd.log</code>; die letzten 14 bleiben erhalten)</td><td><code>Documents\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb/logs</code></td></tr>
+            </tbody>
+        </table>
+        <p>
+            Wenn in den Ordner „Dokumente“ nicht geschrieben werden kann (zum Beispiel wegen des überwachten
+            Ordnerzugriffs der Windows-Sicherheit), landen die Protokolle stattdessen in
+            <code>%APPDATA%\GS.Point3DWeb\logs</code>. Um Ihre Einrichtung auf einen anderen Computer zu
+            übertragen, kopieren Sie <code>servers.json</code>.
+        </p>
+    </section>
+
+    <section id="trouble">
+        <h2>Fehlerbehebung</h2>
+        <dl>
+            <dt>Die Alpaca-Suche findet nichts</dt>
+            <dd>Prüfen Sie, ob der Alpaca-Server läuft und die Suche (Discovery) eingeschaltet hat und ob eine
+                Firewall UDP-Port 32227 blockiert. Die Suche erreicht nur das lokale Netzwerk; fügen Sie andere
+                Server über ihre Adresse hinzu.</dd>
+            <dt>Eine Ansicht verbindet sich nicht</dt>
+            <dd>Prüfen Sie die Adresse (Doppelklick auf den Server in der Liste) und ob der Server unter
+                derselben Adresse im Browser antwortet. Die Statusleiste der Ansicht und das
+                <strong>Protokoll</strong> zeigen den Fehler.</dd>
+            <dt>Das Modell ist leer oder meldet, dass es nicht geladen werden konnte</dt>
+            <dd>Der Browser braucht WebGL. Die Ansicht versucht nach kurzer Zeit selbst, das Modell erneut zu
+                laden; auch das Neuladen der Seite hilft.</dd>
+            <dt>Das Modell zeigt in die falsche Richtung</dt>
+            <dd>Prüfen Sie den Breitengrad des Standorts im Treiber der Montierung und verwenden Sie dann
+                <strong>RA-Korrektur</strong> und <strong>Dec-Korrektur</strong> in den
+                Ansichtseinstellungen.</dd>
+            <dt>Keine Leiste mit dem Montierungsstatus</dt>
+            <dd>Der Server meldet kein <code>devicestate</code> (ältere Treiber), oder die Leiste ist unter
+                <strong>Koordinaten auf der Vorderseite</strong> ausgeschaltet.</dd>
+            <dt>Keine Schaltfläche ASCOM-Treiber</dt>
+            <dd>ASCOM-Treiber lassen sich nur verwenden, wenn die App unter Windows mit installierter ASCOM
+                Platform läuft.</dd>
+            <dt>Die Seite meldet, dass die Verbindung zum Server wiederhergestellt wird</dt>
+            <dd>Der Browser hat den Kontakt zur App verloren (sie wurde beendet oder neu gestartet, oder das
+                Netzwerk ist ausgefallen). Die Seite versucht selbst, sich wieder zu verbinden; gelingt das
+                nicht, drücken Sie <strong>Erneut versuchen</strong> oder laden Sie die Seite neu.</dd>
+        </dl>
+    </section>
+</article>

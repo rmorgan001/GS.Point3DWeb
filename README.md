@@ -33,7 +33,8 @@ pointing from any browser.
 - **Works offline:** fonts and the 3D engine are bundled, so no internet connection is needed.
 - **Logging:** a daily log file and a built-in log viewer, opened with **Log** in the top
   bar.
-- **Built-in help:** a user guide, opened with the **?** button in the top bar.
+- **Built-in help:** a user guide in each of the app's languages, opened with the **?** button in
+  the top bar.
 
 ## Requirements
 

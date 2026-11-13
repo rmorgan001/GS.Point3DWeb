@@ -50,7 +50,7 @@ jobs:
           --output publish
 
       - name: Upload the published app
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: GS.Point3DWeb-${{ github.sha }}
           path: publish

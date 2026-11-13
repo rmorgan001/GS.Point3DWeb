@@ -87,6 +87,13 @@
                     @onclick="() => ViewModel.DiscoveryCommand.ExecuteAsync(null)">
                 <Icon Kind="Search" />
             </button>
+            @if (ViewModel.ComSupported)
+            {
+                <button type="button" class="icon-btn" title="@L.T("ASCOM Drivers")" aria-label="@L.T("ASCOM Drivers")"
+                        @onclick="() => ViewModel.AddComDriverCommand.ExecuteAsync(null)">
+                    <Icon Kind="Telescope" />
+                </button>
+            }
             <button type="button" class="icon-btn @(ViewModel.SelectedAlpacaServer?.IsConnected == true ? "active" : null)"
                     title="@ConnectText" aria-label="@ConnectText"
                     disabled="@(ViewModel.IsBusy || ViewModel.SelectedAlpacaServer?.IsConnecting == true)"
@@ -269,6 +276,7 @@
     /// <summary>Short address for the list: host:port and device number.</summary>
     private static string ServerAddress(AlpacaServer server)
     {
+        if (server.ProgId is { } progId) return $"ASCOM · {progId}";
         if (!Uri.TryCreate(server.Url, UriKind.Absolute, out var uri)) return server.Url;
         var device = uri.Segments.LastOrDefault()?.Trim('/');
         return int.TryParse(device, out var number)

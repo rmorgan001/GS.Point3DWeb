@@ -16,6 +16,10 @@
             {
                 <DiscoveryDialog ViewModel="discovery" />
             }
+            else if (_current is ComDriversDialogViewModel comDrivers)
+            {
+                <ComDriversDialog ViewModel="comDrivers" />
+            }
             else if (_current is EditServerDialogViewModel edit)
             {
                 <EditServerDialog ViewModel="edit" />

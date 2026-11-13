@@ -323,6 +323,29 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>Whether ASCOM COM drivers can be added (the app is running on Windows).</summary>
+    public bool ComSupported => ComTelescopes.IsSupported;
+
+    /// <summary>Adds an ASCOM telescope driver on this computer, used through COM, picked from the installed drivers.</summary>
+    [RelayCommand]
+    private async Task AddComDriverAsync()
+    {
+        if (AlpacaServers.Length >= MaxServers)
+        {
+            await ShowLimitAsync(ServerLimitMessage);
+            return;
+        }
+
+        var driversViewModel = new ComDriversDialogViewModel();
+        await _dialogService.ShowDialog(driversViewModel);
+        if (!driversViewModel.Confirmed || driversViewModel.SelectedProgId is not { } progId) return;
+
+        var connection = new AlpacaServer(AlpacaServer.ComUrl(progId), driversViewModel.SelectedName ?? progId);
+        _settingsService.AddServer(connection);
+        SelectedAlpacaServer = connection;
+        await PersistAsync();
+    }
+
     /// <summary>Connects to the selected server, or disconnects it if it is already connected.</summary>
     [RelayCommand]
     private async Task ConnectAsync()
@@ -351,7 +374,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         var confirmViewModel = new ConfirmDialogViewModel
         {
             Message = disconnecting
-                ? L.T("Disconnect from {0}? Its views stop updating, and other programs using this mount's Alpaca device may be disconnected too.", server.ServerName)
+                ? AlpacaConnector.DisconnectQuestion(server)
                 : L.T("Connect to {0}?", server.ServerName)
         };
         await _dialogService.ShowDialog(confirmViewModel);

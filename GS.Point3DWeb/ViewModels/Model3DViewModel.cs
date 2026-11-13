@@ -247,9 +247,18 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     // Only the devicestate request is timed: the occasional connected check and mount-info
                     // read add requests that shouldn't count as a slow mount.
                     var pollStarted = timer.Elapsed;
-                    var client = AlpacaConnector.CreateClient(server);
-                    var deviceState = await ReadDeviceStateAsync(client, token);
-                    server.SetClientTransactionId(client.ClientTransactionId);
+                    TelescopeDeviceState? deviceState;
+                    if (server.IsCom)
+                    {
+                        // A COM driver's failure throws, and is handled below like a failed request.
+                        deviceState = await AlpacaConnector.ReadComStateAsync(server, token);
+                    }
+                    else
+                    {
+                        var client = AlpacaConnector.CreateClient(server);
+                        deviceState = await ReadDeviceStateAsync(client, token);
+                        server.SetClientTransactionId(client.ClientTransactionId);
+                    }
                     if (token.IsCancellationRequested) break;
 
                     if (deviceState?.AlpacaResponse?.ErrorNumber > 0)
@@ -369,11 +378,11 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
         if (server.IsConnected)
         {
-            // Disconnecting acts on the mount's Alpaca device, so ask first.
+            // Disconnecting acts on the mount's driver or Alpaca device, so ask first.
             var confirm = new ConfirmDialogViewModel
             {
                 Title = L.T("Disconnect"),
-                Message = L.T("Disconnect from {0}? Its views stop updating, and other programs using this mount's Alpaca device may be disconnected too.", server.ServerName),
+                Message = AlpacaConnector.DisconnectQuestion(server),
                 AcceptText = L.T("Disconnect"),
                 CancelText = L.T("Cancel")
             };

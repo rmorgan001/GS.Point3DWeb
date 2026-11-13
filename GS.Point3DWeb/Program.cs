@@ -34,6 +34,11 @@ builder.Services.AddTransient<Model3DViewModel>();
 
 var app = builder.Build();
 
+// Release the ASCOM COM drivers this app connected, so drivers that count their clients don't stay
+// connected for it after it stops.
+if (ComTelescopes.IsSupported)
+    app.Lifetime.ApplicationStopping.Register(ComTelescopes.DisconnectAll);
+
 // Only Windows encrypts the Data Protection keys at rest (DPAPI). Elsewhere they are plain files in the
 // user's profile (~/.aspnet/DataProtection-Keys), or kept in memory if there is no profile, so say so.
 if (!OperatingSystem.IsWindows())

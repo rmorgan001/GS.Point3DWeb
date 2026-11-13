@@ -30,7 +30,8 @@
     <div class="field-row">
         <label class="field field-grow">
             <span class="field-label">@L.T("Url")</span>
-            <input type="url" spellcheck="false"
+            <input type="text" inputmode="url" spellcheck="false"
+                   title="@L.T("An Alpaca address (…/api/v1/telescope/{n}/), or ascom:<ProgID> for an ASCOM driver on the computer running this app")"
                    class="@(ViewModel.UrlError is null ? null : "has-error")"
                    aria-invalid="@(ViewModel.UrlError is not null)"
                    @bind="ViewModel.Url" @bind:event="oninput" />
@@ -41,6 +42,8 @@
         </label>
     </div>
 
+    @if (!ViewModel.IsCom)
+    {
     <div class="field-row">
         <label class="field field-grow">
             <span class="field-label">@L.T("User Name")</span>
@@ -60,6 +63,7 @@
             </span>
         </label>
     </div>
+    }
 
     @* Read-only identifiers, kept together below the editable settings. *@
     <div class="field-row field-row-info" role="group" aria-label="@L.T("Server details (read-only)")">

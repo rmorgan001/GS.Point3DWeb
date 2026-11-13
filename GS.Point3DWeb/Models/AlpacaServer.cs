@@ -38,22 +38,45 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     private static readonly Regex AlpacaPath =
         new(@"/api/v1/telescope/(\d+)/?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    /// <summary>The address prefix of an ASCOM COM driver on this computer: <c>ascom:&lt;ProgID&gt;</c>.</summary>
+    public const string ComPrefix = "ascom:";
+
+    /// <summary>The address of an ASCOM COM driver.</summary>
+    public static string ComUrl(string progId) => ComPrefix + progId.Trim();
+
+    /// <summary>Whether an address is an ASCOM COM driver (<c>ascom:&lt;ProgID&gt;</c>) rather than an Alpaca URL.</summary>
+    public static bool IsComUrl(string url) => url.TrimStart().StartsWith(ComPrefix, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// True if this is an ASCOM COM driver on the computer running this app (see
+    /// <see cref="Services.ComTelescopes"/>), used through COM instead of over Alpaca.
+    /// </summary>
+    public bool IsCom => IsComUrl(Url);
+
+    /// <summary>The COM driver's ProgID (e.g. ASCOM.Simulator.Telescope); null for an Alpaca server.</summary>
+    public string? ProgId => IsCom ? Url.Trim()[ComPrefix.Length..].Trim() : null;
+
     /// <summary>
     /// Trims the address and writes its Alpaca path in lower case (…/api/v1/telescope/{n}/), as Alpaca
     /// servers expect; anything before it (host, a proxy prefix) is left as typed. The edit dialog accepts
     /// the path in any case, and requests no longer lower-case the whole address.
+    /// A COM driver's address is written as <c>ascom:&lt;ProgID&gt;</c>, with the ProgID as typed.
     /// </summary>
     public static string NormalizeUrl(string url)
-        => AlpacaPath.Replace(url.Trim(), m => $"/api/v1/telescope/{m.Groups[1].Value}/");
+        => IsComUrl(url)
+            ? ComUrl(url.Trim()[ComPrefix.Length..])
+            : AlpacaPath.Replace(url.Trim(), m => $"/api/v1/telescope/{m.Groups[1].Value}/");
 
     /// <summary>
     /// Whether two addresses are the same device: the scheme and host may differ in case, the path may not
-    /// (a proxy prefix can be case-sensitive).
+    /// (a proxy prefix can be case-sensitive). COM ProgIDs aren't case-sensitive.
     /// </summary>
     public static bool SameUrl(string a, string b)
-        => Uri.TryCreate(NormalizeUrl(a), UriKind.Absolute, out var ua) && Uri.TryCreate(NormalizeUrl(b), UriKind.Absolute, out var ub)
-            ? Uri.Compare(ua, ub, UriComponents.AbsoluteUri, UriFormat.UriEscaped, StringComparison.Ordinal) == 0
-            : string.Equals(NormalizeUrl(a), NormalizeUrl(b), StringComparison.Ordinal);
+        => IsComUrl(a) || IsComUrl(b)
+            ? string.Equals(NormalizeUrl(a), NormalizeUrl(b), StringComparison.OrdinalIgnoreCase)
+            : Uri.TryCreate(NormalizeUrl(a), UriKind.Absolute, out var ua) && Uri.TryCreate(NormalizeUrl(b), UriKind.Absolute, out var ub)
+                ? Uri.Compare(ua, ub, UriComponents.AbsoluteUri, UriFormat.UriEscaped, StringComparison.Ordinal) == 0
+                : string.Equals(NormalizeUrl(a), NormalizeUrl(b), StringComparison.Ordinal);
 
     /// <summary>
     /// Set at start-up when the saved password couldn't be decrypted (Password is then null); not saved.

@@ -16,6 +16,9 @@ public partial class EditServerDialogViewModel : DialogViewModel
     private static readonly Regex TelescopePath =
         new(@"/api/v1/telescope/\d+/$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    // A COM ProgID: letters, digits, '_' and '.', starting with a letter (e.g. ASCOM.Simulator.Telescope).
+    private static readonly Regex ComProgId = new(@"^[A-Za-z][A-Za-z0-9_.]*$", RegexOptions.Compiled);
+
     public EditServerDialogViewModel(AlpacaServer server)
     {
         IdGuid = server.IdGuid;
@@ -41,7 +44,12 @@ public partial class EditServerDialogViewModel : DialogViewModel
     public double ClientTransactionId { get; }
 
     [ObservableProperty] public partial string ServerName { get; set; }
-    [ObservableProperty] public partial string Url { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsCom))]
+    public partial string Url { get; set; }
+
+    /// <summary>The address is an ASCOM COM driver, which has no user name or password.</summary>
+    public bool IsCom => AlpacaServer.IsComUrl(Url ?? "");
     [ObservableProperty] public partial string? UserName { get; set; }
     [ObservableProperty] public partial string? Password { get; set; }
 
@@ -120,6 +128,16 @@ public partial class EditServerDialogViewModel : DialogViewModel
         if (string.IsNullOrWhiteSpace(value))
         {
             UrlError = L.T("Required");
+            return;
+        }
+
+        // An ASCOM COM driver on this computer: ascom:<ProgID>, e.g. ascom:ASCOM.Simulator.Telescope
+        if (AlpacaServer.IsComUrl(value))
+        {
+            var progId = AlpacaServer.NormalizeUrl(value)[AlpacaServer.ComPrefix.Length..];
+            UrlError = !Services.ComTelescopes.IsSupported
+                ? L.T("ASCOM drivers can only be used when this app runs on Windows.")
+                : ComProgId.IsMatch(progId) ? null : L.T("Invalid ProgID (expected ascom:<ProgID>)");
             return;
         }
 

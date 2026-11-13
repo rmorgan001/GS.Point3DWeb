@@ -1,5 +1,6 @@
 using GS.Alpaca.Shared;
 using GS.Alpaca.Support;
+using GS.Point3DWeb.Localization;
 using GS.Point3DWeb.Models;
 using Newtonsoft.Json.Linq;
 
@@ -10,6 +11,8 @@ namespace GS.Point3DWeb.Services;
 /// Used by the toolbar Connect button and by the 3D views (connecting a server dragged onto a view, and their Connect / Disconnect button).
 /// Every method leaves <see cref="AlpacaServer.IsConnected"/> set to what the server itself reports,
 /// so the connection dots and buttons never show an assumed state.
+/// A server that is an ASCOM COM driver on this computer (<see cref="AlpacaServer.IsCom"/>) is used through
+/// <see cref="ComTelescopes"/> instead of over Alpaca.
 /// </summary>
 public static class AlpacaConnector
 {
@@ -28,6 +31,14 @@ public static class AlpacaConnector
         server.IsConnecting = true;
         try
         {
+            if (server.IsCom)
+            {
+                if (!ComTelescopes.IsSupported) throw ComNotSupported();
+                var comConnected = await ComTelescopes.ConnectAsync(server.ProgId!).WaitAsync(token);
+                SetConnected(server, url, comConnected);
+                return comConnected;
+            }
+
             var client = CreateClient(server);
 
             var isConnected = await ReadConnectedAsync(client, token);
@@ -87,6 +98,21 @@ public static class AlpacaConnector
     /// </summary>
     public static async Task<bool> DisconnectAsync(AlpacaServer server)
     {
+        if (server.IsCom)
+        {
+            // Releasing the driver always ends this app's connection; other programs have their own instances.
+            try
+            {
+                if (ComTelescopes.IsSupported) await ComTelescopes.DisconnectAsync(server.ProgId!);
+            }
+            finally
+            {
+                server.ConnectRequested = false;
+                server.IsConnected = false;
+            }
+            return false;
+        }
+
         var client = CreateClient(server);
         var accepted = await client.DisconnectAsync();
         server.SetClientTransactionId(client.ClientTransactionId);
@@ -127,9 +153,17 @@ public static class AlpacaConnector
         bool connected;
         try
         {
-            var client = CreateClient(server);
-            connected = await ReadConnectedAsync(client, token);
-            server.SetClientTransactionId(client.ClientTransactionId);
+            if (server.IsCom)
+            {
+                connected = ComTelescopes.IsSupported
+                            && await ComTelescopes.IsConnectedAsync(server.ProgId!).WaitAsync(token);
+            }
+            else
+            {
+                var client = CreateClient(server);
+                connected = await ReadConnectedAsync(client, token);
+                server.SetClientTransactionId(client.ClientTransactionId);
+            }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -154,6 +188,16 @@ public static class AlpacaConnector
     /// </summary>
     public static async Task<bool> ReadMountInfoAsync(AlpacaServer server, CancellationToken token = default)
     {
+        if (server.IsCom)
+        {
+            if (!ComTelescopes.IsSupported) throw ComNotSupported();
+            var (comMode, comLatitude) = await ComTelescopes.ReadMountInfoAsync(server.ProgId!).WaitAsync(token);
+            if (comMode is { } m)
+                server.AlignmentMode = Enum.IsDefined(typeof(AlignmentModes), m) ? (AlignmentModes)m : AlignmentModes.algGermanPolar;
+            if (comLatitude is { } lat) server.Latitude = lat;
+            return true; // a property the driver doesn't implement won't appear on a retry
+        }
+
         var client = CreateClient(server);
 
         var mode = await client.GetPropertyAsync("alignmentmode", token);
@@ -172,6 +216,26 @@ public static class AlpacaConnector
 
         return mode is not null && latitude is not null;
     }
+
+    /// <summary>
+    /// The mount's position from a COM driver (an Alpaca server's is polled by the view with
+    /// <see cref="AlpacaClient"/>). Throws if the driver fails or doesn't answer.
+    /// </summary>
+    public static Task<TelescopeDeviceState> ReadComStateAsync(AlpacaServer server, CancellationToken token = default)
+    {
+        if (!ComTelescopes.IsSupported) return Task.FromException<TelescopeDeviceState>(ComNotSupported());
+        return ComTelescopes.ReadStateAsync(server.ProgId!).WaitAsync(token);
+    }
+
+    /// <summary>Asks before disconnecting: what disconnecting may do to other programs using the mount.</summary>
+    public static string DisconnectQuestion(AlpacaServer server)
+        => server.IsCom
+            ? L.T("Disconnect from {0}? Its views stop updating, and some ASCOM drivers disconnect the mount for every program using them.", server.ServerName)
+            : L.T("Disconnect from {0}? Its views stop updating, and other programs using this mount's Alpaca device may be disconnected too.", server.ServerName);
+
+    /// <summary>The error for a COM driver when this app isn't running on Windows.</summary>
+    private static PlatformNotSupportedException ComNotSupported()
+        => new(L.T("ASCOM drivers can only be used when this app runs on Windows."));
 
     /// <summary>The server's "connected" property; false if it returned an error or no value.</summary>
     private static async Task<bool> ReadConnectedAsync(AlpacaClient client, CancellationToken token = default)

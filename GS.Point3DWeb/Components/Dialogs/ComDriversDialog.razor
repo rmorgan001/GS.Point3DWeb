@@ -1,0 +1,40 @@
+<h2 class="dialog-title">@ViewModel.Title</h2>
+
+<div class="dialog-message">
+    <Icon Kind="Telescope" Size="32" />
+    <span>@ViewModel.Message</span>
+</div>
+
+@if (ViewModel.Drivers.Count > 0)
+{
+    <ul class="device-list">
+        @foreach (var driver in ViewModel.Drivers)
+        {
+            <li>
+                <label class="device">
+                    <input type="radio"
+                           name="ascom-driver"
+                           checked="@(driver.ProgId == ViewModel.SelectedProgId)"
+                           @onchange="() => ViewModel.SelectedProgId = driver.ProgId" />
+                    <span class="device-name">@driver.Name</span>
+                    <span class="device-url">@driver.ProgId</span>
+                </label>
+            </li>
+        }
+    </ul>
+}
+
+<div class="dialog-buttons">
+    <button type="button" class="dialog-button" disabled="@(ViewModel.SelectedProgId is null)"
+            @onclick="() => ViewModel.ConfirmCommand.ExecuteAsync(null)">
+        @L.T("Accept")
+    </button>
+    <button type="button" class="dialog-button" @onclick="() => ViewModel.CancelCommand.ExecuteAsync(null)">
+        @L.T("Cancel")
+    </button>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ComDriversDialogViewModel ViewModel { get; set; } = default!;
+}

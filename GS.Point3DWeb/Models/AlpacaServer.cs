@@ -29,6 +29,12 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     /// </summary>
     public volatile bool ConnectRequested;
 
+    /// <summary>
+    /// Set when the server is deleted from the list (not saved), so a connect still under way for it releases
+    /// what it connected instead of holding it for a server that no longer exists.
+    /// </summary>
+    public volatile bool Removed;
+
     [ObservableProperty]
     public partial string ServerName { get; set; } = name;
 

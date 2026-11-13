@@ -71,7 +71,11 @@ public class SettingsService
     public void RemoveServer(string idGuid)
     {
         bool removed;
-        lock (_serversLock) removed = _servers.RemoveAll(s => s.IdGuid == idGuid) > 0;
+        lock (_serversLock)
+        {
+            foreach (var server in _servers.Where(s => s.IdGuid == idGuid)) server.Removed = true;
+            removed = _servers.RemoveAll(s => s.IdGuid == idGuid) > 0;
+        }
         if (removed) ServersChanged?.Invoke();
     }
 

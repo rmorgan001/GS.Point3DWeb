@@ -52,6 +52,19 @@ public static class ComTelescopes
     // Under Gate. Drivers being released, by ProgID: a new instance waits until the old one is released.
     private static readonly Dictionary<string, Task> Releasing = new(StringComparer.OrdinalIgnoreCase);
 
+    // Under Gate. Connects under way, by ProgID and owner: a second connect for the same server joins the
+    // first rather than racing it (a failed first attempt would otherwise release the hold the second relies on).
+    private static readonly Dictionary<(string ProgId, string Owner), Task<bool>> Connecting = new(ConnectKeyComparer.Instance);
+
+    private sealed class ConnectKeyComparer : IEqualityComparer<(string ProgId, string Owner)>
+    {
+        public static readonly ConnectKeyComparer Instance = new();
+        public bool Equals((string ProgId, string Owner) x, (string ProgId, string Owner) y)
+            => StringComparer.OrdinalIgnoreCase.Equals(x.ProgId, y.ProgId) && x.Owner == y.Owner;
+        public int GetHashCode((string ProgId, string Owner) key)
+            => HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(key.ProgId), key.Owner);
+    }
+
     // Connecting can be slow (a driver that runs as its own program starts up, a mount answers);
     // a single read or a disconnect should not be.
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(30);
@@ -72,10 +85,27 @@ public static class ComTelescopes
     /// Connects the driver for <paramref name="owner"/> (a server's ID), creating it if no server holds it yet.
     /// Returns whether it reports connected. If it can't be created, or fails or refuses to connect, the
     /// owner's hold is dropped again (unless it already held the driver), and the error is thrown. Other
-    /// owners keep the driver.
+    /// owners keep the driver. A connect for an owner whose connect is already under way joins that one.
     /// </summary>
-    public static async Task<bool> ConnectAsync(string progId, string owner)
+    public static Task<bool> ConnectAsync(string progId, string owner)
     {
+        lock (Gate)
+        {
+            if (Connecting.TryGetValue((progId, owner), out var underWay)) return underWay;
+            var connect = ConnectOnceAsync(progId, owner);
+            if (connect.IsCompleted) return connect;
+            Connecting[(progId, owner)] = connect;
+            _ = connect.ContinueWith(_ =>
+            {
+                lock (Gate) Connecting.Remove((progId, owner));
+            }, TaskScheduler.Default);
+            return connect;
+        }
+    }
+
+    private static async Task<bool> ConnectOnceAsync(string progId, string owner)
+    {
+        await Task.Yield(); // run outside the caller's lock
         var (driver, added) = await AcquireAsync(progId, owner);
         try
         {
@@ -116,17 +146,15 @@ public static class ComTelescopes
                 }
             }
 
-            try
+            // Wait for the release to finish, whether it succeeded or failed (its own errors don't matter here).
+            if (await Task.WhenAny(releasing, Task.Delay(CallTimeout)) == releasing) continue;
+
+            // The old instance is stuck (its thread is blocked in the driver). Waiting longer won't help, and
+            // would keep the driver from ever being connected again, so give up on it and start a new one.
+            // If the stuck instance recovers later, its queued disconnect still runs, on its own instance.
+            lock (Gate)
             {
-                await releasing.WaitAsync(ConnectTimeout);
-            }
-            catch (TimeoutException)
-            {
-                throw new TimeoutException("the ASCOM driver is still being disconnected; try again later");
-            }
-            catch
-            {
-                // a release that failed has still finished
+                if (Releasing.TryGetValue(progId, out var current) && current == releasing) Releasing.Remove(progId);
             }
         }
     }
@@ -139,7 +167,7 @@ public static class ComTelescopes
     /// </summary>
     public static Task ReleaseAsync(string progId, string owner)
     {
-        Task release;
+        Task<bool> release;
         lock (Gate)
         {
             if (!Drivers.TryGetValue(progId, out var driver) || !driver.Owners.Remove(owner) || driver.Owners.Count > 0)
@@ -151,11 +179,11 @@ public static class ComTelescopes
     }
 
     /// <summary>Disconnects and releases a driver no server holds any more, then stops its thread.</summary>
-    private static async Task DisposeAsync(Driver driver)
+    private static async Task<bool> DisposeAsync(Driver driver)
     {
         try
         {
-            await driver.Thread.Run(() =>
+            return await driver.Thread.Run(() =>
             {
                 if (driver.Telescope is not { } telescope) return true;
                 try
@@ -297,19 +325,7 @@ public static class ComTelescopes
         {
             return await call.WaitAsync(timeout);
         }
-        catch (TimeoutException)
-        {
-            throw new TimeoutException($"the ASCOM driver did not answer within {timeout.TotalSeconds:0} s");
-        }
-    }
-
-    private static async Task WithTimeout(Task call, TimeSpan timeout)
-    {
-        try
-        {
-            await call.WaitAsync(timeout);
-        }
-        catch (TimeoutException)
+        catch (TimeoutException) when (!call.IsCompleted) // the wait ran out, not a driver's own timeout error
         {
             throw new TimeoutException($"the ASCOM driver did not answer within {timeout.TotalSeconds:0} s");
         }

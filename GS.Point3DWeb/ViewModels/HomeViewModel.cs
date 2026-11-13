@@ -242,7 +242,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         if (server is null) return;
 
         SelectedAlpacaServer = server;
-        var editViewModel = new EditServerDialogViewModel(server);
+        var editViewModel = new EditServerDialogViewModel(server, AlpacaServers);
         await _dialogService.ShowDialog(editViewModel);
 
         if (!editViewModel.Confirmed) return;
@@ -489,8 +489,11 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
         // Removing it raises ServersChanged, which clears it from the quadrants of every open tab.
         _settingsService.RemoveServer(connection.IdGuid);
+        SelectedAlpacaServer = AlpacaServers.LastOrDefault();
+        await PersistAsync(); // first: releasing a slow driver below mustn't hold up saving the deletion
 
         // Release a COM driver it held, so the driver (and its program) doesn't stay open for nothing.
+        // A connect still under way for it releases what it connects itself (AlpacaServer.Removed).
         if (connection.IsCom)
         {
             try
@@ -502,8 +505,6 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
                 // released anyway
             }
         }
-        SelectedAlpacaServer = AlpacaServers.LastOrDefault();
-        await PersistAsync();
     }
 
     // ===== 3D model quadrants (drag a server from the list onto one) =====

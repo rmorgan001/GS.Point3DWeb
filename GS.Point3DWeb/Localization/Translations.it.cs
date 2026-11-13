@@ -17,6 +17,7 @@ internal static partial class Translations
         ["Alpaca Discovery"] = "Rilevamento Alpaca",
         ["Alpaca mount viewer"] = "Visualizzatore montatura Alpaca",
         ["Alpaca server"] = "Server Alpaca",
+        ["Already in the list as {0}"] = "Già nell'elenco come {0}",
         ["Alt-Az"] = "Alt-Az",
         ["An Alpaca address (…/api/v1/telescope/{n}/), or ascom:<ProgID> for an ASCOM driver on the computer running this app"] = "Un indirizzo Alpaca (…/api/v1/telescope/{n}/), oppure ascom:<ProgID> per un driver ASCOM sul computer che esegue questa app",
         ["An error occurred while processing your request."] = "Si è verificato un errore durante l'elaborazione della richiesta.",

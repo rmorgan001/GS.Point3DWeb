@@ -23,7 +23,9 @@ public static class AlpacaConnector
     /// <summary>
     /// Connects the server if it is not already connected. Returns the server's connected state afterwards.
     /// Throws with the server's error message if it refused to connect, or OperationCanceledException
-    /// if <paramref name="token"/> is cancelled (the view was stopped).
+    /// if <paramref name="token"/> is cancelled (the view was stopped). A COM driver's connect isn't cancelled:
+    /// it always runs to the end (at most about 40 s for a driver that doesn't answer), so its outcome is
+    /// recorded and the driver is never left connected with nothing holding it.
     /// </summary>
     public static async Task<bool> ConnectAsync(AlpacaServer server, CancellationToken token = default)
     {
@@ -38,8 +40,12 @@ public static class AlpacaConnector
                 // and its outcome recorded, and the driver released again if the address changed meanwhile.
                 // Otherwise a connect abandoned part way would leave the driver connected with nothing holding it.
                 var comConnected = await ComTelescopes.ConnectAsync(server.ProgId!, server.IdGuid);
-                if (!SetConnected(server, url, comConnected) && comConnected)
-                    await ComTelescopes.ReleaseAsync(AlpacaServer.GetProgId(url)!, server.IdGuid);
+                // Deleted meanwhile, or now pointing at a different driver: this hold isn't wanted any more.
+                if (server.Removed || !SetConnected(server, url, comConnected))
+                {
+                    if (comConnected) await ComTelescopes.ReleaseAsync(AlpacaServer.GetProgId(url)!, server.IdGuid);
+                    return false;
+                }
                 return comConnected;
             }
 
@@ -84,12 +90,14 @@ public static class AlpacaConnector
 
     /// <summary>
     /// Records a connect's outcome: whether this app is connected, and so whether the server's connected
-    /// state counts as this app's (<see cref="AlpacaServer.ConnectRequested"/>). Skipped if the user changed
-    /// the address meanwhile: the outcome is then for the old device, not the new one.
+    /// state counts as this app's (<see cref="AlpacaServer.ConnectRequested"/>). Skipped, returning false, if
+    /// the user changed the address to a different device meanwhile: the outcome is then for the old device.
+    /// The comparison matches the edit dialog's (<see cref="AlpacaServer.SameUrl"/>), so an edit it treats as
+    /// the same device (say, a ProgID's case) doesn't discard a connect it kept.
     /// </summary>
     private static bool SetConnected(AlpacaServer server, string url, bool connected)
     {
-        if (!string.Equals(server.Url, url, StringComparison.Ordinal)) return false;
+        if (!AlpacaServer.SameUrl(server.Url, url)) return false;
         server.ConnectRequested = connected;
         server.IsConnected = connected;
         return true;

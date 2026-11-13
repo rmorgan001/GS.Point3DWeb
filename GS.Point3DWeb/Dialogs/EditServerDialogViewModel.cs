@@ -19,8 +19,11 @@ public partial class EditServerDialogViewModel : DialogViewModel
     // A COM ProgID: letters, digits, '_' and '.', starting with a letter (e.g. ASCOM.Simulator.Telescope).
     private static readonly Regex ComProgId = new(@"^[A-Za-z][A-Za-z0-9_.]*$", RegexOptions.Compiled);
 
-    public EditServerDialogViewModel(AlpacaServer server)
+    /// <param name="server">The server to edit.</param>
+    /// <param name="servers">The whole list, so an ASCOM driver another entry already uses is refused.</param>
+    public EditServerDialogViewModel(AlpacaServer server, IReadOnlyList<AlpacaServer>? servers = null)
     {
+        _others = servers?.Where(s => s != server).ToArray() ?? [];
         IdGuid = server.IdGuid;
         ServerName = server.ServerName;
         Url = server.Url;
@@ -30,6 +33,9 @@ public partial class EditServerDialogViewModel : DialogViewModel
         ClientTransactionId = server.ClientTransactionId;
         _passwordEdited = false; // setting Password above isn't an edit
     }
+
+    // The other servers in the list (an ASCOM driver may be in it once).
+    private readonly AlpacaServer[] _others;
 
     // Whether the user typed in (or cleared) the password field.
     private bool _passwordEdited;
@@ -145,9 +151,12 @@ public partial class EditServerDialogViewModel : DialogViewModel
         if (AlpacaServer.IsComUrl(value))
         {
             var progId = AlpacaServer.GetProgId(value)!;
-            UrlError = !Services.ComTelescopes.IsSupported
-                ? Services.AlpacaConnector.ComNotSupportedMessage
-                : ComProgId.IsMatch(progId) ? null : L.T("Invalid ProgID (expected ascom:<ProgID>)");
+            // One entry per driver: the driver is shared, so a second entry would only confuse its state.
+            var duplicate = _others.FirstOrDefault(s => AlpacaServer.SameUrl(s.Url, value));
+            UrlError = !Services.ComTelescopes.IsSupported ? Services.AlpacaConnector.ComNotSupportedMessage
+                : !ComProgId.IsMatch(progId) ? L.T("Invalid ProgID (expected ascom:<ProgID>)")
+                : duplicate is not null ? L.T("Already in the list as {0}", duplicate.ServerName)
+                : null;
             return;
         }
 

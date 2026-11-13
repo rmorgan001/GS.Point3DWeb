@@ -96,6 +96,7 @@
             <span><span class="label">Z</span> @ViewModel.Tilt.ToString("F2")°</span>
         </span>
         <span class="status-text" title="@(ViewModel.StatusDetail ?? ViewModel.StatusText)">@ViewModel.StatusText</span>
+        <span class="run-time" title="@L.T("Total running time of this view (hours:minutes:seconds)")">@L.T("Running {0}", ViewModel.RunningTime)</span>
     </footer>
 </section>
 

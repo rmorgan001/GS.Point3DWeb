@@ -118,6 +118,12 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     [ObservableProperty] public partial int TimerOverruns { get; set; }
     [ObservableProperty] public partial int ElapsedTime { get; set; }
 
+    /// <summary>How long this view has been running, as hours:minutes:seconds (shown at the bottom of the view).</summary>
+    [ObservableProperty] public partial string RunningTime { get; set; } = FormatRunningTime(TimeSpan.Zero);
+
+    /// <summary>hours:minutes:seconds; the hours keep counting past 24.</summary>
+    public static string FormatRunningTime(TimeSpan time) => $"{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}";
+
     /// <summary>The server's polling interval; read every cycle, so an edit applies straight away.</summary>
     public int TimerInMs => (int)(1000 * AlpacaServer.ClampPollSeconds(Server?.PollSeconds ?? AlpacaServer.DefaultPollSeconds));
 
@@ -127,6 +133,27 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         StopTimerUpdates();
         _cts = new CancellationTokenSource();
         _ = RunTimerAsync(_cts.Token);
+        _ = RunClockAsync(_cts.Token);
+    }
+
+    /// <summary>
+    /// Updates <see cref="RunningTime"/> every second, whether or not the mount is connected or answering
+    /// (the poll loop's own timing depends on the polling interval and the mount).
+    /// </summary>
+    private async Task RunClockAsync(CancellationToken token)
+    {
+        var clock = Stopwatch.StartNew();
+        RunningTime = FormatRunningTime(TimeSpan.Zero);
+        using var ticker = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await ticker.WaitForNextTickAsync(token))
+                RunningTime = FormatRunningTime(clock.Elapsed);
+        }
+        catch (OperationCanceledException)
+        {
+            // stopped
+        }
     }
 
     public void StopTimerUpdates()
@@ -227,7 +254,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     var interval = (TimerInMs / 1000.0).ToString("0.0#");
                     StatusText = L.T("Every {0} s · Updates {1} · Slow {2}", interval, TimerCounter, TimerOverruns);
                     StatusDetail = L.T("Polling every {0} s. {1} updates received; {2} took longer than the interval. Running for {3}.",
-                        interval, TimerCounter, TimerOverruns, TimeSpan.FromSeconds(ElapsedTime).ToString(@"h\:mm\:ss"));
+                        interval, TimerCounter, TimerOverruns, RunningTime);
 
                     RotationChanged?.Invoke();
                 }

@@ -1,0 +1,58 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request cancels the build still running for it.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Windows, like the app's main target: ASCOM COM drivers and the Event Log are Windows-only.
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore GS.Point3DWeb.slnx
+
+      # The whole solution: the web app and the feature key tool. (The key tool's private key is
+      # only read when it runs, so it is never needed here.)
+      - name: Build
+        run: dotnet build GS.Point3DWeb.slnx --configuration Release --no-restore
+
+      # The web app only: the feature key tool must never be shipped with it.
+      - name: Publish
+        run: >
+          dotnet publish GS.Point3DWeb/GS.Point3DWeb.csproj
+          --configuration Release --no-build
+          --output publish
+
+      - name: Upload the published app
+        uses: actions/upload-artifact@v5
+        with:
+          name: GS.Point3DWeb-${{ github.sha }}
+          path: publish
+          if-no-files-found: error
+          retention-days: 14

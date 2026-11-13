@@ -95,7 +95,7 @@
             <span><span class="label">Y</span> @ViewModel.SecondaryAxis.ToString("F4")°</span>
             <span><span class="label">Z</span> @ViewModel.Tilt.ToString("F2")°</span>
         </span>
-        <span class="status-text" title="@ViewModel.StatusText">@ViewModel.StatusText</span>
+        <span class="status-text" title="@(ViewModel.StatusDetail ?? ViewModel.StatusText)">@ViewModel.StatusText</span>
     </footer>
 </section>
 

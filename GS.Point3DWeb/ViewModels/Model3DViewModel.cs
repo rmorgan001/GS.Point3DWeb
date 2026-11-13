@@ -90,6 +90,14 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
     [ObservableProperty] public partial string StatusText { get; set; } = L.T("Ready");
 
+    /// <summary>
+    /// A fuller explanation of the status line, for its tooltip (null = the status text itself).
+    /// Cleared whenever the status text changes, so it only describes the status it was set with.
+    /// </summary>
+    [ObservableProperty] public partial string? StatusDetail { get; set; }
+
+    partial void OnStatusTextChanged(string value) => StatusDetail = null;
+
     // ===== Top coordinates bar =====
 
     [ObservableProperty] public partial string Ra { get; set; } = "00h 00m 00s";
@@ -216,7 +224,10 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     // A poll that took longer than the interval: count it as an overrun.
                     if (timer.Elapsed - pollStarted > TimeSpan.FromMilliseconds(TimerInMs)) TimerOverruns++;
                     ElapsedTime = (int)timer.Elapsed.TotalSeconds;
-                    StatusText = $"Int={TimerInMs}ms, overruns={TimerOverruns}, counter={TimerCounter}, timer={ElapsedTime}s";
+                    var interval = (TimerInMs / 1000.0).ToString("0.0#");
+                    StatusText = L.T("Every {0} s · Updates {1} · Slow {2}", interval, TimerCounter, TimerOverruns);
+                    StatusDetail = L.T("Polling every {0} s. {1} updates received; {2} took longer than the interval. Running for {3}.",
+                        interval, TimerCounter, TimerOverruns, TimeSpan.FromSeconds(ElapsedTime).ToString(@"h\:mm\:ss"));
 
                     RotationChanged?.Invoke();
                 }

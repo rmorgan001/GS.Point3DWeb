@@ -260,8 +260,7 @@
         </ol>
         <p class="note">
             Eseguite una sola copia alla volta, perché condividono le stesse impostazioni. Il browser ricorda la
-            lingua scelta per ogni indirizzo, quindi resta finché indirizzo e porta non cambiano. Per maggiore
-            sicurezza, fate prima una copia di <code>servers.json</code>.
+            lingua scelta per ogni indirizzo, quindi resta finché indirizzo e porta non cambiano. Al primo avvio di una versione più recente, <code>servers.json</code> viene copiato nella cartella dei backup (vedere <a href="help#files">Dove vengono salvati i dati</a>) prima di salvare qualsiasi cosa.
         </p>
     </section>
 
@@ -272,6 +271,7 @@
             <tbody>
                 <tr><td>Elenco dei server e impostazioni delle viste (<code>servers.json</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
                 <tr><td>Chiave funzionalità (<code>feature.key</code>)</td><td><code>%APPDATA%\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb</code></td></tr>
+                <tr><td>Backup di <code>servers.json</code>, creati al primo avvio di una versione più recente (<code>servers-…json</code>)</td><td><code>Documents\GS.Point3DWeb\Backups</code></td><td><code>~/.config/GS.Point3DWeb/backups</code></td></tr>
                 <tr><td>File di log (<code>point3dweb-yyyyMMdd.log</code>; vengono conservati gli ultimi 14)</td><td><code>Documents\GS.Point3DWeb</code></td><td><code>~/.config/GS.Point3DWeb/logs</code></td></tr>
             </tbody>
         </table>

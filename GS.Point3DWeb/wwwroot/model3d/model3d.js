@@ -453,6 +453,9 @@ class TelescopeViewer {
         const first = this.lastPoseAt === 0;
         this.lastPoseAt = now;
 
+        // The same pose as on screen (a parked or still mount, every poll): nothing to draw.
+        if (!first && !this.glide && ['x', 'y', 'z', 'yCentre'].every(k => this.pose[k] === target[k])) return;
+
         const duration = Math.min(sincePrevious, MAX_GLIDE_MS);
         const largest = Math.max(...['x', 'y', 'z'].map(k => Math.abs(angleDelta(this.pose[k], target[k]))));
         if (first || document.hidden || duration < MIN_GLIDE_MS || largest < MIN_GLIDE_DEGREES

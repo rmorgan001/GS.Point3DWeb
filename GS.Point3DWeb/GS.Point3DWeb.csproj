@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- The .obj models are text (up to 438 KB): served compressed like the scripts and styles. -->
+    <CompressionIncludePatterns>$(CompressionIncludePatterns);**/*.obj</CompressionIncludePatterns>
   </PropertyGroup>
 
   <ItemGroup>

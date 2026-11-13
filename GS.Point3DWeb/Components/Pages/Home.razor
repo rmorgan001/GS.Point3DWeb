@@ -219,7 +219,7 @@
                                          OnSettingsChanged="ViewModel.ServerSettingsChangedAsync" />
                         </Front>
                         <Back>
-                            <ViewSettingsPanel Server="server"
+                            <ViewSettingsPanel Server="server" Showing="quadrant.Flipped"
                                                OnSaveCamera="() => SaveCameraAsync(index)"
                                                OnResetCamera="() => ResetCameraAsync(index)"
                                                OnClearCamera="() => ClearCameraAsync(index)"

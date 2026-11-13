@@ -39,7 +39,7 @@
                 <label class="field">
                     <span class="field-label">@L.T("RA adjust (°)")</span>
                     <select value="@Invariant(Server.RaOffset)" @onchange="e => OnOffsetChanged(e, isRa: true)">
-                        @foreach (var value in Model3D.OffsetValues)
+                        @foreach (var value in OffsetChoices(Server.RaOffset))
                         {
                             <option value="@Invariant(value)">@value</option>
                         }
@@ -48,7 +48,7 @@
                 <label class="field">
                     <span class="field-label">@L.T("Dec adjust (°)")</span>
                     <select value="@Invariant(Server.DecOffset)" @onchange="e => OnOffsetChanged(e, isRa: false)">
-                        @foreach (var value in Model3D.OffsetValues)
+                        @foreach (var value in OffsetChoices(Server.DecOffset))
                         {
                             <option value="@Invariant(value)">@value</option>
                         }
@@ -187,6 +187,15 @@
 
     /// <summary>Flip back to the model.</summary>
     [Parameter] public EventCallback OnDone { get; set; }
+
+    /// <summary>
+    /// Whether this side of the card is showing. While it isn't, the RA / Dec lists hold only their current
+    /// value: all 181 choices in each, for four views, made every page about 1,450 elements (and 100 KB) bigger.
+    /// </summary>
+    [Parameter] public bool Showing { get; set; } = true;
+
+    /// <summary>The whole-degree choices for an offset list; just the current one while the panel is hidden.</summary>
+    private IReadOnlyList<int> OffsetChoices(double current) => Showing ? Model3D.OffsetValues : [(int)Model3D.ClampOffset(current)];
 
     /// <summary>Raised after a setting changes, so the owner can save.</summary>
     [Parameter] public EventCallback OnChanged { get; set; }

@@ -18,9 +18,12 @@ namespace GS.Point3DWeb.ViewModels;
 /// The view owns the JavaScript side and listens to <see cref="RotationChanged"/>.
 /// </summary>
 public partial class Model3DViewModel(SettingsService settingsService, DialogService dialogService,
-    ILogger<Model3DViewModel> logger)
+    ILogger<Model3DViewModel> logger, CircuitState? circuit = null)
     : ViewModelBase, IDisposable
 {
+    // The browser connection this view is shown in (null outside a page, as in the tests).
+    private readonly CircuitState? _circuit = circuit;
+
     private readonly ILogger<Model3DViewModel> _logger = logger;
 
     // Failed polls in a row. Only the first of a run is logged (a poll runs every half second or so),
@@ -32,9 +35,6 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     private Stopwatch? _timer;
     private double _lastRaHours;
     private bool _mountInfoRead;
-    // Whether to try devicestate (one request) for the position; cleared for servers without it, which are
-    // then read one property at a time. Tried again after each reconnect.
-    private bool _useDeviceState = true;
 
     // How often to read the server's "connected" property: while connected, to notice another program
     // disconnecting it (devicestate keeps answering on some servers); while not, to notice it reconnecting.
@@ -208,11 +208,22 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         // This loop's own stopwatch: a cancelled earlier loop finishing late must not stop the new one's.
         var timer = Stopwatch.StartNew();
         _timer = timer;
+        var cycleStarted = timer.Elapsed;
         try
         {
             while (!token.IsCancellationRequested)
             {
-                await Task.Delay(TimerInMs, token);
+                // One cycle per interval, counted from the start of the last one, so the time a poll takes doesn't
+                // stretch the interval. A poll slower than the interval still leaves a quarter of it free, so a
+                // slow mount isn't asked again and again without a pause.
+                var interval = TimeSpan.FromMilliseconds(TimerInMs);
+                var wait = interval - (timer.Elapsed - cycleStarted);
+                await Task.Delay(wait < interval / 4 ? interval / 4 : wait > interval ? interval : wait, token);
+                cycleStarted = timer.Elapsed;
+
+                // The browser has gone (closed without a goodbye, asleep, or the network dropped): Blazor keeps the
+                // page a few minutes in case it comes back, but nobody sees it, so don't ask the mount meanwhile.
+                if (_circuit is { IsConnected: false }) continue;
 
                 // Backstop for connection changes the view didn't see (a different server shown, etc.).
                 SyncRunningClock();
@@ -229,7 +240,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 {
                     _mountInfoRead = false; // read it again after reconnecting
                     _pollFailures = 0; // a new connection starts a new run
-                    _useDeviceState = true;
+                    AlpacaConnector.ResetStateReads(server);
                     Status = null; // not current any more
                     if (server.IsConnecting) StatusText = L.T("Connecting to {0}…", server.ServerName);
                     else if (!IsChangingConnection) StatusText = _connectionMessage ?? L.T("Not connected");
@@ -273,19 +284,10 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     // Polls run one after another, so a slow one delays the next rather than overlapping it.
                     // Only the devicestate request is timed: the occasional connected check and mount-info
                     // read add requests that shouldn't count as a slow mount.
+                    // Shared with the other views of this server (here and in other tabs) when one of them read it
+                    // moments ago. A COM driver's failure throws, and is handled below like a failed request.
                     var pollStarted = timer.Elapsed;
-                    TelescopeDeviceState? deviceState;
-                    if (server.IsCom)
-                    {
-                        // A COM driver's failure throws, and is handled below like a failed request.
-                        deviceState = await AlpacaConnector.ReadComStateAsync(server, token);
-                    }
-                    else
-                    {
-                        var client = AlpacaConnector.CreateClient(server);
-                        deviceState = await ReadDeviceStateAsync(client, token);
-                        server.SetClientTransactionId(client.ClientTransactionId);
-                    }
+                    var deviceState = await AlpacaConnector.ReadStateAsync(server, interval * 0.8, token);
                     if (token.IsCancellationRequested) break;
 
                     if (deviceState?.AlpacaResponse?.ErrorNumber > 0)
@@ -315,10 +317,10 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     TimerCounter++;
                     // A poll that took longer than the interval: count it as an overrun.
                     if (timer.Elapsed - pollStarted > TimeSpan.FromMilliseconds(TimerInMs)) TimerOverruns++;
-                    var interval = (TimerInMs / 1000.0).ToString("0.0#");
-                    StatusText = L.T("Every {0} s · Updates {1} · Slow {2}", interval, TimerCounter, TimerOverruns);
+                    var seconds = (TimerInMs / 1000.0).ToString("0.0#");
+                    StatusText = L.T("Every {0} s · Updates {1} · Slow {2}", seconds, TimerCounter, TimerOverruns);
                     StatusDetail = L.T("Polling every {0} s. {1} updates received; {2} took longer than the interval.",
-                        interval, TimerCounter, TimerOverruns);
+                        seconds, TimerCounter, TimerOverruns);
 
                     RotationChanged?.Invoke();
                 }
@@ -341,30 +343,6 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
     /// <summary>Alpaca's NotConnected error (0x407): the device isn't connected.</summary>
     private const int NotConnectedError = 0x407;
-
-    /// <summary>Alpaca's NotImplemented error (0x400).</summary>
-    private const int NotImplementedError = 0x400;
-
-    /// <summary>
-    /// The mount's position: devicestate if the server has it, otherwise each property on its own (servers
-    /// from before ASCOM Platform 7 answer devicestate with NotImplemented, or HTTP 400 / 404).
-    /// </summary>
-    private async Task<TelescopeDeviceState?> ReadDeviceStateAsync(AlpacaClient client, CancellationToken token)
-    {
-        if (_useDeviceState)
-        {
-            try
-            {
-                var state = await client.GetDeviceStateAsync(token);
-                if (state?.AlpacaResponse?.ErrorNumber != NotImplementedError) return state;
-            }
-            catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
-            {
-            }
-            _useDeviceState = false;
-        }
-        return await client.GetDeviceStateFromPropertiesAsync(token);
-    }
 
     /// <summary>
     /// After a failed poll, asks the server whether it is still connected. If it isn't (or doesn't answer),

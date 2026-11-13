@@ -73,6 +73,10 @@ builder.Services.AddScoped<DialogService>();
 // Each browser connection's UI language, so renders triggered by other connections keep it.
 builder.Services.AddScoped<CircuitCulture>();
 
+// Whether each browser connection can be reached: the 3D views stop polling while it can't.
+builder.Services.AddScoped<CircuitState>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler>(sp => sp.GetRequiredService<CircuitState>());
+
 // View models: transient so each view gets its own instance.
 builder.Services.AddTransient<HomeViewModel>();
 builder.Services.AddTransient<Model3DViewModel>();

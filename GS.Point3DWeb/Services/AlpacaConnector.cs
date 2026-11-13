@@ -3,7 +3,9 @@ using GS.Alpaca.Support;
 using GS.Point3DWeb.Localization;
 using GS.Point3DWeb.Models;
 using GS.Point3DWeb.Support;
+using System.Diagnostics;
 using System.Net;
+using System.Runtime.CompilerServices;
 using Newtonsoft.Json.Linq;
 
 namespace GS.Point3DWeb.Services;
@@ -357,10 +359,94 @@ public static class AlpacaConnector
             return null;
         }
     }
+    /// <summary>
+    /// The mount's state, read once for every view polling the server. Each view (in every tab) asks every
+    /// half second or so; a read already under way, or one started less than <paramref name="maxAge"/> ago, is
+    /// shared instead of sending another request, so the mount gets about one request per interval however many
+    /// views show it. Throws as the read does (every view sharing it gets the same answer or error).
+    /// <paramref name="token"/> only stops this caller waiting: the read itself carries on for the others.
+    /// </summary>
+    public static Task<TelescopeDeviceState?> ReadStateAsync(AlpacaServer server, TimeSpan maxAge, CancellationToken token = default)
+    {
+        var poll = SharedPolls.GetValue(server, _ => new SharedPoll());
+        Task<TelescopeDeviceState?> read;
+        lock (poll.Lock)
+        {
+            var url = server.Url;
+            if (poll.Read is { } current && poll.Url == url
+                && (!current.IsCompleted || Stopwatch.GetElapsedTime(poll.StartedAt) < maxAge))
+            {
+                read = current;
+            }
+            else
+            {
+                poll.Url = url;
+                poll.StartedAt = Stopwatch.GetTimestamp();
+                read = poll.Read = server.IsCom ? ReadComStateCoreAsync(server) : ReadAlpacaStateAsync(server, poll);
+            }
+        }
+        return read.WaitAsync(token);
+    }
+
+    /// <summary>After a reconnect, try devicestate again (the server may have been updated meanwhile).</summary>
+    public static void ResetStateReads(AlpacaServer server)
+    {
+        if (SharedPolls.TryGetValue(server, out var poll)) poll.UseDeviceState = true;
+    }
+
+    /// <summary>The read in progress (or the last one) for a server, shared by the views polling it.</summary>
+    private sealed class SharedPoll
+    {
+        public readonly Lock Lock = new();
+        public Task<TelescopeDeviceState?>? Read;
+        public string? Url;
+        public long StartedAt;
+
+        // Whether to try devicestate (one request); cleared for servers without it, which are then read one
+        // property at a time. Tried again after a reconnect (ResetStateReads).
+        public volatile bool UseDeviceState = true;
+    }
+
+    private static readonly ConditionalWeakTable<AlpacaServer, SharedPoll> SharedPolls = [];
+
+    private static async Task<TelescopeDeviceState?> ReadComStateCoreAsync(AlpacaServer server)
+    {
+        await Task.Yield(); // not under the caller's lock
+        return await ReadComStateAsync(server);
+    }
 
     /// <summary>
-    /// The mount's position from a COM driver (an Alpaca server's is polled by the view with
-    /// <see cref="AlpacaClient"/>). Throws if the driver fails or doesn't answer.
+    /// The mount's position: devicestate if the server has it, otherwise each property on its own (servers
+    /// from before ASCOM Platform 7 answer devicestate with NotImplemented, or HTTP 400 / 404).
+    /// </summary>
+    private static async Task<TelescopeDeviceState?> ReadAlpacaStateAsync(AlpacaServer server, SharedPoll poll)
+    {
+        await Task.Yield(); // not under the caller's lock
+        var client = CreateClient(server);
+        try
+        {
+            if (poll.UseDeviceState)
+            {
+                try
+                {
+                    var state = await client.GetDeviceStateAsync();
+                    if (state?.AlpacaResponse?.ErrorNumber != AlpacaClient.NotImplementedError) return state;
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
+                {
+                }
+                poll.UseDeviceState = false;
+            }
+            return await client.GetDeviceStateFromPropertiesAsync();
+        }
+        finally
+        {
+            server.SetClientTransactionId(client.ClientTransactionId);
+        }
+    }
+
+    /// <summary>
+    /// The mount's position from a COM driver. Throws if the driver fails or doesn't answer.
     /// </summary>
     public static Task<TelescopeDeviceState> ReadComStateAsync(AlpacaServer server, CancellationToken token = default)
     {

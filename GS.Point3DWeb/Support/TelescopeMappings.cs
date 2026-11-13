@@ -19,7 +19,8 @@ namespace GS.Alpaca.Support
 
                     // Skip entries without a name or value rather than failing the whole state.
                     var propertyName = obj["Name"]?.Value<string>();
-                    if (obj["Value"] is not { } propertyValue || propertyValue.Type == JTokenType.Null) continue;
+                    if (propertyName is null || obj["Value"] is not { } propertyValue || propertyValue.Type == JTokenType.Null) continue;
+                    deviceState.Reported.Add(propertyName);
 
                     // Map the property to the DeviceState class
                     switch (propertyName)

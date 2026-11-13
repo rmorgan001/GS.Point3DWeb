@@ -311,6 +311,17 @@ public static class ComTelescopes
                     if (s.Azimuth is { } az) state.Azimuth = az;
                     if (s.Altitude is { } alt) state.Altitude = alt;
                     if (s.SideOfPier is { } side) state.SideOfPier = (int)side;
+                    state.Reported.UnionWith(["RightAscension", "Declination", "SiderealTime"]);
+                    if (s.Azimuth is not null) state.Reported.Add("Azimuth");
+                    if (s.Altitude is not null) state.Reported.Add("Altitude");
+                    if (s.SideOfPier is not null) state.Reported.Add("SideOfPier");
+                    // The rest of the state, shown on the view.
+                    if (s.Tracking is { } tracking) { state.Tracking = tracking; state.Reported.Add("Tracking"); }
+                    if (s.Slewing is { } slewing) { state.Slewing = slewing; state.Reported.Add("Slewing"); }
+                    if (s.AtPark is { } atPark) { state.AtPark = atPark; state.Reported.Add("AtPark"); }
+                    if (s.AtHome is { } atHome) { state.AtHome = atHome; state.Reported.Add("AtHome"); }
+                    if (s.IsPulseGuiding is { } guiding) { state.IsPulseGuiding = guiding; state.Reported.Add("IsPulseGuiding"); }
+                    if (s.UTCDate is { } utc) { state.UTCDate = utc; state.Reported.Add("UTCDate"); }
                     return state;
                 }
             }

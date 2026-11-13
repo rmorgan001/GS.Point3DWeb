@@ -80,6 +80,31 @@
             }
         </div>
 
+        @* The rest of what devicestate reports, along the bottom of the scene. Lit when on. *@
+        @if (Server?.ShowMountState != false && ViewModel.Status is { } status)
+        {
+            <div class="mount-state" aria-label="@L.T("Mount state")">
+                @StateFlag(status.Tracking, L.T("Tracking"), "on")
+                @StateFlag(status.Slewing, L.T("Slewing"), "busy")
+                @StateFlag(status.AtPark, L.T("Parked"), "busy")
+                @StateFlag(status.AtHome, L.T("At home"), "on")
+                @StateFlag(status.IsPulseGuiding, L.T("Guiding"), "on")
+                @if (status.SideOfPier is { } side)
+                {
+                    <span class="coord" title="@L.T("Side of pier (pointing state)")">
+                        <span class="label">@L.T("Pier")</span>
+                        <span class="value">@(side switch { 0 => L.T("East"), 1 => L.T("West"), _ => L.T("Unknown") })</span>
+                    </span>
+                }
+                @if (status.UtcDate is { } utc)
+                {
+                    <span class="coord" title="@L.T("The mount's date and time (UTC)")">
+                        <span class="label">UTC</span><span class="value">@utc.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)</span>
+                    </span>
+                }
+            </div>
+        }
+
         @if (_overlay is not null)
         {
             <div class="overlay @(_overlayIsError ? "error" : null)">
@@ -115,6 +140,17 @@
 
     /// <summary>Raised after a per-server setting changes from this view (Ra units toggled), so the owner can save.</summary>
     [Parameter] public EventCallback OnSettingsChanged { get; set; }
+
+    /// <summary>One on / off item of the mount state; nothing if the mount didn't report it.</summary>
+    /// <param name="kind">The colour when lit: "on" (green) or "busy" (yellow, the mount isn't free).</param>
+    private RenderFragment StateFlag(bool? value, string label, string kind) => @<text>
+        @if (value is { } on)
+        {
+            <span class="flag @(on ? kind : null)" title="@(on ? L.T("{0}: yes", label) : L.T("{0}: no", label))">
+                <span class="dot" aria-hidden="true"></span>@label
+            </span>
+        }
+    </text>;
 
     private Task ToggleRaUnitsAsync()
     {
@@ -234,7 +270,8 @@
                 break;
             case nameof(AlpacaServer.ShowRa) or nameof(AlpacaServer.ShowDec)
                 or nameof(AlpacaServer.ShowAz) or nameof(AlpacaServer.ShowAlt)
-                or nameof(AlpacaServer.ShowLha) or nameof(AlpacaServer.ShowLst):
+                or nameof(AlpacaServer.ShowLha) or nameof(AlpacaServer.ShowLst)
+                or nameof(AlpacaServer.ShowMountState):
                 _ = InvokeAsync(StateHasChanged);
                 break;
         }

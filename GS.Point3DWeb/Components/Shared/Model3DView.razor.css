@@ -179,6 +179,62 @@
         cursor: progress;
     }
 
+/* Mount state (tracking, slewing, parked…) over the bottom-left of the scene. */
+.mount-state {
+    position: absolute;
+    bottom: .55rem;
+    left: .55rem;
+    right: .55rem;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem;
+    pointer-events: none;
+}
+
+.flag {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .2rem .55rem;
+    border: 1px solid rgba(52, 71, 79, .8);
+    border-radius: var(--radius-sm);
+    background: rgba(7, 11, 14, .72);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--mare);
+    white-space: nowrap;
+    pointer-events: auto;
+}
+
+    .flag .dot {
+        width: .45rem;
+        height: .45rem;
+        border-radius: 50%;
+        background: var(--line-strong);
+    }
+
+    .flag.on {
+        color: var(--moon);
+    }
+
+        .flag.on .dot {
+            background: var(--green);
+            box-shadow: 0 0 0 2px var(--green-soft);
+        }
+
+    .flag.busy {
+        color: var(--moon);
+    }
+
+        .flag.busy .dot {
+            background: var(--yellow);
+        }
+
 /* Start-up / error message in the middle of the scene. */
 .overlay {
     position: absolute;

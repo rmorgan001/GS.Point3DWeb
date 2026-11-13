@@ -21,5 +21,11 @@ namespace GS.Alpaca.Support
         // ReSharper disable once InconsistentNaming
         public DateTime UTCDate { get; set; }
         public DateTime TimeStamp { get; set; }
+
+        /// <summary>
+        /// The property names the mount reported in one devicestate / TelescopeState answer. Empty when the
+        /// state was read one property at a time, which reads the position only.
+        /// </summary>
+        public HashSet<string> Reported { get; } = new(StringComparer.Ordinal);
     }
 }

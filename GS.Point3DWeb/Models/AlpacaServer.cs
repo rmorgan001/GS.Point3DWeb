@@ -141,6 +141,9 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     [ObservableProperty] public partial bool ShowLha { get; set; } = true;
     [ObservableProperty] public partial bool ShowLst { get; set; } = true;
 
+    /// <summary>Show the rest of the mount's state (tracking, slewing, parked…) along the bottom of the front.</summary>
+    [ObservableProperty] public partial bool ShowMountState { get; set; } = true;
+
     /// <summary>Show Ra on the front in degrees instead of hours.</summary>
     [ObservableProperty] public partial bool RaInDegrees { get; set; }
 

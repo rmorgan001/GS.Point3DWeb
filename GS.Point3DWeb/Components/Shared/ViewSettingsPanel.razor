@@ -126,6 +126,9 @@
                                @onchange="e => SetShown(e, item)" /> @item.Label
                     </label>
                 }
+                <label class="check mount-state-check" title="@L.T("Tracking, slewing, parked, at home, guiding, pier side and the mount's UTC time, for servers that report them in one answer (devicestate)")">
+                    <input type="checkbox" checked="@Server.ShowMountState" @onchange="SetShowMountState" /> @L.T("Mount state (tracking, parked…)")
+                </label>
             </div>
             <div class="ra-units">
                 <span class="field-label" id="ra-units-label-@Server.IdGuid">@L.T("Ra shown in")</span>
@@ -257,6 +260,12 @@
     private Task SetShowGrid(ChangeEventArgs e)
     {
         Server.ShowGrid = e.Value is true || (e.Value is string s && bool.TryParse(s, out var b) && b);
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task SetShowMountState(ChangeEventArgs e)
+    {
+        Server.ShowMountState = e.Value is true || (e.Value is string s && bool.TryParse(s, out var b) && b);
         return OnChanged.InvokeAsync();
     }
 

@@ -123,6 +123,12 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     /// <summary>Local sidereal time, in hours.</summary>
     [ObservableProperty] public partial string Lst { get; set; } = "00h 00:00.00";
 
+    /// <summary>
+    /// The rest of the mount's state (tracking, slewing, parked…), from the last devicestate / TelescopeState
+    /// answer. Null while not connected, or when the server is read one property at a time (position only).
+    /// </summary>
+    [ObservableProperty] public partial MountStatus? Status { get; set; }
+
     /// <summary>Re-formats Ra after the server's hours / degrees setting changes.</summary>
     public void RefreshRa() => Ra = FormatRa(_lastRaHours);
 
@@ -213,6 +219,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     _mountInfoRead = false; // read it again after reconnecting
                     _pollFailures = 0; // a new connection starts a new run
                     _useDeviceState = true;
+                    Status = null; // not current any more
                     if (server.IsConnecting) StatusText = L.T("Connecting to {0}…", server.ServerName);
                     else if (!IsChangingConnection) StatusText = _connectionMessage ?? L.T("Not connected");
                     // Not connected by the user (never, or they disconnected): don't ask until they connect.
@@ -474,6 +481,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         Alt = CoordinateFormat.DegreesToDms(deviceState.Altitude, "° ", ":", "", 2);
         Lha = CoordinateFormat.HoursToHms(Coordinate.Ra2Ha12(deviceState.RightAscension, deviceState.SiderealTime));
         Lst = CoordinateFormat.HoursToHms(deviceState.SiderealTime, "h ", ":", "", 2);
+        Status = MountStatus.From(deviceState);
 
         // Convert to mount axis positions for the model
         var southern = Latitude < 0;
@@ -508,6 +516,40 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         : CoordinateFormat.HoursToHms(hours, "h ", ":", "", 2);
 
     private bool _disposed;
+
+    /// <summary>
+    /// The mount state shown on the view besides the coordinates. Each item is null when the mount didn't
+    /// report it. <see cref="UtcDate"/> is to the second, so a poll only redraws it once a second.
+    /// </summary>
+    public sealed record MountStatus(bool? Tracking, bool? Slewing, bool? AtPark, bool? AtHome,
+        bool? IsPulseGuiding, int? SideOfPier, DateTime? UtcDate)
+    {
+        /// <summary>The reported items of a device state, or null if it reported none of them.</summary>
+        public static MountStatus? From(TelescopeDeviceState state)
+        {
+            var reported = state.Reported;
+            if (reported.Count == 0) return null;
+
+            DateTime? utc = null;
+            if (reported.Contains("UTCDate") && state.UTCDate != default)
+            {
+                var date = state.UTCDate.Kind == DateTimeKind.Local ? state.UTCDate.ToUniversalTime() : state.UTCDate;
+                utc = new DateTime(date.Ticks - date.Ticks % TimeSpan.TicksPerSecond, DateTimeKind.Utc);
+            }
+
+            var status = new MountStatus(
+                reported.Contains("Tracking") ? state.Tracking : null,
+                reported.Contains("Slewing") ? state.Slewing : null,
+                reported.Contains("AtPark") ? state.AtPark : null,
+                reported.Contains("AtHome") ? state.AtHome : null,
+                reported.Contains("IsPulseGuiding") ? state.IsPulseGuiding : null,
+                reported.Contains("SideOfPier") ? state.SideOfPier : null,
+                utc);
+            return status == Empty ? null : status;
+        }
+
+        private static readonly MountStatus Empty = new(null, null, null, null, null, null, null);
+    }
 
     public void Dispose()
     {

@@ -93,12 +93,24 @@
         var servers = ViewModel.AlpacaServers;
         var maxServers = ViewModel.MaxServers;
     }
-    <aside class="sidebar" @ondragenter="() => _hoverQuadrant = -1">
+    <aside class="sidebar" id="server-panel" @ondragenter="() => _hoverQuadrant = -1">
         <div class="sidebar-header">
             <h2>@L.T("Telescope Mounts")</h2>
             <span class="count" title="@L.T("Servers in the list")">
                 @ViewModel.Count@(ViewModel.IsLicensed ? "" : $" / {FeatureKeyService.FreeMaxServers}")
             </span>
+            @* Collapse / expand: handled in the browser (wwwroot/sidebar.js), which remembers the choice. Two
+               buttons, one shown at a time by CSS, so each keeps its own label whatever Blazor re-renders. *@
+            <button type="button" class="icon-btn sidebar-toggle collapse" data-sidebar-toggle="collapse"
+                    aria-controls="server-panel" aria-expanded="true"
+                    title="@L.T("Hide the server list")" aria-label="@L.T("Hide the server list")">
+                <Icon Kind="ChevronDoubleLeft" Size="18" />
+            </button>
+            <button type="button" class="icon-btn sidebar-toggle expand" data-sidebar-toggle="expand"
+                    aria-controls="server-panel" aria-expanded="false"
+                    title="@L.T("Show the server list")" aria-label="@L.T("Show the server list")">
+                <Icon Kind="ChevronDoubleRight" Size="18" />
+            </button>
         </div>
 
         <div class="toolbar" role="toolbar" aria-label="@L.T("Server commands")">
@@ -300,7 +312,8 @@
 
     private static string KindText(AlpacaServer server) => server.IsCom ? L.T("ASCOM driver") : L.T("Alpaca server");
 
-    private static string ServerTooltip(AlpacaServer server) => $"{server.Url}\n{L.T("Double-click (or F2) to edit")}";
+    // The name leads: the collapsed server strip shows only the icons.
+    private static string ServerTooltip(AlpacaServer server) => $"{server.ServerName}\n{server.Url}\n{L.T("Double-click (or F2) to edit")}";
 
     /// <summary>Short address for the list: host:port and device number.</summary>
     private static string ServerAddress(AlpacaServer server)

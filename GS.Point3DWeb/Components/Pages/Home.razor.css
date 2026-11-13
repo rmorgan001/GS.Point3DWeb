@@ -579,6 +579,58 @@
             color: var(--green);
         }
 
+/* ===== Collapsed server list (wwwroot/sidebar.js sets html[data-sidebar]) =====
+   A narrow strip of the servers' status dots and logos: connections still show, a server can still be dragged
+   onto a view (its tooltip names it), and the views get the rest of the width. */
+.sidebar {
+    transition: flex-basis .2s ease, padding .2s ease;
+}
+
+.sidebar-toggle.expand {
+    display: none;
+}
+
+html[data-sidebar="collapsed"] .sidebar {
+    flex-basis: 3.5rem;
+    padding: .9rem .35rem .75rem;
+}
+
+html[data-sidebar="collapsed"] .sidebar-header {
+    justify-content: center;
+    padding: 0 0 .6rem;
+}
+
+html[data-sidebar="collapsed"] .sidebar-header h2,
+html[data-sidebar="collapsed"] .count,
+html[data-sidebar="collapsed"] .toolbar,
+html[data-sidebar="collapsed"] .sidebar-hint,
+html[data-sidebar="collapsed"] .server-text,
+html[data-sidebar="collapsed"] .lock,
+html[data-sidebar="collapsed"] .sidebar-toggle.collapse {
+    display: none;
+}
+
+html[data-sidebar="collapsed"] .sidebar-toggle.expand {
+    display: inline-flex;
+}
+
+html[data-sidebar="collapsed"] .server-item {
+    flex-direction: column;
+    justify-content: center;
+    gap: .35rem;
+    padding: .45rem 0;
+}
+
+html[data-sidebar="collapsed"] .server-nav {
+    overflow-x: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sidebar {
+        transition: none;
+    }
+}
+
 /* ===== Narrow screens ===== */
 @media (max-width: 900px) {
     .brand-sub {
@@ -626,6 +678,31 @@
 
     .server-nav {
         max-height: 40vh;
+    }
+
+    /* Collapsed on a phone: the list (above the views) folds up to its header row. */
+    html[data-sidebar="collapsed"] .sidebar {
+        flex-basis: auto;
+        padding: .6rem 16px;
+    }
+
+    html[data-sidebar="collapsed"] .sidebar-header {
+        justify-content: space-between;
+        padding: 0;
+    }
+
+    html[data-sidebar="collapsed"] .sidebar-header h2,
+    html[data-sidebar="collapsed"] .count {
+        display: block;
+    }
+
+    html[data-sidebar="collapsed"] .server-nav {
+        display: none;
+    }
+
+    /* Up / down rather than left / right. */
+    .sidebar-toggle ::deep svg {
+        transform: rotate(90deg);
     }
 
     .model-panel {

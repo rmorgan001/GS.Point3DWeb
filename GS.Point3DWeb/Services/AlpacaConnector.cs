@@ -3,6 +3,7 @@ using GS.Alpaca.Support;
 using GS.Point3DWeb.Localization;
 using GS.Point3DWeb.Models;
 using GS.Point3DWeb.Support;
+using System.Net;
 using Newtonsoft.Json.Linq;
 
 namespace GS.Point3DWeb.Services;
@@ -87,12 +88,15 @@ public static class AlpacaConnector
 
             var isConnected = await ReadConnectedAsync(client, token);
             server.SetClientTransactionId(client.ClientTransactionId);
+            // Whether this connect is what connects the device (it wasn't connected already, for another program).
+            var connectedHere = false;
 
             if (!isConnected)
             {
                 var response = await client.ConnectAsync(token);
                 isConnected = await ReadConnectedAsync(client, token);
                 server.SetClientTransactionId(client.ClientTransactionId);
+                connectedHere = isConnected;
 
                 if (!isConnected && response is { ErrorNumber: not 0 })
                 {
@@ -104,6 +108,21 @@ public static class AlpacaConnector
 
             // Deleted meanwhile, or now pointing at a different device: this result isn't for it.
             var used = !server.Removed && SetConnected(server, url, isConnected);
+            if (!used && connectedHere)
+            {
+                // Nothing will disconnect it now (the delete or the address change found no connection to end,
+                // as this one was still under way), so release the device this connect connected, as for a COM
+                // driver. A device that was already connected (another program's) is left alone.
+                try
+                {
+                    await client.DisconnectAsync();
+                    Log.LogInformation("Released {Url}: it was connected for a server that was deleted or moved meanwhile", url);
+                }
+                catch (Exception ex)
+                {
+                    Log.LogWarning(ex, "Could not release {Url} after its server was deleted or moved: {Error}", url, ex.Message);
+                }
+            }
             return (used && isConnected, !used);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -316,9 +335,11 @@ public static class AlpacaConnector
 
 
     /// <summary>
-    /// A property that a mount may not implement. A server that answers it with an HTTP error (some answer
-    /// 400 or 404 instead of Alpaca's NotImplemented) counts as having answered "not implemented", so the
-    /// model still loads with what the mount did report. No answer at all (a network error) still throws.
+    /// A property that a mount may not implement. A server that answers it with an HTTP error saying the method
+    /// doesn't exist (some answer 400 or 404 instead of Alpaca's NotImplemented) counts as having answered
+    /// "not implemented", so the model still loads with what the mount did report. Any other HTTP error (a 500 or
+    /// 503: the server isn't working right now) is no answer (null), so it is asked again; that isn't a property
+    /// the mount lacks. No answer at all (a network error) still throws.
     /// </summary>
     private static async Task<AlpacaResponse?> GetOptionalPropertyAsync(AlpacaClient client, string method, CancellationToken token)
     {
@@ -326,11 +347,17 @@ public static class AlpacaConnector
         {
             return await client.GetPropertyAsync(method, token);
         }
-        catch (HttpRequestException ex) when (ex.StatusCode is not null)
+        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound
+                                                  or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented)
         {
             return new AlpacaResponse { Value = JValue.CreateNull(), ErrorNumber = AlpacaClient.NotImplementedError, ErrorMessage = ex.Message };
         }
+        catch (HttpRequestException ex) when (ex.StatusCode is not null)
+        {
+            return null;
+        }
     }
+
     /// <summary>
     /// The mount's position from a COM driver (an Alpaca server's is polled by the view with
     /// <see cref="AlpacaClient"/>). Throws if the driver fails or doesn't answer.

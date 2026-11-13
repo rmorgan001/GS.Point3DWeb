@@ -17,6 +17,14 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     ContentRootPath = IsDevelopment() ? null : AppContext.BaseDirectory
 });
 
+// Whether any address the app listens on is https: from Urls (appsettings.json, --urls, ASPNETCORE_URLS) or a
+// Kestrel endpoint in the configuration.
+static bool ListensOnHttps(IConfiguration configuration)
+    => (configuration["urls"] ?? configuration["ASPNETCORE_URLS"] ?? "").Contains("https://", StringComparison.OrdinalIgnoreCase)
+       || configuration.GetSection("Kestrel:Endpoints").GetChildren()
+           .Any(e => (e["Url"] ?? "").StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+       || !string.IsNullOrEmpty(configuration["HTTPS_PORTS"] ?? configuration["ASPNETCORE_HTTPS_PORTS"]);
+
 static bool IsDevelopment()
     => string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
                      ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"),
@@ -100,7 +108,9 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
+// Only when the app listens on https too: with just http:// addresses (the default) there is nothing to redirect
+// to, and the middleware would log "Failed to determine the https port" on every start.
+if (ListensOnHttps(builder.Configuration)) app.UseHttpsRedirection();
 
 // UI language: the culture cookie (set by /culture/set from the header language menu), else the browser's
 // Accept-Language, else English. Only the UI culture changes; number and date formats stay the
@@ -129,8 +139,10 @@ app.MapGet("/culture/set", (string? culture, string? redirectUri, HttpContext co
             new CookieOptions { Expires = DateTimeOffset.UtcNow.AddYears(1), IsEssential = true, SameSite = SameSiteMode.Lax, Path = "/" });
     }
 
-    // Only redirect within this app.
+    // Only redirect within this app. Control characters are refused too: LocalRedirect would refuse them by
+    // throwing, which is an error page instead of the home page.
     var target = redirectUri is { Length: > 0 } && redirectUri[0] == '/' && !redirectUri.StartsWith("//") && !redirectUri.StartsWith("/\\")
+                 && !redirectUri.Any(char.IsControl)
         ? redirectUri
         : "/";
     return Results.LocalRedirect(target);

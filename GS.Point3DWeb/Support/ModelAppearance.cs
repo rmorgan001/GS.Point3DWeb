@@ -52,6 +52,6 @@ public static partial class ModelAppearance
     public static string NormalizeColor(string? hex)
         => hex is not null && HexColor().IsMatch(hex) ? hex.ToLowerInvariant() : DefaultColor;
 
-    [GeneratedRegex("^#[0-9a-fA-F]{6}$")]
+    [GeneratedRegex(@"^#[0-9a-fA-F]{6}\z")] // \z, not $: $ also matches before a final newline
     private static partial Regex HexColor();
 }

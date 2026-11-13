@@ -114,11 +114,12 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
     // ===== Top coordinates bar =====
 
-    [ObservableProperty] public partial string Ra { get; set; } = "00h 00m 00s";
-    [ObservableProperty] public partial string Dec { get; set; } = "00° 00m 00s";
-    [ObservableProperty] public partial string Alt { get; set; } = "00° 00m 00s";
-    [ObservableProperty] public partial string Az { get; set; } = "00° 00m 00s";
-    [ObservableProperty] public partial string Lha { get; set; } = "00h 00m 00s";
+    // Until the first update, zeros in the same format as the live values (UpdateLocalProperties).
+    [ObservableProperty] public partial string Ra { get; set; } = "00h 00:00.00";
+    [ObservableProperty] public partial string Dec { get; set; } = "00° 00:00.00";
+    [ObservableProperty] public partial string Alt { get; set; } = "00° 00:00.00";
+    [ObservableProperty] public partial string Az { get; set; } = "00° 00:00.00";
+    [ObservableProperty] public partial string Lha { get; set; } = "00:00:00";
 
     /// <summary>Local sidereal time, in hours.</summary>
     [ObservableProperty] public partial string Lst { get; set; } = "00h 00:00.00";

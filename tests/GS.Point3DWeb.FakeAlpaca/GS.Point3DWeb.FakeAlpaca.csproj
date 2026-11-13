@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- A scriptable fake ASCOM Alpaca telescope server, for the tests, the browser tests and the load tests.
+       Run it on its own:  dotnet run - -port 5400 - -mounts 4 [- -latency 0]
+       It never talks to a real mount. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <DisableGitVersion>true</DisableGitVersion>
+  </PropertyGroup>
+
+</Project>

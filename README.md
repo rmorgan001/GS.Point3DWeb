@@ -61,8 +61,21 @@ platform, named `GS.Point3DWeb-<version>-<platform>`:
 | `osx-arm64` (.tar.gz) | macOS on Apple silicon |
 
 Extract it, run `GS.Point3DWeb` (`GS.Point3DWeb.exe` on Windows) and open
-<http://localhost:5000>. The macOS builds aren't signed: if macOS blocks the app, run
-`xattr -dr com.apple.quarantine` on the extracted folder.
+<http://localhost:5000>.
+
+The downloads aren't code-signed, so the operating system may warn about them the first time:
+
+- **Windows** ("Windows protected your PC"): click **More info**, then **Run anyway**. To stop the
+  warning for good, unblock the download before extracting it: right-click the `.zip`, choose
+  **Properties**, tick **Unblock** and click **OK**. For a folder that's already extracted, run this in
+  PowerShell:
+
+  ```powershell
+  Get-ChildItem -Recurse "C:\path\to\GS.Point3DWeb-<version>-win-x64" | Unblock-File
+  ```
+
+- **macOS** ("cannot be opened because the developer cannot be verified"): run
+  `xattr -dr com.apple.quarantine` on the extracted folder.
 
 To use another port, or to open the app from other computers on the network, change the address it
 listens on. Either set `Urls` in `appsettings.json`, next to the app (the default is

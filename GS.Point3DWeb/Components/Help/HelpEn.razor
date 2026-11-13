@@ -269,6 +269,16 @@
     <section id="trouble">
         <h2>Troubleshooting</h2>
         <dl>
+            <dt>Windows says "Windows protected your PC" when the app starts</dt>
+            <dd>The downloads aren't code-signed, so Windows warns about them. Click <strong>More info</strong>,
+                then <strong>Run anyway</strong>. To stop the warning for good, unblock the download before
+                extracting it: right-click the <code>.zip</code>, choose <strong>Properties</strong>, tick
+                <strong>Unblock</strong> and click <strong>OK</strong>. For a folder that's already extracted,
+                run this in PowerShell (with your folder's path):
+                <pre><code>Get-ChildItem -Recurse "C:\path\to\GS.Point3DWeb" | Unblock-File</code></pre></dd>
+            <dt>macOS says the app can't be opened</dt>
+            <dd>Run <code>xattr -dr com.apple.quarantine</code> on the extracted folder, then start the app
+                again.</dd>
             <dt>Alpaca Discovery finds nothing</dt>
             <dd>Check the Alpaca server is running and has discovery turned on, and that a firewall isn't
                 blocking UDP port 32227. Discovery only reaches the local network; add other servers by

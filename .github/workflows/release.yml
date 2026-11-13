@@ -108,7 +108,7 @@ jobs:
 
           Extract it, run `GS.Point3DWeb` (`GS.Point3DWeb.exe` on Windows) and open <http://localhost:5000>. ASCOM COM drivers work only on Windows; Alpaca servers work everywhere. See the README for running it on another port or for other computers on the network.
 
-          The macOS builds aren't signed: if macOS blocks the app, run `xattr -dr com.apple.quarantine` on the extracted folder. They can appear a little after the others, as GitHub's macOS build machines are sometimes slow to start. `SHA256SUMS.txt` lists each file's checksum.
+          The downloads aren't code-signed. On Windows, if "Windows protected your PC" appears, click **More info** then **Run anyway**, or unblock the `.zip` before extracting it (right-click it, **Properties**, tick **Unblock**). On macOS, if the app is blocked, run `xattr -dr com.apple.quarantine` on the extracted folder. The macOS downloads can appear a little after the others, as GitHub's macOS build machines are sometimes slow to start. `SHA256SUMS.txt` lists each file's checksum.
 
           EOF
 

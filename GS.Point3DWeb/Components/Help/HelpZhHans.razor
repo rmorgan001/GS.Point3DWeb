@@ -224,6 +224,11 @@
     <section id="trouble">
         <h2>故障排除</h2>
         <dl>
+            <dt>启动时 Windows 提示“Windows 已保护你的电脑”</dt>
+            <dd>下载的文件没有数字签名，因此 Windows 会发出警告。点击<strong>更多信息</strong>，然后点击<strong>仍要运行</strong>。要彻底消除该警告，请在解压前解除下载文件的锁定：右键单击 <code>.zip</code> 文件，选择<strong>属性</strong>，勾选<strong>解除锁定</strong>，然后点击<strong>确定</strong>。对于已解压的文件夹，请在 PowerShell 中运行（替换为您的文件夹路径）：
+                <pre><code>Get-ChildItem -Recurse "C:\path\to\GS.Point3DWeb" | Unblock-File</code></pre></dd>
+            <dt>macOS 提示无法打开应用</dt>
+            <dd>对解压后的文件夹运行 <code>xattr -dr com.apple.quarantine</code>，然后重新启动应用。</dd>
             <dt>Alpaca 发现找不到任何设备</dt>
             <dd>请确认 Alpaca 服务器正在运行并已开启发现（discovery）功能，且防火墙没有阻止 UDP 端口 32227。发现功能只能到达本地网络；其他服务器请按地址添加。</dd>
             <dt>视图无法连接</dt>

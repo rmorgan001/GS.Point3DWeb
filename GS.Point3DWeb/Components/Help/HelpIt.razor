@@ -286,6 +286,17 @@
     <section id="trouble">
         <h2>Risoluzione dei problemi</h2>
         <dl>
+            <dt>All'avvio Windows mostra «Windows ha protetto il PC»</dt>
+            <dd>I download non sono firmati digitalmente, per questo Windows avvisa. Fate clic su
+                <strong>Ulteriori informazioni</strong>, poi su <strong>Esegui comunque</strong>. Per non vedere
+                più l'avviso, sbloccate il download prima di estrarlo: clic destro sul <code>.zip</code>,
+                <strong>Proprietà</strong>, selezionate <strong>Annulla blocco</strong> e premete
+                <strong>OK</strong>. Per una cartella già estratta, eseguite questo in PowerShell (con il
+                percorso della vostra cartella):
+                <pre><code>Get-ChildItem -Recurse "C:\path\to\GS.Point3DWeb" | Unblock-File</code></pre></dd>
+            <dt>macOS indica che l'app non può essere aperta</dt>
+            <dd>Eseguite <code>xattr -dr com.apple.quarantine</code> sulla cartella estratta, poi riavviate
+                l'app.</dd>
             <dt>Il rilevamento Alpaca non trova nulla</dt>
             <dd>Verificate che il server Alpaca sia in esecuzione e abbia il rilevamento (discovery) attivo, e
                 che un firewall non blocchi la porta UDP 32227. Il rilevamento raggiunge solo la rete locale;

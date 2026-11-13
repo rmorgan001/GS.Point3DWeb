@@ -289,6 +289,17 @@
     <section id="trouble">
         <h2>Dépannage</h2>
         <dl>
+            <dt>Windows affiche « Windows a protégé votre ordinateur » au démarrage</dt>
+            <dd>Les téléchargements ne sont pas signés numériquement, c'est pourquoi Windows avertit. Cliquez sur
+                <strong>Informations complémentaires</strong>, puis sur <strong>Exécuter quand même</strong>. Pour
+                ne plus voir l'avertissement, débloquez le téléchargement avant de l'extraire : clic droit sur le
+                <code>.zip</code>, <strong>Propriétés</strong>, cochez <strong>Débloquer</strong> puis
+                <strong>OK</strong>. Pour un dossier déjà extrait, exécutez ceci dans PowerShell (avec le chemin
+                de votre dossier) :
+                <pre><code>Get-ChildItem -Recurse "C:\path\to\GS.Point3DWeb" | Unblock-File</code></pre></dd>
+            <dt>macOS indique que l'application ne peut pas être ouverte</dt>
+            <dd>Exécutez <code>xattr -dr com.apple.quarantine</code> sur le dossier extrait, puis relancez
+                l'application.</dd>
             <dt>La découverte Alpaca ne trouve rien</dt>
             <dd>Vérifiez que le serveur Alpaca tourne et que sa découverte (discovery) est activée, et qu'aucun
                 pare-feu ne bloque le port UDP 32227. La découverte n'atteint que le réseau local ; ajoutez les

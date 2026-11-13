@@ -291,6 +291,17 @@
     <section id="trouble">
         <h2>Fehlerbehebung</h2>
         <dl>
+            <dt>Windows meldet beim Start „Der Computer wurde durch Windows geschützt“</dt>
+            <dd>Die Downloads sind nicht digital signiert, deshalb warnt Windows. Klicken Sie auf
+                <strong>Weitere Informationen</strong> und dann auf <strong>Trotzdem ausführen</strong>. Damit die
+                Warnung ganz verschwindet, geben Sie den Download vor dem Entpacken frei: Rechtsklick auf die
+                <code>.zip</code>-Datei, <strong>Eigenschaften</strong>, Haken bei <strong>Zulassen</strong>
+                setzen und <strong>OK</strong>. Für einen bereits entpackten Ordner führen Sie in PowerShell aus
+                (mit dem Pfad Ihres Ordners):
+                <pre><code>Get-ChildItem -Recurse "C:\path\to\GS.Point3DWeb" | Unblock-File</code></pre></dd>
+            <dt>macOS meldet, dass die App nicht geöffnet werden kann</dt>
+            <dd>Führen Sie <code>xattr -dr com.apple.quarantine</code> für den entpackten Ordner aus und starten
+                Sie die App erneut.</dd>
             <dt>Die Alpaca-Suche findet nichts</dt>
             <dd>Prüfen Sie, ob der Alpaca-Server läuft und die Suche (Discovery) eingeschaltet hat und ob eine
                 Firewall UDP-Port 32227 blockiert. Die Suche erreicht nur das lokale Netzwerk; fügen Sie andere

@@ -115,6 +115,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
     public void StartTimerUpdates()
     {
+        if (_disposed) return; // the view was removed before its start-up finished
         StopTimerUpdates();
         _cts = new CancellationTokenSource();
         _ = RunTimerAsync(_cts.Token);
@@ -131,7 +132,6 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     private async Task RunTimerAsync(CancellationToken token)
     {
         _timer = Stopwatch.StartNew();
-        var busy = false;
         try
         {
             await AutoConnectAsync(token);
@@ -153,34 +153,21 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 {
                     _mountInfoRead = false; // read it again after reconnecting
                     if (!IsChangingConnection) StatusText = _connectionMessage ?? L.T("Not connected");
-                    if (busy || IsChangingConnection || _timer.Elapsed - _lastConnectedCheck < ConnectedCheckInterval)
+                    if (IsChangingConnection || _timer.Elapsed - _lastConnectedCheck < ConnectedCheckInterval)
                         continue;
 
                     _lastConnectedCheck = _timer.Elapsed;
-                    busy = true;
-                    try
+                    if (await AlpacaConnector.RefreshConnectedAsync(server) && !token.IsCancellationRequested)
                     {
-                        if (await AlpacaConnector.RefreshConnectedAsync(server) && !token.IsCancellationRequested)
-                        {
-                            _connectionMessage = null;
-                            StatusText = L.T("Connected");
-                            ConnectionChanged?.Invoke();
-                        }
-                    }
-                    finally
-                    {
-                        busy = false;
+                        _connectionMessage = null;
+                        StatusText = L.T("Connected");
+                        ConnectionChanged?.Invoke();
                     }
                     continue;
                 }
 
-                if (busy)
-                {
-                    TimerOverruns++;
-                    continue;
-                }
-
-                busy = true;
+                // Polls run one after another, so a slow one delays the next rather than overlapping it.
+                var pollStarted = _timer.Elapsed;
                 try
                 {
                     // Alignment mode and latitude pick the model and tilt; read them once per connection.
@@ -224,6 +211,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     _connectionMessage = null;
                     UpdateLocalProperties(deviceState);
                     TimerCounter++;
+                    // A poll that took longer than the interval: count it as an overrun.
+                    if (_timer.Elapsed - pollStarted > TimeSpan.FromMilliseconds(TimerInMs)) TimerOverruns++;
                     ElapsedTime = (int)_timer.Elapsed.TotalSeconds;
                     StatusText = $"Int={TimerInMs}ms, overruns={TimerOverruns}, counter={TimerCounter}, timer={ElapsedTime}s";
 
@@ -233,10 +222,6 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 catch (Exception ex) when (!token.IsCancellationRequested)
                 {
                     await CheckStillConnectedAsync(server, ex.Message, token);
-                }
-                finally
-                {
-                    busy = false;
                 }
             }
         }
@@ -409,8 +394,11 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         ? CoordinateFormat.DegreesToDms(hours * 15.0, "° ", ":", "", 2)
         : CoordinateFormat.HoursToHms(hours, "h ", ":", "", 2);
 
+    private bool _disposed;
+
     public void Dispose()
     {
+        _disposed = true;
         StopTimerUpdates();
         GC.SuppressFinalize(this);
     }

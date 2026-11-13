@@ -38,19 +38,19 @@
                 </label>
                 <label class="field">
                     <span class="field-label">@L.T("RA adjust (°)")</span>
-                    <select value="@Server.RaOffset" @onchange="e => OnOffsetChanged(e, isRa: true)">
+                    <select value="@Invariant(Server.RaOffset)" @onchange="e => OnOffsetChanged(e, isRa: true)">
                         @foreach (var value in Model3D.OffsetValues)
                         {
-                            <option value="@value">@value</option>
+                            <option value="@Invariant(value)">@value</option>
                         }
                     </select>
                 </label>
                 <label class="field">
                     <span class="field-label">@L.T("Dec adjust (°)")</span>
-                    <select value="@Server.DecOffset" @onchange="e => OnOffsetChanged(e, isRa: false)">
+                    <select value="@Invariant(Server.DecOffset)" @onchange="e => OnOffsetChanged(e, isRa: false)">
                         @foreach (var value in Model3D.OffsetValues)
                         {
-                            <option value="@value">@value</option>
+                            <option value="@Invariant(value)">@value</option>
                         }
                     </select>
                 </label>
@@ -296,6 +296,12 @@
         Server.PolarMode = mode;
         return OnChanged.InvokeAsync();
     }
+
+    /// <summary>
+    /// Option values in the invariant format, as OnOffsetChanged parses them. Some cultures write the
+    /// minus sign as U+2212, which an invariant parse rejects.
+    /// </summary>
+    private static string Invariant(double value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     private Task OnOffsetChanged(ChangeEventArgs e, bool isRa)
     {

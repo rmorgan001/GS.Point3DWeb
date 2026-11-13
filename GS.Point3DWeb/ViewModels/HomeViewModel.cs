@@ -27,14 +27,51 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         FeatureKeys = featureKeys ?? throw new ArgumentNullException(nameof(featureKeys));
         FeatureKeys.Changed += OnFeatureKeyChanged;
 
-        GetStoredConnections();
+        // Read the saved selection first: selecting a server (below) also stores it in the settings.
+        var savedSelection = _settingsService.SelectedAlpacaServer;
+        AutoAddComm();
         RestoreQuadrants();
-        Count = AlpacaServers.Count;
-        SelectedAlpacaServer = _settingsService.SelectedAlpacaServer ?? AlpacaServers.FirstOrDefault();
+        var servers = AlpacaServers;
+        Count = servers.Length;
+        SelectedAlpacaServer = savedSelection is not null && Array.IndexOf(servers, savedSelection) >= 0
+            ? savedSelection
+            : SelectedAlpacaServer ?? servers.FirstOrDefault();
+
+        _settingsService.ServersChanged += OnServersChanged;
     }
 
-    [ObservableProperty]
-    public partial ObservableCollection<AlpacaServer> AlpacaServers { get; set; } = [];
+    /// <summary>
+    /// The server list (a copy: the list is shared by every browser tab, and changed through
+    /// <see cref="SettingsService.AddServer"/> / <see cref="SettingsService.RemoveServer"/>).
+    /// </summary>
+    public AlpacaServer[] AlpacaServers => _settingsService.Servers;
+
+    /// <summary>
+    /// A server was added or removed, here or in another tab: refresh the count and list, and drop
+    /// a removed server from the selection and the quadrants.
+    /// </summary>
+    private void OnServersChanged()
+    {
+        var servers = AlpacaServers;
+        Count = servers.Length;
+        if (SelectedAlpacaServer is { } selected && Array.IndexOf(servers, selected) < 0)
+            SelectedAlpacaServer = servers.LastOrDefault();
+
+        var cleared = false;
+        foreach (var quadrant in Quadrants)
+        {
+            if (quadrant.Server is not { } server || Array.IndexOf(servers, server) >= 0) continue;
+            quadrant.Server = null;
+            quadrant.Flipped = false;
+            cleared = true;
+        }
+        if (cleared)
+        {
+            StoreQuadrants();
+            OnPropertyChanged(nameof(Quadrants));
+        }
+        OnPropertyChanged(nameof(AlpacaServers));
+    }
 
     // ===== Feature key: 1 view and 5 servers without a key; 4 views and any number with one =====
 
@@ -52,7 +89,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     /// </summary>
     public bool IsServerAllowed(AlpacaServer server)
     {
-        var index = AlpacaServers.IndexOf(server);
+        var index = Array.IndexOf(AlpacaServers, server);
         return index >= 0 && index < MaxServers;
     }
 
@@ -94,6 +131,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         FeatureKeys.Changed -= OnFeatureKeyChanged;
+        _settingsService.ServersChanged -= OnServersChanged;
         GC.SuppressFinalize(this);
     }
 
@@ -131,7 +169,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task AddAsync()
     {
-        if (AlpacaServers.Count >= MaxServers)
+        if (AlpacaServers.Length >= MaxServers)
         {
             await ShowLimitAsync(ServerLimitMessage);
             return;
@@ -143,9 +181,8 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
             UserName = null,
             Password = null
         };
-        AlpacaServers.Add(connection);
+        _settingsService.AddServer(connection);
         SelectedAlpacaServer = connection;
-        Count = AlpacaServers.Count;
         await PersistAsync();
     }
 
@@ -153,7 +190,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task DiscoveryAsync()
     {
-        if (AlpacaServers.Count >= MaxServers)
+        if (AlpacaServers.Length >= MaxServers)
         {
             await ShowLimitAsync(ServerLimitMessage);
             return;
@@ -173,9 +210,8 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
                 UserName = null,
                 Password = null
             };
-            AlpacaServers.Add(connection);
+            _settingsService.AddServer(connection);
             SelectedAlpacaServer = connection;
-            Count = AlpacaServers.Count;
             await PersistAsync();
         }
     }
@@ -281,7 +317,6 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         try
         {
             _settingsService.SelectedAlpacaServer = SelectedAlpacaServer;
-            _settingsService.AlpacaServers = AlpacaServers;
             _settingsService.Save();
         }
         catch (Exception e)
@@ -304,15 +339,9 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         await _dialogService.ShowDialog(confirmViewModel);
         if (!confirmViewModel.Confirmed) return;
 
-        var item = AlpacaServers.FirstOrDefault(i => i.IdGuid == connection.IdGuid);
-        if (item is not null) AlpacaServers.Remove(item);
-        for (var i = 0; i < Quadrants.Length; i++)
-        {
-            if (Quadrants[i].Server?.IdGuid == connection.IdGuid) ClearQuadrant(i);
-        }
-
+        // Removing it raises ServersChanged, which clears it from the quadrants of every open tab.
+        _settingsService.RemoveServer(connection.IdGuid);
         SelectedAlpacaServer = AlpacaServers.LastOrDefault();
-        Count = AlpacaServers.Count;
         await PersistAsync();
     }
 
@@ -426,23 +455,13 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
     // ===== Helpers =====
 
-    /// <summary>Loads the stored connections and selects the first one, if any.</summary>
-    private void GetStoredConnections()
-    {
-        AlpacaServers = _settingsService.AlpacaServers;
-        if (AlpacaServers.Count > 0)
-        {
-            SelectedAlpacaServer = AlpacaServers.First();
-        }
-        AutoAddComm();
-    }
-
     /// <summary>Adds the default simulator connection when it is missing.</summary>
     private void AutoAddComm()
     {
-        if (AlpacaServers.Any(i => i.ServerName == SimulatorName)) return;
+        var servers = AlpacaServers;
+        if (servers.Any(i => i.ServerName == SimulatorName)) return;
         if (!_settingsService.AutoAddComm) return;
-        if (AlpacaServers.Count >= MaxServers) return;
+        if (servers.Length >= MaxServers) return;
 
         var connection = new AlpacaServer(DefaultUrl, SimulatorName)
         {
@@ -450,8 +469,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
             UserName = null,
             Password = null
         };
-        AlpacaServers.Add(connection);
+        _settingsService.AddServer(connection);
         SelectedAlpacaServer = connection;
-        Count = AlpacaServers.Count;
     }
 }

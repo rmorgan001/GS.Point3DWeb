@@ -1,4 +1,5 @@
 using GS.Point3DWeb.Localization;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -70,7 +71,7 @@ public sealed class FeatureKeyService
         if (info is null) return false;
         if (info.IsExpired(DateOnly.FromDateTime(DateTime.Now)))
         {
-            error = L.T("This key expired on {0}.", info.Expires?.ToString("yyyy-MM-dd"));
+            error = L.T("This key expired on {0}.", info.Expires?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
             return false;
         }
 
@@ -122,9 +123,10 @@ public sealed class FeatureKeyService
             using var json = JsonDocument.Parse(payload);
             var root = json.RootElement;
             var name = root.GetProperty("name").GetString() ?? "";
-            var issued = DateOnly.ParseExact(root.GetProperty("issued").GetString()!, "yyyy-MM-dd");
+            // Keys always use the Gregorian calendar, whatever the server's culture.
+            var issued = DateOnly.ParseExact(root.GetProperty("issued").GetString()!, "yyyy-MM-dd", CultureInfo.InvariantCulture);
             DateOnly? expires = root.TryGetProperty("expires", out var e) && e.ValueKind == JsonValueKind.String
-                ? DateOnly.ParseExact(e.GetString()!, "yyyy-MM-dd")
+                ? DateOnly.ParseExact(e.GetString()!, "yyyy-MM-dd", CultureInfo.InvariantCulture)
                 : null;
             return new FeatureKeyInfo(name, issued, expires);
         }

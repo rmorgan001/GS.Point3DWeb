@@ -18,7 +18,7 @@
             <strong>@L.T("Unlocked")</strong>
             <span>
                 @(key.Expires is { } expires
-                    ? L.T("Licensed to {0}, until {1}.", key.Name, expires.ToString("yyyy-MM-dd"))
+                    ? L.T("Licensed to {0}, until {1}.", key.Name, expires.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))
                     : L.T("Licensed to {0}.", key.Name))
             </span>
             <span class="key-limits">@L.T("Up to {0} views and any number of servers.", FeatureKeyService.LicensedMaxViews)</span>
@@ -28,7 +28,7 @@
             <strong>@L.T("Free")</strong>
             @if (keys.Key is { } expired && expired.IsExpired(today))
             {
-                <span>@L.T("The key for {0} expired on {1}.", expired.Name, expired.Expires?.ToString("yyyy-MM-dd"))</span>
+                <span>@L.T("The key for {0} expired on {1}.", expired.Name, expired.Expires?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))</span>
             }
             <span class="key-limits">
                 @L.T("{0} view and up to {1} servers.", FeatureKeyService.FreeMaxViews, FeatureKeyService.FreeMaxServers)

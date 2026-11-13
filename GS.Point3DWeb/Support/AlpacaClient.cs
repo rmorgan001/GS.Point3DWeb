@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Globalization;
 
 // ReSharper disable StringLiteralTypo
@@ -75,10 +76,17 @@ namespace GS.Alpaca.Support
                 //todo log null response
                 return null;
             }
-            var deviceState = TelescopeMappings.MapDeviceState(alpacaResponse);
             alpacaResponse.MethodName = method;
+
+            // An error (e.g. 0x407 NotConnected) usually comes without a Value: return just the response,
+            // so the caller can show the server's own error rather than failing on the missing values.
+            if (alpacaResponse.ErrorNumber != 0)
+                return new TelescopeDeviceState { AlpacaResponse = alpacaResponse };
+            if (alpacaResponse.Value is not JArray)
+                return null; // no state to show
+
+            var deviceState = TelescopeMappings.MapDeviceState(alpacaResponse);
             deviceState.AlpacaResponse = alpacaResponse;
-            //todo log any errors in response
             return deviceState;
         }
 

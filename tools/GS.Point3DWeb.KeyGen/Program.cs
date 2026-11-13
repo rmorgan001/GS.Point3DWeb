@@ -12,6 +12,7 @@
 //   issue  --name "<licensee>" [--expires yyyy-MM-dd] [--key <file>]   print a new feature key
 //   verify <feature-key> [--key <file>]              check a key against the key pair
 
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -70,18 +71,19 @@ try
             string? expires = null;
             if (Option("--expires") is { } expiresText)
             {
-                if (!DateOnly.TryParseExact(expiresText, "yyyy-MM-dd", out var expiresDate))
+                // Key dates are always Gregorian (invariant), whatever this machine's culture.
+                if (!DateOnly.TryParseExact(expiresText, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var expiresDate))
                 {
                     Console.Error.WriteLine("--expires must be yyyy-MM-dd.");
                     return 1;
                 }
-                expires = expiresDate.ToString("yyyy-MM-dd");
+                expires = expiresDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             }
 
             var payload = JsonSerializer.SerializeToUtf8Bytes(new
             {
                 name = name.Trim(),
-                issued = DateTime.UtcNow.ToString("yyyy-MM-dd"),
+                issued = DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 expires
             });
 

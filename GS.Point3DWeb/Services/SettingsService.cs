@@ -35,7 +35,38 @@ public class SettingsService
 
     public AlpacaServer? SelectedAlpacaServer { get; set; }
 
-    public ObservableCollection<AlpacaServer> AlpacaServers { get; set; } = [];
+    // The server list is shared by every browser tab (circuit), so it is only touched under this lock;
+    // readers get a copy, which can't change while it is being enumerated.
+    private readonly List<AlpacaServer> _servers = [];
+    private readonly Lock _serversLock = new();
+
+    /// <summary>A copy of the server list, in order.</summary>
+    public AlpacaServer[] Servers
+    {
+        get
+        {
+            lock (_serversLock) return [.. _servers];
+        }
+    }
+
+    /// <summary>
+    /// Raised after a server is added or removed (on the thread that changed it), so every open
+    /// page can refresh its list.
+    /// </summary>
+    public event Action? ServersChanged;
+
+    public void AddServer(AlpacaServer server)
+    {
+        lock (_serversLock) _servers.Add(server);
+        ServersChanged?.Invoke();
+    }
+
+    public void RemoveServer(string idGuid)
+    {
+        bool removed;
+        lock (_serversLock) removed = _servers.RemoveAll(s => s.IdGuid == idGuid) > 0;
+        if (removed) ServersChanged?.Invoke();
+    }
 
     /// <summary>Number of 3D model quadrants on the Home page.</summary>
     public const int QuadrantCount = 4;
@@ -78,7 +109,7 @@ public class SettingsService
             // the user made from those defaults.
             var (legacyRa, legacyDec) = stored.Version is null or < 2 ? (0.0, -90.0) : (0.0, 0.0);
 
-            AlpacaServers = new ObservableCollection<AlpacaServer>(stored.Servers.Select(s =>
+            _servers.AddRange(stored.Servers.Select(s =>
                 new AlpacaServer(s.Url, s.ServerName)
                 {
                     IdGuid = s.IdGuid,
@@ -103,14 +134,14 @@ public class SettingsService
                     Background = ModelAppearance.GetBackground(s.Background).Key,
                     ShowGrid = s.ShowGrid ?? true
                 }));
-            SelectedAlpacaServer = AlpacaServers.FirstOrDefault(s => s.IdGuid == stored.SelectedId);
+            SelectedAlpacaServer = _servers.FirstOrDefault(s => s.IdGuid == stored.SelectedId);
 
             // Older files have no quadrants; ids for servers that no longer exist are dropped.
             var quadrants = new string?[QuadrantCount];
             for (var i = 0; i < QuadrantCount && i < (stored.Quadrants?.Count ?? 0); i++)
             {
                 var id = stored.Quadrants![i];
-                quadrants[i] = AlpacaServers.Any(s => s.IdGuid == id) ? id : null;
+                quadrants[i] = _servers.Any(s => s.IdGuid == id) ? id : null;
             }
             QuadrantServerIds = quadrants;
             if (stored.ViewCount is { } viewCount) ViewCount = viewCount;
@@ -127,14 +158,15 @@ public class SettingsService
     /// </summary>
     public void Save()
     {
+        var servers = Servers;
         var stored = new StoredSettings(
             SelectedAlpacaServer?.IdGuid,
-            [.. AlpacaServers.Select(s => new StoredServer(s.IdGuid, s.ServerName, s.Url, s.UserName,
+            [.. servers.Select(s => new StoredServer(s.IdGuid, s.ServerName, s.Url, s.UserName,
                 s.ModelType.ToString(), s.RaOffset, s.DecOffset,
                 s.ShowRa, s.ShowDec, s.ShowAz, s.ShowAlt, s.ShowLha,
                 s.PolarMode.ToString(), s.AlignmentMode.ToString(), s.Latitude, s.Camera,
                 s.PollSeconds, s.ShowLst, s.RaInDegrees, s.ModelColor, s.Background, s.ShowGrid))],
-            [.. QuadrantServerIds.Select(id => AlpacaServers.Any(s => s.IdGuid == id) ? id : null)],
+            [.. QuadrantServerIds.Select(id => servers.Any(s => s.IdGuid == id) ? id : null)],
             ViewCount,
             CurrentVersion);
 

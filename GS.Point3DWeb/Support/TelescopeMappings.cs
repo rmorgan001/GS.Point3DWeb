@@ -17,9 +17,9 @@ namespace GS.Alpaca.Support
             {
                 if (token is not JObject obj) continue;
 
-                    var properties = obj.Properties().ToDictionary(p => p.Name, p => p.Value);
-                    var propertyName = properties["Name"].Value<string>();
-                    var propertyValue = properties["Value"];
+                    // Skip entries without a name or value rather than failing the whole state.
+                    var propertyName = obj["Name"]?.Value<string>();
+                    if (obj["Value"] is not { } propertyValue || propertyValue.Type == JTokenType.Null) continue;
 
                     // Map the property to the DeviceState class
                     switch (propertyName)

@@ -68,7 +68,9 @@ class TelescopeViewer {
             compassS: base + 'compassS.png'
         };
         this.modelMeshes = [];
+        this.modelMaterials = [];
         this.pierMeshes = [];
+        this.loadCount = 0; // so an older loadModel that finishes late is dropped
         this.pose = { x: 0, y: 0, z: 0, yCentre: 0 };
 
         this.engine = new B.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true, antialias: true });
@@ -296,19 +298,35 @@ class TelescopeViewer {
         }
     }
 
+    /**
+     * Loads a model and its pier. Calls can overlap (the model can change while one is downloading);
+     * only the latest one is kept, and the old model stays on screen until the new one is ready.
+     * Returns 'Superseded' for a load that a newer one replaced.
+     */
     async loadModel(url, mount) {
         const B = window.BABYLON;
-        this.modelMeshes.forEach(m => m.dispose());
-        this.modelMeshes = [];
-        this.buildPier(mount?.mode ?? 2, mount?.latitude ?? 0);
+        const load = ++this.loadCount;
 
         // Materials are set below, so don't request a .mtl file (avoids a 404).
         if (B.OBJFileLoader) B.OBJFileLoader.SKIP_MATERIALS = true;
 
         const slash = url.lastIndexOf('/') + 1;
         const result = await B.SceneLoader.ImportMeshAsync('', url.substring(0, slash), url.substring(slash), this.scene, null, '.obj');
+        if (load !== this.loadCount || this.scene.isDisposed) {
+            result.meshes.forEach(m => m.dispose());
+            return 'Superseded';
+        }
         const meshes = result.meshes.filter(m => m.getTotalVertices() > 0);
-        if (meshes.length === 0) return 'Error: model has no meshes';
+        if (meshes.length === 0) {
+            result.meshes.forEach(m => m.dispose());
+            return 'Error: model has no meshes';
+        }
+
+        // Replace the previous model, its materials and the pier.
+        this.modelMeshes.forEach(m => m.dispose());
+        this.modelMeshes = [];
+        this.modelMaterials.forEach(m => m.dispose());
+        this.buildPier(mount?.mode ?? 2, mount?.latitude ?? 0);
 
         // As GSServer: object 0 is the OTA, 1 the counterweights (German polar) or a second OTA,
         // 2 the bar.
@@ -320,6 +338,7 @@ class TelescopeViewer {
         weights.diffuseColor = new B.Color3(0.25, 0.27, 0.28);
         const bar = new B.StandardMaterial('Bar', this.scene);
         bar.diffuseColor = new B.Color3(0.86, 0.86, 0.84);
+        this.modelMaterials = [ota, weights, bar];
         const germanPolar = (mount?.mode ?? 2) === 2;
 
         meshes.forEach((mesh, i) => {

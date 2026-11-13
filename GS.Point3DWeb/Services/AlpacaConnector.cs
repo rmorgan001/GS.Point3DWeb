@@ -100,7 +100,10 @@ public static class AlpacaConnector
 
     /// <summary>
     /// Reads the mount's alignment mode and site latitude into the server, as GSServer uses
-    /// them to pick the model and tilt the mount. Returns false if the mount didn't answer.
+    /// them to pick the model and tilt the mount. Each is applied on its own, so a mount that
+    /// doesn't implement SiteLatitude still gets the right model. Returns true once the mount has
+    /// answered both requests (even with an error, which won't change on a retry), so they are read
+    /// once per connection; false if a request got no answer, so it is tried again.
     /// </summary>
     public static async Task<bool> ReadMountInfoAsync(AlpacaServer server)
     {
@@ -110,14 +113,17 @@ public static class AlpacaConnector
         var latitude = await client.GetPropertyAsync("sitelatitude");
         server.SetClientTransactionId(client.ClientTransactionId);
 
-        if (mode is not { ErrorNumber: 0 } || latitude is not { ErrorNumber: 0 }) return false;
+        if (mode is { ErrorNumber: 0, Value.Type: JTokenType.Integer or JTokenType.Float })
+        {
+            var modeValue = mode.Value.ToObject<int>();
+            server.AlignmentMode = Enum.IsDefined(typeof(AlignmentModes), modeValue)
+                ? (AlignmentModes)modeValue
+                : AlignmentModes.algGermanPolar;
+        }
+        if (latitude is { ErrorNumber: 0, Value.Type: JTokenType.Integer or JTokenType.Float })
+            server.Latitude = latitude.Value.ToObject<double>();
 
-        var modeValue = mode.Value.ToObject<int>();
-        server.AlignmentMode = Enum.IsDefined(typeof(AlignmentModes), modeValue)
-            ? (AlignmentModes)modeValue
-            : AlignmentModes.algGermanPolar;
-        server.Latitude = latitude.Value.ToObject<double>();
-        return true;
+        return mode is not null && latitude is not null;
     }
 
     /// <summary>The server's "connected" property; false if it returned an error or no value.</summary>

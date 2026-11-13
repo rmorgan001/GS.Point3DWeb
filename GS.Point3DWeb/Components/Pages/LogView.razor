@@ -155,6 +155,8 @@
     /// </summary>
     private bool Update()
     {
+        // A read that works after one that failed clears the error, so the page has changed.
+        var hadProblem = _problem is not null;
         try
         {
             _problem = null;
@@ -164,13 +166,13 @@
                 var hadFile = _file is not null;
                 _file = null;
                 Clear();
-                return hadFile;
+                return hadFile || hadProblem;
             }
             if (latest.FullName != _file?.FullName) _next = -1;
             _file = latest;
 
             var chunk = LogFiles.Read(latest, _next, MaxBytes);
-            var changed = chunk.Length != _length || chunk.FromStart;
+            var changed = chunk.Length != _length || chunk.FromStart || hadProblem;
             _length = chunk.Length;
             _next = chunk.End;
             if (chunk.FromStart)
@@ -212,9 +214,8 @@
                 _inProblem = level is "wrn" or "err" or "ftl";
                 _lastEntry = line.Text.Substring(11, 8); // HH:mm:ss
             }
-            var bytes = System.Text.Encoding.UTF8.GetByteCount(line.Text) + 1;
-            _lines.Add(new LogLine(line.Offset, bytes, line.Text, _css, _inProblem));
-            _shownBytes += bytes;
+            _lines.Add(new LogLine(line.Offset, line.Bytes, line.Text, _css, _inProblem));
+            _shownBytes += line.Bytes;
         }
 
         var drop = 0;

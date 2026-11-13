@@ -128,7 +128,7 @@ public static class ComTelescopes
         catch
         {
             // Don't wait: the driver may be stuck. A connect still queued runs before the release does.
-            if (added) LogIfFails(ReleaseAsync(progId, owner), progId);
+            if (added) ReleaseInBackground(progId, owner);
             throw;
         }
     }
@@ -177,23 +177,48 @@ public static class ComTelescopes
     /// Does nothing if the owner doesn't hold it. Throws if the driver fails or doesn't answer while being
     /// disconnected; it is released either way.
     /// </summary>
-    public static Task ReleaseAsync(string progId, string owner)
+    public static async Task ReleaseAsync(string progId, string owner)
     {
-        Task<bool> release;
+        if (BeginRelease(progId, owner) is not { } release) return;
+        try
+        {
+            await WithTimeout(release, CallTimeout);
+        }
+        catch (TimeoutException) when (!release.IsCompleted)
+        {
+            // The caller logs the timeout; how the release itself ends is logged when it does.
+            _ = LogIfFails(release, progId);
+            throw;
+        }
+    }
+
+    /// <summary>Drops the owner's hold without waiting; a failure of the release is logged.</summary>
+    private static void ReleaseInBackground(string progId, string owner)
+    {
+        if (BeginRelease(progId, owner) is { } release) _ = LogIfFails(release, progId);
+    }
+
+    /// <summary>
+    /// Drops the owner's hold and, if it was the last, starts releasing the driver. Returns the release, or
+    /// null if there is nothing to release (the owner didn't hold it, or other owners still do).
+    /// </summary>
+    private static Task<bool>? BeginRelease(string progId, string owner)
+    {
         lock (Gate)
         {
             if (!Drivers.TryGetValue(progId, out var driver) || !driver.Owners.Remove(owner))
-                return Task.CompletedTask;
+                return null;
             if (driver.Owners.Count > 0)
             {
                 Log.LogInformation("ASCOM driver {ProgId} stays connected: {Count} other server(s) still use it",
                     progId, driver.Owners.Count);
-                return Task.CompletedTask;
+                return null;
             }
             Drivers.Remove(progId);
-            Releasing[progId] = release = DisposeAsync(driver, "no server uses it any more");
+            var release = DisposeAsync(driver, "no server uses it any more");
+            Releasing[progId] = release;
+            return release;
         }
-        return WithTimeout(release, CallTimeout);
     }
 
     /// <summary>Disconnects and releases a driver no server holds any more, then stops its thread.</summary>
@@ -304,9 +329,8 @@ public static class ComTelescopes
         if (held.Length + releasing.Length == 0) return;
 
         Log.LogInformation("Shutting down: releasing {Count} ASCOM driver(s)", held.Length + releasing.Length);
-        var disposing = held.Select(d => (d.ProgId, Task: (Task)DisposeAsync(d, "the app is shutting down"))).ToArray();
-        foreach (var (progId, task) in disposing) LogIfFails(task, progId);
-        Task[] pending = [.. disposing.Select(d => d.Task), .. releasing];
+        // Wait for the logging of any failure too, so it is written before logging shuts down.
+        Task[] pending = [.. held.Select(d => LogIfFails(DisposeAsync(d, "the app is shutting down"), d.ProgId)), .. releasing];
         try
         {
             Task.WaitAll(pending, TimeSpan.FromSeconds(5));
@@ -363,11 +387,15 @@ public static class ComTelescopes
     }
 
     /// <summary>Logs the failure of a release that nobody waits for (so nothing else would log it).</summary>
-    private static void LogIfFails(Task release, string progId)
-        => release.ContinueWith(t => Log.LogWarning(t.Exception?.GetBaseException(),
-                "ASCOM driver {ProgId} failed while being released (it is released anyway): {Error}",
-                progId, t.Exception?.GetBaseException().Message),
-            CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+    /// <returns>A task that completes once the release has ended and any failure has been logged.</returns>
+    private static Task LogIfFails(Task release, string progId)
+        => release.ContinueWith(t =>
+            {
+                if (t.Exception?.GetBaseException() is { } error)
+                    Log.LogWarning(error, "ASCOM driver {ProgId} failed while being released (it is released anyway): {Error}",
+                        progId, error.Message);
+            },
+            CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
 
     /// <summary>
     /// A single-threaded-apartment thread that runs queued work one item at a time and, while waiting,

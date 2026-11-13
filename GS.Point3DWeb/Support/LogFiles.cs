@@ -25,12 +25,13 @@ public static class LogFiles
     public static FileStream OpenShared(FileInfo file)
         => new(file.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
 
-    /// <summary>A line of the log and where it starts in the file (in bytes).</summary>
-    public readonly record struct Line(long Offset, string Text);
+    /// <summary>A line of the log, where it starts in the file and its size there (both in bytes, with the line break).</summary>
+    public readonly record struct Line(long Offset, int Bytes, string Text);
 
     /// <summary>What <see cref="Read"/> found.</summary>
     /// <param name="Lines">The whole lines read.</param>
-    /// <param name="End">Where the next read starts: just after the last whole line (a line still being written waits).</param>
+    /// <param name="End">Where the next read starts: just after the last whole line (a line still being written
+    /// waits), or -1 to start over (a read that started over found no whole line to start from).</param>
     /// <param name="Length">The file's current length, from the open file (always current).</param>
     /// <param name="FromStart">True if this read replaced what was shown (a first read, or the file started over),
     /// false if it continues from the previous one.</param>
@@ -62,13 +63,16 @@ public static class LogFiles
         {
             // Started in the middle of a line: skip to the next one.
             var firstBreak = Array.IndexOf(buffer, (byte)'\n');
-            lineStart = firstBreak < 0 ? buffer.Length : firstBreak + 1;
+            // One line longer than maxBytes, still being written: nothing to show yet, and continuing from
+            // here would show the rest of that line as if it were a line of its own. Start over next time.
+            if (firstBreak < 0) return new Chunk([], -1, length, true, true);
+            lineStart = firstBreak + 1;
         }
         for (var i = lineStart; i < buffer.Length; i++)
         {
             if (buffer[i] != (byte)'\n') continue;
-            var text = Encoding.UTF8.GetString(buffer, lineStart, i - lineStart).TrimEnd('\r').TrimStart('﻿');
-            if (text.Length > 0) lines.Add(new Line(start + lineStart, text));
+            var text = Encoding.UTF8.GetString(buffer, lineStart, i - lineStart).TrimEnd('\r').TrimStart('\uFEFF');
+            if (text.Length > 0) lines.Add(new Line(start + lineStart, i - lineStart + 1, text));
             lineStart = i + 1;
         }
         return new Chunk(lines, start + lineStart, length, fromStart, truncated);

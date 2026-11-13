@@ -17,10 +17,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddDebug();
 if (OperatingSystem.IsWindows())
-    builder.Logging.AddEventLog(new Microsoft.Extensions.Logging.EventLog.EventLogSettings
-    {
-        Filter = (_, level) => level >= LogLevel.Warning
-    });
+    builder.Logging.AddEventLog(AppLog.EventLogWarningsAndErrorsOnly);
+
 builder.Services.AddSerilog((services, log) => log
         .ReadFrom.Configuration(builder.Configuration)
         .ReadFrom.Services(services)
@@ -64,6 +62,8 @@ var app = builder.Build();
 // The static connection classes (AlpacaConnector, ComTelescopes) log through this.
 AppLog.Factory = app.Services.GetRequiredService<ILoggerFactory>();
 app.Logger.LogInformation("GS Point3D Web {Version} starting; logs in {LogFolder}", AppVersion.Display, AppLog.Folder);
+if (AppLog.FolderProblem is { } logFolderProblem)
+    app.Logger.LogWarning("Logging to {LogFolder} instead: {Problem}", AppLog.Folder, logFolderProblem);
 
 // Release the ASCOM COM drivers this app connected, so drivers that count their clients don't stay
 // connected for it after it stops.

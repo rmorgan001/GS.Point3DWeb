@@ -36,15 +36,15 @@ public static class AlpacaConnector
     public static async Task<bool> ConnectAsync(AlpacaServer server, CancellationToken token = default)
     {
         var name = Describe(server);
-        var url = server.Url;
         Log.LogInformation("Connecting to {Server}", name);
         try
         {
-            var connected = await ConnectCoreAsync(server, token);
-            if (connected) Log.LogInformation("Connected to {Server}", name);
-            // Deleted or re-addressed meanwhile: not a failure (ConnectCoreAsync has logged it).
-            else if (!server.Removed && AlpacaServer.SameUrl(server.Url, url))
-                Log.LogWarning("Could not connect to {Server}: it reports not connected", name);
+            var (connected, discarded) = await ConnectCoreAsync(server, token);
+            if (discarded)
+                Log.LogInformation("Connect to {Server} finished after the server was deleted or its address changed; " +
+                                   "its result was not used", name);
+            else if (connected) Log.LogInformation("Connected to {Server}", name);
+            else Log.LogWarning("Could not connect to {Server}: it reports not connected", name);
             return connected;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -59,7 +59,9 @@ public static class AlpacaConnector
         }
     }
 
-    private static async Task<bool> ConnectCoreAsync(AlpacaServer server, CancellationToken token)
+    /// <returns>Whether the server reports connected (always false for a COM driver whose result was not
+    /// used), and whether the result was not used: the server was deleted or its address changed meanwhile.</returns>
+    private static async Task<(bool Connected, bool Discarded)> ConnectCoreAsync(AlpacaServer server, CancellationToken token)
     {
         var url = server.Url; // the result is for this address (see SetConnected)
         server.IsConnecting = true;
@@ -75,12 +77,10 @@ public static class AlpacaConnector
                 // Deleted meanwhile, or now pointing at a different driver: this hold isn't wanted any more.
                 if (server.Removed || !SetConnected(server, url, comConnected))
                 {
-                    Log.LogInformation("{Server} was deleted or its address changed while connecting; releasing the driver",
-                        server.ServerName);
                     if (comConnected) await ComTelescopes.ReleaseAsync(AlpacaServer.GetProgId(url)!, server.IdGuid);
-                    return false;
+                    return (false, true);
                 }
-                return comConnected;
+                return (comConnected, false);
             }
 
             var client = CreateClient(server);
@@ -102,8 +102,8 @@ public static class AlpacaConnector
                 }
             }
 
-            SetConnected(server, url, isConnected);
-            return isConnected;
+            var used = SetConnected(server, url, isConnected);
+            return (isConnected, !used);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {

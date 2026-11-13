@@ -65,10 +65,11 @@ public partial class EditServerDialogViewModel : DialogViewModel
     /// <summary>Copies the edited values onto the real server.</summary>
     public void ApplyTo(AlpacaServer server)
     {
-        var urlChanged = !string.Equals(server.Url, Url.Trim(), StringComparison.OrdinalIgnoreCase);
+        var url = AlpacaServer.NormalizeUrl(Url);
+        var urlChanged = !string.Equals(server.Url, url, StringComparison.OrdinalIgnoreCase);
 
         server.ServerName = ServerName.Trim();
-        server.Url = Url.Trim();
+        server.Url = url;
         server.UserName = string.IsNullOrWhiteSpace(UserName) ? null : UserName;
         server.Password = string.IsNullOrEmpty(Password) ? null : Password;
         server.PollSeconds = AlpacaServer.ClampPollSeconds(PollSeconds);

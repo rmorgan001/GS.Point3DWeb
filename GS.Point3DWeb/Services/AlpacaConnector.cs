@@ -19,21 +19,23 @@ public static class AlpacaConnector
 
     /// <summary>
     /// Connects the server if it is not already connected. Returns the server's connected state afterwards.
-    /// Throws with the server's error message if it refused to connect.
+    /// Throws with the server's error message if it refused to connect, or OperationCanceledException
+    /// if <paramref name="token"/> is cancelled (the view was stopped).
     /// </summary>
-    public static async Task<bool> ConnectAsync(AlpacaServer server)
+    public static async Task<bool> ConnectAsync(AlpacaServer server, CancellationToken token = default)
     {
+        server.DisconnectedByUser = false;
         try
         {
             var client = CreateClient(server);
 
-            var isConnected = await ReadConnectedAsync(client);
+            var isConnected = await ReadConnectedAsync(client, token);
             server.SetClientTransactionId(client.ClientTransactionId);
 
             if (!isConnected)
             {
-                var response = await client.ConnectAsync();
-                isConnected = await ReadConnectedAsync(client);
+                var response = await client.ConnectAsync(token);
+                isConnected = await ReadConnectedAsync(client, token);
                 server.SetClientTransactionId(client.ClientTransactionId);
 
                 if (!isConnected && response is { ErrorNumber: not 0 })
@@ -56,14 +58,23 @@ public static class AlpacaConnector
     }
 
     /// <summary>
-    /// Asks the server to disconnect, then reads back whether it really did.
-    /// Returns true if the server is still connected (it kept the connection open).
+    /// Asks the server to disconnect. If it accepts, this app is disconnected, even though the device may
+    /// stay connected for other programs (see <see cref="AlpacaServer.DisconnectedByUser"/>). If it returns
+    /// an error, reads back whether it really disconnected. Returns true if the server is still connected
+    /// (it refused and kept the connection open).
     /// </summary>
     public static async Task<bool> DisconnectAsync(AlpacaServer server)
     {
         var client = CreateClient(server);
-        await client.DisconnectAsync();
+        var accepted = await client.DisconnectAsync();
         server.SetClientTransactionId(client.ClientTransactionId);
+
+        if (accepted)
+        {
+            server.DisconnectedByUser = true;
+            server.IsConnected = false;
+            return false;
+        }
 
         bool stillConnected;
         try
@@ -82,7 +93,9 @@ public static class AlpacaConnector
 
     /// <summary>
     /// Reads the server's connected state into <see cref="AlpacaServer.IsConnected"/>.
-    /// A server that doesn't answer counts as not connected. Never throws.
+    /// A server that doesn't answer counts as not connected, and so does one the user disconnected
+    /// (checked after the request, so a check already under way when they disconnect can't undo it).
+    /// Never throws.
     /// </summary>
     public static async Task<bool> RefreshConnectedAsync(AlpacaServer server)
     {
@@ -97,6 +110,7 @@ public static class AlpacaConnector
         {
             connected = false;
         }
+        if (server.DisconnectedByUser) connected = false;
 
         server.IsConnected = connected;
         return connected;
@@ -131,9 +145,9 @@ public static class AlpacaConnector
     }
 
     /// <summary>The server's "connected" property; false if it returned an error or no value.</summary>
-    private static async Task<bool> ReadConnectedAsync(AlpacaClient client)
+    private static async Task<bool> ReadConnectedAsync(AlpacaClient client, CancellationToken token = default)
     {
-        var response = await client.GetPropertyAsync("connected");
+        var response = await client.GetPropertyAsync("connected", token);
         return response is { ErrorNumber: 0, Value: { Type: not JTokenType.Null } value }
                && value.ToObject<bool>();
     }

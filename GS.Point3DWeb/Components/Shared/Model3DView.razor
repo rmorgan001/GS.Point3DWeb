@@ -96,7 +96,7 @@
             <span><span class="label">Z</span> @ViewModel.Tilt.ToString("F2")°</span>
         </span>
         <span class="status-text" title="@(ViewModel.StatusDetail ?? ViewModel.StatusText)">@ViewModel.StatusText</span>
-        <RunClock Elapsed="() => ViewModel.RunningTime" />
+        <RunClock Elapsed="() => ViewModel.RunningTime" IsRunning="() => ViewModel.IsRunningClockOn" />
     </footer>
 </section>
 
@@ -223,7 +223,8 @@
                 break;
             case nameof(AlpacaServer.IsConnected):
                 // Whoever changed it (toolbar, another view, a lost connection), the page's dots,
-                // count and buttons follow the server's real state.
+                // count and buttons follow the server's real state. The running clock starts or pauses with it.
+                ViewModel.SyncRunningClock();
                 _ = InvokeAsync(StateHasChanged);
                 _ = InvokeAsync(() => OnConnectionChanged.InvokeAsync());
                 break;

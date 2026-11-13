@@ -1,13 +1,16 @@
-@* A view's total running time (hours:minutes:seconds), at the bottom of the view. It re-renders only
+@* How long a view has been connected in total (hours:minutes:seconds), at the bottom of the view. It re-renders only
    itself once a second, so the rest of the 3D view isn't redrawn just to move the clock. *@
 @inherits LocalizedComponentBase
 @implements IDisposable
 
-<span class="run-time" title="@L.T("Total running time of this view (hours:minutes:seconds)")">@L.T("Running {0}", Format(Elapsed?.Invoke() ?? TimeSpan.Zero))</span>
+<span class="run-time" title="@L.T("Total time this view has been connected (hours:minutes:seconds)")">@L.T("Running {0}", Format(Elapsed?.Invoke() ?? TimeSpan.Zero))</span>
 
 @code {
     /// <summary>How long the view has been running.</summary>
     [Parameter, EditorRequired] public Func<TimeSpan>? Elapsed { get; set; }
+
+    /// <summary>Whether the clock is counting; while it isn't (disconnected), it isn't redrawn each second.</summary>
+    [Parameter] public Func<bool>? IsRunning { get; set; }
 
     private readonly CancellationTokenSource _cts = new();
 
@@ -26,7 +29,10 @@
         try
         {
             while (await ticker.WaitForNextTickAsync(token))
-                await InvokeAsync(StateHasChanged);
+            {
+                if (IsRunning?.Invoke() != false)
+                    await InvokeAsync(StateHasChanged);
+            }
         }
         catch (OperationCanceledException)
         {

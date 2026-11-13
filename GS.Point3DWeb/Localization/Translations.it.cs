@@ -198,7 +198,7 @@ internal static partial class Translations
         ["This key expired on {0}."] = "Questa chiave è scaduta il {0}.",
         ["This key isn't valid."] = "Questa chiave non è valida.",
         ["Tilt"] = "Inclinazione",
-        ["Total running time of this view (hours:minutes:seconds)"] = "Tempo totale di esecuzione di questa vista (ore:minuti:secondi)",
+        ["Total time this view has been connected (hours:minutes:seconds)"] = "Tempo totale di connessione di questa vista (ore:minuti:secondi)",
         ["Triangulum galaxy (M33)"] = "Galassia del Triangolo (M33)",
         ["Unknown"] = "Sconosciuto",
         ["Unlocked"] = "Sbloccato",

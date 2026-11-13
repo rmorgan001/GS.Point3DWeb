@@ -34,6 +34,16 @@ builder.Services.AddTransient<Model3DViewModel>();
 
 var app = builder.Build();
 
+// Only Windows encrypts the Data Protection keys at rest (DPAPI). Elsewhere they are plain files in the
+// user's profile (~/.aspnet/DataProtection-Keys), or kept in memory if there is no profile, so say so.
+if (!OperatingSystem.IsWindows())
+{
+    app.Logger.LogWarning(
+        "Saved server passwords are encrypted with keys that are not themselves encrypted on this system; " +
+        "anyone who can read this user's files can read the passwords. In a container, mount the user's home " +
+        "folder or the keys (and so the passwords) are lost on every restart.");
+}
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {

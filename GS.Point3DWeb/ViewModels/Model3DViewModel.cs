@@ -55,10 +55,14 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     public string ModelName =>
         $"{Model3D.GetDisplayName(Server?.ModelType ?? Model3DType.Default)} ({Model3D.GetDisplayName(Mode)})";
 
+    /// <summary>
+    /// The site latitude for the model: until the mount reports it, 0 (the equator), which every use below
+    /// (compass, tilt, pose, axes) treats as the northern hemisphere.
+    /// </summary>
+    private double Latitude => Server?.Latitude ?? 0;
+
     /// <summary>North or south compass on the pier base, as GSServer chooses it.</summary>
-    public bool UseNorthCompass => Server?.Latitude is { } latitude
-        ? Model3D.UseNorthCompass(Mode, latitude)
-        : true; // north until the mount reports its latitude, as GetPose assumes
+    public bool UseNorthCompass => Model3D.UseNorthCompass(Mode, Latitude);
     /// <summary>The server's telescope color.</summary>
     public string ModelColor => ModelAppearance.NormalizeColor(Server?.ModelColor);
 
@@ -74,17 +78,17 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     [ObservableProperty] public partial double SecondaryAxis { get; set; }
 
     /// <summary>Tilt of the primary axis (GSServer's ZAxis): latitude, or 90° for Alt-Az.</summary>
-    public double Tilt => Model3D.GetZAxis(Mode, Server?.Latitude ?? 0);
+    public double Tilt => Model3D.GetZAxis(Mode, Latitude);
 
     /// <summary>Mount data the viewer needs to build the pier.</summary>
-    public object MountInfo => new { mode = (int)Mode, latitude = Server?.Latitude ?? 0 };
+    public object MountInfo => new { mode = (int)Mode, latitude = Latitude };
 
     /// <summary>
     /// GSServer's model transform (XAxisOffset, YAxisOffset, ZAxisOffset, YAxisCentre) for the
     /// current axis positions, with the server's own RA / Dec adjustments.
     /// </summary>
     public (double X, double Y, double Z, double YCentre) CurrentPose => Model3D.GetPose(
-        Mode, Server?.Latitude ?? 0, PrimaryAxis, SecondaryAxis,
+        Mode, Latitude, PrimaryAxis, SecondaryAxis,
         Server?.RaOffset ?? Model3D.DefaultRaOffset,
         Server?.DecOffset ?? Model3D.DefaultDecOffset);
 
@@ -116,12 +120,28 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
     [ObservableProperty] public partial int TimerCounter { get; set; }
     [ObservableProperty] public partial int TimerOverruns { get; set; }
-    // Started with the view's updates; the RunClock component at the bottom of the view reads it once a
-    // second, so the clock doesn't make this view model (and the whole view) re-render every second.
+    // Counts only while the view is updating and its server is connected; it pauses while disconnected and
+    // carries on from there on reconnecting. The RunClock component at the bottom of the view reads it.
     private readonly Stopwatch _runningClock = new();
 
-    /// <summary>How long this view has been running.</summary>
+    /// <summary>How long this view has been connected, in total.</summary>
     public TimeSpan RunningTime => _runningClock.Elapsed;
+
+    /// <summary>Whether the running clock is counting right now (the server is connected).</summary>
+    public bool IsRunningClockOn => _runningClock.IsRunning;
+
+    /// <summary>Runs the clock while the view is updating and the server is connected; pauses it otherwise.</summary>
+    public void SyncRunningClock()
+    {
+        if (_cts is not null && Server?.IsConnected == true)
+        {
+            if (!_runningClock.IsRunning) _runningClock.Start();
+        }
+        else
+        {
+            _runningClock.Stop();
+        }
+    }
 
     /// <summary>The server's polling interval; read every cycle, so an edit applies straight away.</summary>
     public int TimerInMs => (int)(1000 * AlpacaServer.ClampPollSeconds(Server?.PollSeconds ?? AlpacaServer.DefaultPollSeconds));
@@ -132,7 +152,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         StopTimerUpdates();
         _cts = new CancellationTokenSource();
         _ = RunTimerAsync(_cts.Token);
-        if (!_runningClock.IsRunning) _runningClock.Start();
+        SyncRunningClock();
     }
 
     public void StopTimerUpdates()
@@ -141,6 +161,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         _cts?.Dispose();
         _cts = null;
         _timer?.Stop();
+        _runningClock.Stop();
     }
 
     private async Task RunTimerAsync(CancellationToken token)
@@ -156,6 +177,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
             {
                 await Task.Delay(TimerInMs, token);
 
+                // Backstop for connection changes the view didn't see (a different server shown, etc.).
+                SyncRunningClock();
                 var server = Server;
                 if (server is null)
                 {
@@ -169,7 +192,9 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 {
                     _mountInfoRead = false; // read it again after reconnecting
                     if (!IsChangingConnection) StatusText = _connectionMessage ?? L.T("Not connected");
-                    if (IsChangingConnection || timer.Elapsed - _lastConnectedCheck < ConnectedCheckInterval)
+                    // After the user disconnects, don't ask again until they connect.
+                    if (IsChangingConnection || server.DisconnectedByUser
+                        || timer.Elapsed - _lastConnectedCheck < ConnectedCheckInterval)
                         continue;
 
                     _lastConnectedCheck = timer.Elapsed;
@@ -361,10 +386,16 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         StatusText = L.T("Connecting to {0}…", server.ServerName);
         try
         {
-            var connected = await AlpacaConnector.ConnectAsync(server);
+            // Cancelled when the view stops, so a server that doesn't answer can't hold the view's
+            // button on "Connecting…" for the whole HTTP timeout after it is gone.
+            var connected = await AlpacaConnector.ConnectAsync(server, token);
             if (token.IsCancellationRequested) return;
             _connectionMessage = connected ? null : L.T("Could not connect");
             StatusText = connected ? L.T("Connected") : L.T("Could not connect");
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return; // the view stopped
         }
         catch (Exception ex)
         {
@@ -391,8 +422,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         Lst = CoordinateFormat.HoursToHms(deviceState.SiderealTime, "h ", ":", "", 2);
 
         // Convert to mount axis positions for the model
-        // North until the mount reports its latitude (the same default as UseNorthCompass and GetPose).
-        var southern = Server?.Latitude is < 0;
+        var southern = Latitude < 0;
         double[] axes;
         switch (Mode)
         {

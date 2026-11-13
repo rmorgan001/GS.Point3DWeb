@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using GS.Alpaca.Shared;
 using GS.Point3DWeb.Support;
@@ -15,11 +16,30 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     [ObservableProperty]
     public partial bool IsConnected { get; set; }
 
+    /// <summary>
+    /// Set when the user disconnects this server, cleared when they connect it again (not saved).
+    /// Alpaca's "connected" is the device's state, shared by every program using it, so the server can
+    /// still report true after this app disconnects; until the user connects again, that isn't taken as
+    /// this app being connected.
+    /// </summary>
+    public volatile bool DisconnectedByUser;
+
     [ObservableProperty]
     public partial string ServerName { get; set; } = name;
 
     [ObservableProperty]
-    public partial string Url { get; set; } = url;
+    public partial string Url { get; set; } = NormalizeUrl(url);
+
+    private static readonly Regex AlpacaPath =
+        new(@"/api/v1/telescope/(\d+)/?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Trims the address and writes its Alpaca path in lower case (…/api/v1/telescope/{n}/), as Alpaca
+    /// servers expect; anything before it (host, a proxy prefix) is left as typed. The edit dialog accepts
+    /// the path in any case, and requests no longer lower-case the whole address.
+    /// </summary>
+    public static string NormalizeUrl(string url)
+        => AlpacaPath.Replace(url.Trim(), m => $"/api/v1/telescope/{m.Groups[1].Value}/");
 
     [ObservableProperty]
     public partial string? UserName { get; set; }

@@ -26,11 +26,10 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         FeatureKeys = featureKeys ?? throw new ArgumentNullException(nameof(featureKeys));
 
         // These services are shared by every tab and raise their events on the thread of the tab that made
-        // the change, so this tab's handlers are run on its own renderer (see Dispatch).
-        _featureKeyChangedHandler = () => OnPage(OnFeatureKeyChanged);
-        _serversChangedHandler = () => OnPage(OnServersChanged);
-        _layoutChangedHandler = () => OnPage(OnLayoutChanged);
-        FeatureKeys.Changed += _featureKeyChangedHandler;
+        // the change, so this tab's handlers run on its own renderer (OnRenderer).
+        _featureKeyChangedHandler = () => OnRenderer(OnFeatureKeyChanged);
+        _serversChangedHandler = () => OnRenderer(OnServersChanged);
+        _layoutChangedHandler = () => OnRenderer(OnLayoutChanged);
 
         // Read the saved selection first: selecting a server (below) also stores it in the settings.
         var savedSelection = _settingsService.SelectedAlpacaServer;
@@ -40,25 +39,27 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         SelectedAlpacaServer = savedSelection is not null && Array.IndexOf(servers, savedSelection) >= 0
             ? savedSelection
             : servers.FirstOrDefault();
-
-        _settingsService.ServersChanged += _serversChangedHandler;
-        _settingsService.LayoutChanged += _layoutChangedHandler;
     }
 
     private readonly Action _featureKeyChangedHandler;
     private readonly Action _serversChangedHandler;
     private readonly Action _layoutChangedHandler;
+    private bool _subscribed;
 
     /// <summary>
-    /// Runs work on this page's renderer (set by Home.razor to its InvokeAsync), so a change made in another
-    /// tab updates this tab's quadrants and selection between its renders, not in the middle of one.
+    /// Subscribes to the shared services once the page can run their events on its renderer, then
+    /// catches up on anything another tab changed since the constructor read the state.
     /// </summary>
-    public Func<Action, Task>? Dispatch { get; set; }
-
-    private void OnPage(Action action)
+    public override Task InitializeAsync()
     {
-        if (Dispatch is { } dispatch) _ = dispatch(action);
-        else action();
+        if (_subscribed) return Task.CompletedTask;
+        _subscribed = true;
+        FeatureKeys.Changed += _featureKeyChangedHandler;
+        _settingsService.ServersChanged += _serversChangedHandler;
+        _settingsService.LayoutChanged += _layoutChangedHandler;
+        OnServersChanged();
+        OnLayoutChanged();
+        return Task.CompletedTask;
     }
 
     /// <summary>

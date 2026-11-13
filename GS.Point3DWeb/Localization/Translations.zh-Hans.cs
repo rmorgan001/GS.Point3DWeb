@@ -198,7 +198,7 @@ internal static partial class Translations
         ["This key expired on {0}."] = "此密钥已于 {0} 过期。",
         ["This key isn't valid."] = "此密钥无效。",
         ["Tilt"] = "倾斜",
-        ["Total running time of this view (hours:minutes:seconds)"] = "此视图的总运行时间（时:分:秒）",
+        ["Total time this view has been connected (hours:minutes:seconds)"] = "此视图的总连接时间（时:分:秒）",
         ["Triangulum galaxy (M33)"] = "三角座星系（M33）",
         ["Unknown"] = "未知",
         ["Unlocked"] = "已解锁",

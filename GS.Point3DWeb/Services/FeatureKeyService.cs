@@ -79,8 +79,12 @@ public sealed class FeatureKeyService
         {
             lock (_lock)
             {
+                // Write to a temp file then swap it in, so a failed write can't leave the installed key
+                // truncated (and the app unlicensed after a restart) while it still shows as licensed.
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-                File.WriteAllText(FilePath, keyText!.Trim());
+                var tempPath = FilePath + ".tmp";
+                File.WriteAllText(tempPath, keyText!.Trim());
+                File.Move(tempPath, FilePath, overwrite: true);
                 Key = info;
             }
         }

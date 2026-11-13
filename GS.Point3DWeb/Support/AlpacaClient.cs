@@ -54,14 +54,14 @@ namespace GS.Alpaca.Support
         /// </summary>
         /// <param name="method"></param>
         /// <returns></returns>
-        private async Task<AlpacaResponse?> GetAsync(string method)
+        private async Task<AlpacaResponse?> GetAsync(string method, CancellationToken token = default)
         {
             // Only the method name is lower-cased: the server path may be case-sensitive.
             var url = BuildUrl(method.ToLowerInvariant());
             ClientTransactionId++;
             url += $"?ClientID={ClientId}&ClientTransactionID={ClientTransactionId}";
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            return await SendAsync(request);
+            return await SendAsync(request, token);
         }
 
         /// <summary>
@@ -69,11 +69,11 @@ namespace GS.Alpaca.Support
         /// (e.g. 401 when the credentials are wrong) throws with its status, rather than failing to parse
         /// an error page as JSON.
         /// </summary>
-        private async Task<AlpacaResponse?> SendAsync(HttpRequestMessage request)
+        private async Task<AlpacaResponse?> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             if (_authorization is not null) request.Headers.Authorization = _authorization;
-            using var response = await _httpClient.SendAsync(request);
-            var body = await response.Content.ReadAsStringAsync();
+            using var response = await _httpClient.SendAsync(request, token);
+            var body = await response.Content.ReadAsStringAsync(token);
             if (!response.IsSuccessStatusCode)
                 throw new HttpRequestException(DescribeHttpError(response, body), null, response.StatusCode);
             return JsonConvert.DeserializeObject<AlpacaResponse>(body);
@@ -130,10 +130,10 @@ namespace GS.Alpaca.Support
         /// <returns>A task that represents the asynchronous operation. The task result contains an <see cref="AlpacaResponse"/>
         /// with the property details if the method name is valid and a response is received; otherwise, <see
         /// langword="null"/>.</returns>
-        public async Task<AlpacaResponse?> GetPropertyAsync(string method)
+        public async Task<AlpacaResponse?> GetPropertyAsync(string method, CancellationToken token = default)
         {
             if (string.IsNullOrEmpty(method)){return null;}
-            var alpacaResponse = await GetAsync(method);
+            var alpacaResponse = await GetAsync(method, token);
             if (alpacaResponse == null)
             {
                 //todo log null response
@@ -161,7 +161,7 @@ namespace GS.Alpaca.Support
         /// <returns>A task that represents the asynchronous operation. The task result contains an instance of <see
         /// cref="AlpacaResponse"/> with the response data, or <see langword="null"/> if the response cannot be
         /// deserialized.</returns>
-        private async Task<AlpacaResponse?> PutAsync(string method, params (string key, string value)[] parameters)
+        private async Task<AlpacaResponse?> PutAsync(string method, CancellationToken token, params (string key, string value)[] parameters)
         {
             // Only the method name is lower-cased: the server path may be case-sensitive.
             var url = BuildUrl(method.ToLowerInvariant());
@@ -184,7 +184,7 @@ namespace GS.Alpaca.Support
             {
                 Content = new FormUrlEncodedContent(formEntries)
             };
-            return await SendAsync(request);
+            return await SendAsync(request, token);
         }
 
         /// <summary>
@@ -195,10 +195,10 @@ namespace GS.Alpaca.Support
         /// returned value to determine whether the connection was established successfully.</remarks>
         /// <returns>An <see cref="AlpacaResponse"/> that contains the result of the connection attempt, or <see
         /// langword="null"/> if the connection fails.</returns>
-        public async Task<AlpacaResponse?> ConnectAsync()
+        public async Task<AlpacaResponse?> ConnectAsync(CancellationToken token = default)
         {
             const string method = "connected";
-            var alpacaResponse = await PutAsync(method, ("Connected", "true"));
+            var alpacaResponse = await PutAsync(method, token, ("Connected", "true"));
             if (alpacaResponse == null)
             {
                 //todo log null response
@@ -217,7 +217,7 @@ namespace GS.Alpaca.Support
         /// <returns></returns>
         public async Task<bool> DisconnectAsync()
         {
-            var response = await PutAsync("connected", ("Connected", "false"));
+            var response = await PutAsync("connected", CancellationToken.None, ("Connected", "false"));
             return response is { ErrorNumber: 0 };
         }
     }

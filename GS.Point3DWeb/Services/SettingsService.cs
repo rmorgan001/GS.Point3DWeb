@@ -175,7 +175,7 @@ public class SettingsService
                 {
                     IdGuid = s.IdGuid,
                     UserName = s.UserName,
-                    Password = UnprotectPassword(s.Password),
+                    Password = UnprotectPassword(s.IdGuid, s.Password),
                     // Older files have no model settings, so they get the defaults.
                     ModelType = Enum.TryParse<Model3DType>(s.ModelType, out var modelType) ? modelType : Model3DType.Default,
                     RaOffset = Model3D.ClampOffset(s.RaOffset is { } ra ? ra - legacyRa : Model3D.DefaultRaOffset),
@@ -212,6 +212,7 @@ public class SettingsService
         catch (Exception ex)
         {
             _servers.Clear();
+            _storedPasswords.Clear();
             SelectedAlpacaServer = null;
             _logger.LogError(ex, "Could not read server list from {FilePath}", FilePath);
             KeepUnreadableFile(ex);
@@ -271,7 +272,7 @@ public class SettingsService
             var quadrants = QuadrantServerIds;
             var stored = new StoredSettings(
                 SelectedAlpacaServer?.IdGuid,
-                [.. servers.Select(s => new StoredServer(s.IdGuid, s.ServerName, s.Url, s.UserName, ProtectPassword(s.Password),
+                [.. servers.Select(s => new StoredServer(s.IdGuid, s.ServerName, s.Url, s.UserName, ProtectPassword(s.IdGuid, s.Password),
                     s.ModelType.ToString(), s.RaOffset, s.DecOffset,
                     s.ShowRa, s.ShowDec, s.ShowAz, s.ShowAlt, s.ShowLha,
                     s.PolarMode.ToString(), s.AlignmentMode.ToString(), s.Latitude, s.Camera,
@@ -290,22 +291,58 @@ public class SettingsService
         }
     }
 
-    private string? ProtectPassword(string? password)
-        => string.IsNullOrEmpty(password) ? null : _passwordProtector.Protect(password);
+    // Each server's password as last loaded or saved, with its encrypted text (by server IdGuid). Saving an
+    // unchanged password writes the same text back: no encryption on every save, and a password that
+    // couldn't be decrypted (Password is null) is kept in the file rather than lost. Used under _saveLock,
+    // or at start-up before anything can save.
+    private readonly Dictionary<string, (string? Plain, string Encrypted)> _storedPasswords = [];
 
-    /// <summary>The saved password, or null if there is none or it can't be decrypted (another user or computer).</summary>
-    private string? UnprotectPassword(string? stored)
+    /// <summary>
+    /// The encrypted text to save for a server's password. If it can't be encrypted (the key store can't be
+    /// written), the password is left out of the file rather than failing the whole save.
+    /// </summary>
+    private string? ProtectPassword(string idGuid, string? password)
     {
-        if (string.IsNullOrEmpty(stored)) return null;
-        try
+        if (_storedPasswords.TryGetValue(idGuid, out var stored) && stored.Plain == password)
+            return stored.Encrypted;
+        if (string.IsNullOrEmpty(password))
         {
-            return _passwordProtector.Unprotect(stored);
-        }
-        catch (CryptographicException ex)
-        {
-            _logger.LogWarning(ex, "A saved server password could not be decrypted; it has to be entered again");
+            _storedPasswords.Remove(idGuid);
             return null;
         }
+
+        try
+        {
+            var encrypted = _passwordProtector.Protect(password);
+            _storedPasswords[idGuid] = (password, encrypted);
+            return encrypted;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "A server password could not be encrypted, so it isn't saved; it has to be entered again after a restart");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The saved password, or null if there is none or it can't be decrypted (another user or computer, a
+    /// missing key, or text that isn't encrypted at all). The encrypted text is remembered either way.
+    /// </summary>
+    private string? UnprotectPassword(string idGuid, string? stored)
+    {
+        if (string.IsNullOrEmpty(stored)) return null;
+        string? password;
+        try
+        {
+            password = _passwordProtector.Unprotect(stored);
+        }
+        catch (Exception ex) when (ex is CryptographicException or FormatException)
+        {
+            _logger.LogWarning(ex, "A saved server password could not be decrypted; it is kept in the file but has to be entered again");
+            password = null;
+        }
+        _storedPasswords[idGuid] = (password, stored);
+        return password;
     }
 
     /// <summary>File format version; 2 = model offsets are adjustments on the alignment mode's offsets.</summary>

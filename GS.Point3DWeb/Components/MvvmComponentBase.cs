@@ -16,8 +16,25 @@ public abstract class MvvmComponentBase<TViewModel> : LocalizedComponentBase, ID
 
     protected override async Task OnInitializedAsync()
     {
+        ViewModel.Dispatcher = RunOnRendererAsync;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         await ViewModel.InitializeAsync();
+    }
+
+    /// <summary>
+    /// Runs view-model work on this component's renderer. An exception is reported to this component
+    /// (as if it had thrown it itself), rather than lost in a task nobody awaits.
+    /// </summary>
+    private async Task RunOnRendererAsync(Action action)
+    {
+        try
+        {
+            await InvokeAsync(action);
+        }
+        catch (Exception ex)
+        {
+            await DispatchExceptionAsync(ex);
+        }
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- ASCOM COM driver on this computer: a desktop computer, styled like the Alpaca logo (navy tile, gold border). -->
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity=".85"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="1.5" y="1.5" width="61" height="61" rx="3" fill="#002060" stroke="#b8a200" stroke-width="3"/>
+  <!-- monitor -->
+  <rect x="12" y="14" width="40" height="27" rx="2.5" fill="none" stroke="#ffeb00" stroke-width="3.5"/>
+  <!-- stand -->
+  <path d="M28 41v7M36 41v7M21 50h22" fill="none" stroke="#ffeb00" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- a star on the screen -->
+  <circle cx="32" cy="27.5" r="8" fill="url(#glow)"/>
+</svg>

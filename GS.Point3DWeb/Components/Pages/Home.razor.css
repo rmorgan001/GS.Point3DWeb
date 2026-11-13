@@ -394,6 +394,18 @@
     color: var(--yellow);
 }
 
+/* The server's kind: the Alpaca or ASCOM logo. */
+.kind {
+    flex: none;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 3px;
+}
+
+.server-item.locked .kind {
+    filter: grayscale(1);
+}
+
 .server-text {
     display: flex;
     flex-direction: column;

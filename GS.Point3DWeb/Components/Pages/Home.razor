@@ -72,7 +72,7 @@
     <div class="workspace">
     <aside class="sidebar" @ondragenter="() => _hoverQuadrant = -1">
         <div class="sidebar-header">
-            <h2>@L.T("Alpaca Servers")</h2>
+            <h2>@L.T("Telescope Mounts")</h2>
             <span class="count" title="@L.T("Servers in the list")">
                 @ViewModel.Count@(ViewModel.IsLicensed ? "" : $" / {FeatureKeyService.FreeMaxServers}")
             </span>
@@ -112,7 +112,7 @@
             </button>
         </div>
 
-        <nav class="server-nav" aria-label="@L.T("Alpaca Servers")">
+        <nav class="server-nav" aria-label="@L.T("Telescope Mounts")">
             <ul class="server-list">
                 @foreach (var server in ViewModel.AlpacaServers)
                 {
@@ -130,6 +130,9 @@
                                 @onkeydown="e => OnServerKeyDown(e, server)">
                             <span class="status @(server.IsConnected ? "connected" : null)"
                                   title="@(server.IsConnected ? L.T("Connected") : L.T("Not connected"))"></span>
+                            @* Alpaca server or ASCOM COM driver: the project's logo. *@
+                            <img class="kind" src="@(server.IsCom ? "img/com.svg" : "img/alpaca.png")"
+                                 alt="@KindText(server)" title="@KindText(server)" draggable="false" />
                             <span class="server-text">
                                 <span class="name">@server.ServerName</span>
                                 <span class="address">@ServerAddress(server)</span>
@@ -271,12 +274,14 @@
 
     private int ConnectedCount => ViewModel.AlpacaServers.Count(s => s.IsConnected);
 
+    private static string KindText(AlpacaServer server) => server.IsCom ? L.T("ASCOM driver") : L.T("Alpaca server");
+
     private static string ServerTooltip(AlpacaServer server) => $"{server.Url}\n{L.T("Double-click (or F2) to edit")}";
 
     /// <summary>Short address for the list: host:port and device number.</summary>
     private static string ServerAddress(AlpacaServer server)
     {
-        if (server.ProgId is { } progId) return $"ASCOM · {progId}";
+        if (server.ProgId is { } progId) return progId; // the ASCOM icon says what it is
         if (!Uri.TryCreate(server.Url, UriKind.Absolute, out var uri)) return server.Url;
         var device = uri.Segments.LastOrDefault()?.Trim('/');
         return int.TryParse(device, out var number)

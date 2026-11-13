@@ -14,6 +14,9 @@ public abstract class MvvmComponentBase<TViewModel> : LocalizedComponentBase, ID
     [Inject]
     protected TViewModel ViewModel { get; set; } = default!;
 
+    [Inject]
+    private ILoggerFactory LoggerFactory { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
         ViewModel.Dispatcher = RunOnRendererAsync;
@@ -22,8 +25,9 @@ public abstract class MvvmComponentBase<TViewModel> : LocalizedComponentBase, ID
     }
 
     /// <summary>
-    /// Runs view-model work on this component's renderer. An exception is reported to this component
-    /// (as if it had thrown it itself), rather than lost in a task nobody awaits.
+    /// Runs view-model work on this component's renderer. The work handles a change made elsewhere (another
+    /// tab), so an exception is logged rather than lost, and doesn't end this tab's session for one missed
+    /// update. Work arriving after the component is gone is dropped.
     /// </summary>
     private async Task RunOnRendererAsync(Action action)
     {
@@ -31,9 +35,13 @@ public abstract class MvvmComponentBase<TViewModel> : LocalizedComponentBase, ID
         {
             await InvokeAsync(action);
         }
+        catch (ObjectDisposedException)
+        {
+            // the page closed while the change was on its way
+        }
         catch (Exception ex)
         {
-            await DispatchExceptionAsync(ex);
+            LoggerFactory.CreateLogger(GetType()).LogError(ex, "Applying a change from another tab failed");
         }
     }
 
@@ -43,6 +51,7 @@ public abstract class MvvmComponentBase<TViewModel> : LocalizedComponentBase, ID
     public virtual void Dispose()
     {
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        ViewModel.Detach(); // an event already on its way is then dropped, not run on a disposed page
         (ViewModel as IDisposable)?.Dispose();
         GC.SuppressFinalize(this);
     }

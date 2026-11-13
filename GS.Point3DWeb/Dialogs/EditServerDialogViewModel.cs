@@ -25,7 +25,13 @@ public partial class EditServerDialogViewModel : DialogViewModel
         Password = server.Password;
         PollSeconds = server.PollSeconds;
         ClientTransactionId = server.ClientTransactionId;
+        _passwordEdited = false; // setting Password above isn't an edit
     }
+
+    // Whether the user typed in (or cleared) the password field.
+    private bool _passwordEdited;
+
+    partial void OnPasswordChanged(string? value) => _passwordEdited = true;
 
     [ObservableProperty] public partial string Title { get; set; } = L.T("Edit Server");
     [ObservableProperty] public partial string AcceptText { get; set; } = L.T("Accept");
@@ -66,16 +72,22 @@ public partial class EditServerDialogViewModel : DialogViewModel
     public void ApplyTo(AlpacaServer server)
     {
         var url = AlpacaServer.NormalizeUrl(Url);
-        var urlChanged = !string.Equals(server.Url, url, StringComparison.OrdinalIgnoreCase);
+        var urlChanged = !AlpacaServer.SameUrl(server.Url, url);
 
         server.ServerName = ServerName.Trim();
         server.Url = url;
         server.UserName = string.IsNullOrWhiteSpace(UserName) ? null : UserName;
         server.Password = string.IsNullOrEmpty(Password) ? null : Password;
+        // A saved password that couldn't be decrypted is replaced (or removed) only when the user edits it.
+        if (_passwordEdited) server.PasswordUnreadable = false;
         server.PollSeconds = AlpacaServer.ClampPollSeconds(PollSeconds);
 
         // A different address is a different device, so the old connection no longer applies.
-        if (urlChanged) server.IsConnected = false;
+        if (urlChanged)
+        {
+            server.ConnectRequested = false;
+            server.IsConnected = false;
+        }
     }
 
     [RelayCommand]

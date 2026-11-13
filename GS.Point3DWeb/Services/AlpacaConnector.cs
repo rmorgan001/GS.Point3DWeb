@@ -7,7 +7,7 @@ namespace GS.Point3DWeb.Services;
 
 /// <summary>
 /// Connect / disconnect an Alpaca telescope server without any UI.
-/// Used by the toolbar Connect button and by the 3D views (auto-connect and their Connect / Disconnect button).
+/// Used by the toolbar Connect button and by the 3D views (connecting a server dragged onto a view, and their Connect / Disconnect button).
 /// Every method leaves <see cref="AlpacaServer.IsConnected"/> set to what the server itself reports,
 /// so the connection dots and buttons never show an assumed state.
 /// </summary>
@@ -24,7 +24,7 @@ public static class AlpacaConnector
     /// </summary>
     public static async Task<bool> ConnectAsync(AlpacaServer server, CancellationToken token = default)
     {
-        server.DisconnectedByUser = false;
+        server.ConnectRequested = true;
         try
         {
             var client = CreateClient(server);
@@ -50,6 +50,12 @@ public static class AlpacaConnector
             server.IsConnected = isConnected;
             return isConnected;
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // The view that was connecting stopped. The server is shared, so leave its state alone:
+            // another view or tab may have connected it meanwhile.
+            throw;
+        }
         catch
         {
             server.IsConnected = false;
@@ -59,7 +65,7 @@ public static class AlpacaConnector
 
     /// <summary>
     /// Asks the server to disconnect. If it accepts, this app is disconnected, even though the device may
-    /// stay connected for other programs (see <see cref="AlpacaServer.DisconnectedByUser"/>). If it returns
+    /// stay connected for other programs (see <see cref="AlpacaServer.ConnectRequested"/>). If it returns
     /// an error, reads back whether it really disconnected. Returns true if the server is still connected
     /// (it refused and kept the connection open).
     /// </summary>
@@ -71,7 +77,7 @@ public static class AlpacaConnector
 
         if (accepted)
         {
-            server.DisconnectedByUser = true;
+            server.ConnectRequested = false;
             server.IsConnected = false;
             return false;
         }
@@ -110,7 +116,7 @@ public static class AlpacaConnector
         {
             connected = false;
         }
-        if (server.DisconnectedByUser) connected = false;
+        if (!server.ConnectRequested) connected = false;
 
         server.IsConnected = connected;
         return connected;

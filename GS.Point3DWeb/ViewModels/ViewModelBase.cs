@@ -23,9 +23,15 @@ public abstract partial class ViewModelBase : ObservableObject
     /// </summary>
     protected void OnRenderer(Action action)
     {
+        if (_detached) return; // the view is gone
         if (Dispatcher is { } dispatcher) _ = dispatcher(action); // it handles exceptions itself
         else action();
     }
+
+    private volatile bool _detached;
+
+    /// <summary>Called when the owning view is disposed: work for it from <see cref="OnRenderer"/> is dropped.</summary>
+    internal void Detach() => _detached = true;
 
     /// <summary>
     /// Called once when the owning view is initialized, after <see cref="Dispatcher"/> is set.

@@ -80,7 +80,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     /// The quadrant layout or view count changed, here or in another tab: show the shared layout.
-    /// A quadrant whose server changed is rebuilt (and reconnects); the others are left alone.
+    /// A quadrant whose server changed is rebuilt (it shows the server as it is, without connecting); the others are left alone.
     /// </summary>
     private void OnLayoutChanged()
     {
@@ -222,7 +222,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
         // A new address is a different device: disconnect the old one rather than leave this app
         // connected to it. Best effort; the old address may no longer answer.
-        if (wasConnected && !string.Equals(oldUrl, server.Url, StringComparison.OrdinalIgnoreCase))
+        if (wasConnected && !AlpacaServer.SameUrl(oldUrl, server.Url))
         {
             try
             {
@@ -473,6 +473,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         Quadrants[index].Server = server;
         Quadrants[index].Generation++;
         Quadrants[index].Flipped = false;
+        Quadrants[index].ConnectOnOpen = true; // dragging a server to a view is the one automatic connect
         SelectedAlpacaServer = server;
         _settingsService.SetQuadrant(index, server.IdGuid);
         OnPropertyChanged(nameof(Quadrants));
@@ -499,7 +500,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     /// <summary>Saves a per-server view change (shown coordinates, camera) made in a quadrant.</summary>
     public Task ServerSettingsChangedAsync() => PersistAsync();
 
-    /// <summary>Fills the quadrants from the stored assignments (they then auto-connect).</summary>
+    /// <summary>Fills the quadrants from the stored assignments (they show the servers without connecting them).</summary>
     private void RestoreQuadrants()
     {
         var ids = _settingsService.QuadrantServerIds;
@@ -517,8 +518,19 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         /// <summary>True while the quadrant shows its settings (back of the flip card).</summary>
         public bool Flipped { get; set; }
 
-        /// <summary>Bumped on every drop so the view is rebuilt (and reconnects).</summary>
+        /// <summary>Bumped on every drop so the view is rebuilt.</summary>
         public int Generation { get; set; }
+
+        /// <summary>Set by a drop: the view it opens connects its server. Taken once, by that view.</summary>
+        public bool ConnectOnOpen { get; set; }
+
+        /// <summary>Whether the view now opening should connect; clears it, so a later rebuild doesn't.</summary>
+        public bool TakeConnectOnOpen()
+        {
+            var connect = ConnectOnOpen;
+            ConnectOnOpen = false;
+            return connect;
+        }
 
         public string Key => $"{Server?.IdGuid}-{Generation}";
     }

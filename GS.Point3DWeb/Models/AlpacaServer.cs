@@ -17,12 +17,13 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     public partial bool IsConnected { get; set; }
 
     /// <summary>
-    /// Set when the user disconnects this server, cleared when they connect it again (not saved).
-    /// Alpaca's "connected" is the device's state, shared by every program using it, so the server can
-    /// still report true after this app disconnects; until the user connects again, that isn't taken as
-    /// this app being connected.
+    /// True once the user has connected this server from this app (Connect, or dragging it to a view), until
+    /// they disconnect it or change its address; not saved, so every run starts disconnected.
+    /// Alpaca's "connected" is the device's state, shared by every program using it, so the server can report
+    /// true when this app never connected it (or has disconnected it); that is only taken as this app being
+    /// connected while this is set.
     /// </summary>
-    public volatile bool DisconnectedByUser;
+    public volatile bool ConnectRequested;
 
     [ObservableProperty]
     public partial string ServerName { get; set; } = name;
@@ -40,6 +41,21 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     /// </summary>
     public static string NormalizeUrl(string url)
         => AlpacaPath.Replace(url.Trim(), m => $"/api/v1/telescope/{m.Groups[1].Value}/");
+
+    /// <summary>
+    /// Whether two addresses are the same device: the scheme and host may differ in case, the path may not
+    /// (a proxy prefix can be case-sensitive).
+    /// </summary>
+    public static bool SameUrl(string a, string b)
+        => Uri.TryCreate(NormalizeUrl(a), UriKind.Absolute, out var ua) && Uri.TryCreate(NormalizeUrl(b), UriKind.Absolute, out var ub)
+            ? Uri.Compare(ua, ub, UriComponents.AbsoluteUri, UriFormat.UriEscaped, StringComparison.Ordinal) == 0
+            : string.Equals(NormalizeUrl(a), NormalizeUrl(b), StringComparison.Ordinal);
+
+    /// <summary>
+    /// Set at start-up when the saved password couldn't be decrypted (Password is then null); not saved.
+    /// The encrypted text is kept in the file until the user enters or clears the password in the edit dialog.
+    /// </summary>
+    public bool PasswordUnreadable { get; set; }
 
     [ObservableProperty]
     public partial string? UserName { get; set; }

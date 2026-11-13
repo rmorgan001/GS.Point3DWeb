@@ -110,7 +110,13 @@
     /// <summary>Shows a close button when set.</summary>
     [Parameter] public EventCallback OnClose { get; set; }
 
-    /// <summary>Raised after the auto-connect changes the server's connection state.</summary>
+    /// <summary>
+    /// Asked once, as the view starts: true if it should connect its server (the user just dragged the server
+    /// onto it). Otherwise the view only shows the server's state.
+    /// </summary>
+    [Parameter] public Func<bool>? ConnectOnOpen { get; set; }
+
+    /// <summary>Raised after the view (connecting on open, or polling) changes the server's connection state.</summary>
     [Parameter] public EventCallback OnConnectionChanged { get; set; }
 
     /// <summary>Raised after a per-server setting changes from this view (Ra units toggled), so the owner can save.</summary>
@@ -328,6 +334,7 @@
 
             ViewModel.RotationChanged += OnRotationChanged;
             ViewModel.ConnectionChanged += OnVmConnectionChanged;
+            ViewModel.ConnectOnStart = ConnectOnOpen?.Invoke() == true;
             ViewModel.StartTimerUpdates();
         }
         catch (JSDisconnectedException)

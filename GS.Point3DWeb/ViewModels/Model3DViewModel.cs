@@ -122,7 +122,10 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     [ObservableProperty] public partial int TimerOverruns { get; set; }
     // Counts only while the view is updating and its server is connected; it pauses while disconnected and
     // carries on from there on reconnecting. The RunClock component at the bottom of the view reads it.
+    // Started and stopped from the poll loop and from connection changes raised on other threads (another
+    // tab, the toolbar), so every Start / Stop is under this lock; Stopwatch itself isn't thread-safe.
     private readonly Stopwatch _runningClock = new();
+    private readonly Lock _runningClockLock = new();
 
     /// <summary>How long this view has been connected, in total.</summary>
     public TimeSpan RunningTime => _runningClock.Elapsed;
@@ -133,13 +136,16 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     /// <summary>Runs the clock while the view is updating and the server is connected; pauses it otherwise.</summary>
     public void SyncRunningClock()
     {
-        if (_cts is not null && Server?.IsConnected == true)
+        lock (_runningClockLock)
         {
-            if (!_runningClock.IsRunning) _runningClock.Start();
-        }
-        else
-        {
-            _runningClock.Stop();
+            if (_cts is not null && Server?.IsConnected == true)
+            {
+                if (!_runningClock.IsRunning) _runningClock.Start();
+            }
+            else
+            {
+                _runningClock.Stop();
+            }
         }
     }
 
@@ -161,7 +167,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         _cts?.Dispose();
         _cts = null;
         _timer?.Stop();
-        _runningClock.Stop();
+        lock (_runningClockLock) _runningClock.Stop();
     }
 
     private async Task RunTimerAsync(CancellationToken token)
@@ -171,7 +177,9 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         _timer = timer;
         try
         {
-            await AutoConnectAsync(token);
+            // Only a view the user just dragged a server onto connects it; a view that is rebuilt (page reload,
+            // another tab, a layout change) shows the server as it is.
+            if (ConnectOnStart) await AutoConnectAsync(token);
 
             while (!token.IsCancellationRequested)
             {
@@ -192,8 +200,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 {
                     _mountInfoRead = false; // read it again after reconnecting
                     if (!IsChangingConnection) StatusText = _connectionMessage ?? L.T("Not connected");
-                    // After the user disconnects, don't ask again until they connect.
-                    if (IsChangingConnection || server.DisconnectedByUser
+                    // Not connected by the user (never, or they disconnected): don't ask until they connect.
+                    if (IsChangingConnection || !server.ConnectRequested
                         || timer.Elapsed - _lastConnectedCheck < ConnectedCheckInterval)
                         continue;
 
@@ -371,6 +379,9 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         }
         ConnectionChanged?.Invoke();
     }
+
+    /// <summary>Connect when the view starts: set for a view the user just dragged a server onto.</summary>
+    public bool ConnectOnStart { get; set; }
 
     private async Task AutoConnectAsync(CancellationToken token)
     {

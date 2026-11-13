@@ -114,6 +114,13 @@ at once, and attaches them, with a `SHA256SUMS.txt` checksum file, to a GitHub R
 tag. Its notes list the changes since the last release. The tag sets the version shown in the
 app. A tag with a suffix, such as `v1.1.0-beta.1`, is published as a pre-release.
 
+Each successful release is then copied, downloads and all, to the public
+[GS.Point3DWeb-Releases](https://github.com/rmorgan001/GS.Point3DWeb-Releases) repository by the
+[mirror workflow](.github/workflows/mirror-release.yml), so people can download it without access to
+this repository. To copy an earlier release again, run **Mirror release** by hand from the
+Actions tab with its tag. The workflow needs a `PUBLIC_RELEASES_TOKEN` secret: a fine-grained
+token for the public repository only, with *Contents: Read and write*.
+
 ## Where things are stored
 
 | What | Windows | Linux / macOS |

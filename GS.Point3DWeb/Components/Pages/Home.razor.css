@@ -185,12 +185,19 @@
         background: var(--green-soft);
     }
 
-/* Help: a round icon-only button at the far right of the header. */
+/* Help: a round icon-only button at the far right of the header, colored like the language menu beside it. */
 .help-button {
     justify-content: center;
     width: 2rem;
     padding: 0;
+    color: var(--mare);
 }
+
+    .help-button:hover {
+        color: var(--moon);
+        border-color: var(--mare);
+        background: transparent;
+    }
 
 /* Language menu: a <details> drop-down at the right of the header, as on greenswamp.org. */
 .lang-menu {

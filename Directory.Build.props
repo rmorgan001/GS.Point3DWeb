@@ -2,10 +2,15 @@
 
   <!-- Shared by every project in the repository (the web app and tools). -->
   <PropertyGroup>
-    <!-- Product version: shown in the web app's header and stamped on the assemblies.
-         Use major.minor[.patch], optionally with a pre-release suffix (e.g. 1.1.0-beta).
-         Releases built from a version tag (v1.2.0) use the tag's version instead (.github/workflows/release.yml). -->
-    <Version>1.0</Version>
+    <!-- Product version: shown in the web app's header and stamped on the assemblies. It comes from git:
+         - a release built from a version tag (v1.2.0) uses the tag's version (.github/workflows/release.yml);
+         - any other build uses the newest version tag plus the commits since it, e.g. 1.2.0+3
+           (Directory.Build.targets);
+         - DefaultVersion is used only when there is no git, repository or version tag. -->
+    <DefaultVersion>1.0</DefaultVersion>
+    <Version>$(DefaultVersion)</Version>
+    <!-- Keep the commit hash out of the displayed version (the SDK would append "+<hash>"). -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>GS Point3D Web</Product>
   </PropertyGroup>
 

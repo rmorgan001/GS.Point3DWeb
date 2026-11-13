@@ -220,6 +220,7 @@
             the address to listen on, then browse to that computer's name or IP address and port:
         </p>
         <pre><code>GS.Point3DWeb --urls "http://0.0.0.0:5000"</code></pre>
+        <p>The address can also be set once and for all: change <code>Urls</code> in <code>appsettings.json</code>, in the app's folder (the default is <code>http://localhost:5000</code>). An address given with <code>--urls</code> overrides it.</p>
         <p class="warning">
             Anyone who can reach that address can connect and disconnect your mounts and change the server
             list, so only do this on a network you trust.

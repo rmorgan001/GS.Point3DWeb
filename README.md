@@ -64,8 +64,9 @@ Extract it, run `GS.Point3DWeb` (`GS.Point3DWeb.exe` on Windows) and open
 <http://localhost:5000>. The macOS builds aren't signed: if macOS blocks the app, run
 `xattr -dr com.apple.quarantine` on the extracted folder.
 
-To use another port, or to open the app from other computers on the network, set the address it
-listens on when you start it:
+To use another port, or to open the app from other computers on the network, change the address it
+listens on. Either set `Urls` in `appsettings.json`, next to the app (the default is
+`http://localhost:5000`), or give it when you start the app, which overrides the file:
 
 ```shell
 GS.Point3DWeb --urls "http://0.0.0.0:5000"

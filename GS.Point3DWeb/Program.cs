@@ -39,7 +39,7 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 
-// UI language: the culture cookie (set by /culture/set from the header dropdown), else the browser's
+// UI language: the culture cookie (set by /culture/set from the header language menu), else the browser's
 // Accept-Language, else English. Only the UI culture changes; number and date formats stay the
 // server's, so values sent to mounts and saved to JSON are never affected.
 var serverCulture = CultureInfo.CurrentCulture;
@@ -54,7 +54,7 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 
-// Header language dropdown: remember the choice for a year, then reload the page in it.
+// Header language menu: remember the choice for a year, then reload the page in it.
 app.MapGet("/culture/set", (string? culture, string? redirectUri, HttpContext context) =>
 {
     if (Languages.Find(culture) is { } language)

@@ -42,28 +42,26 @@
             </div>
 
             @* Language menu, as on greenswamp.org: a <details> drop-down showing the globe and the current
-               language's code. Each entry links to /culture/set, which saves the choice and reloads the page. *@
+               language's code. Each entry is a plain link to /culture/set, which saves the choice and reloads
+               the page. target="_top" keeps Blazor's router from intercepting it, so it is a real page load
+               that works without the circuit (and Ctrl-click opens a new tab). wwwroot/app.js closes the menu
+               on an outside click or Escape, and on a click of the language already showing. *@
+            @{
+                var currentLanguage = Languages.Current;
+                var returnPath = ReturnPath;
+            }
             <details class="lang-menu">
-                <summary aria-label="@($"{L.T("Language")}: {Languages.Current.NativeName}")">
+                <summary aria-label="@($"{L.T("Language")}: {currentLanguage.NativeName}")">
                     <span class="lang-globe" aria-hidden="true">🌐</span>
-                    <span class="lang-current">@Languages.Current.ShortCode</span>
+                    <span class="lang-current">@currentLanguage.ShortCode</span>
                 </summary>
                 <ul>
                     @foreach (var language in Languages.All)
                     {
+                        var current = language == currentLanguage;
                         <li>
-                            @if (language == Languages.Current)
-                            {
-                                @* Already showing: just close the menu (a reload would reconnect every view). *@
-                                <a href="@LanguageLink(language)" lang="@language.Code" hreflang="@language.Code"
-                                   class="current" aria-current="true"
-                                   onclick="this.closest('details').open = false; return false;">@language.NativeName</a>
-                            }
-                            else
-                            {
-                                <a href="@LanguageLink(language)" lang="@language.Code" hreflang="@language.Code"
-                                   @onclick="() => ChangeLanguage(language)" @onclick:preventDefault>@language.NativeName</a>
-                            }
+                            <a href="@LanguageLink(language, returnPath)" target="_top" lang="@language.Code" hreflang="@language.Code"
+                               class="@(current ? "current" : null)" aria-current="@(current ? "true" : null)">@language.NativeName</a>
                         </li>
                     }
                 </ul>
@@ -247,13 +245,15 @@
     private static string LockedTooltip(AlpacaServer server)
         => $"{server.Url}\n{L.T("Needs a feature key (free version: {0} servers)", FeatureKeyService.FreeMaxServers)}";
 
-    /// <summary>The address that saves a language in the culture cookie and comes back to this page.</summary>
-    private string LanguageLink(Language language)
-        => $"culture/set?culture={Uri.EscapeDataString(language.Code)}" +
-           $"&redirectUri={Uri.EscapeDataString("/" + Navigation.ToBaseRelativePath(Navigation.Uri))}";
+    /// <summary>
+    /// This page's path and query, escaped for the redirect. It includes the app's base path, so the
+    /// redirect comes back here even when the app is hosted under a sub-path.
+    /// </summary>
+    private string ReturnPath => Uri.EscapeDataString(new Uri(Navigation.Uri).PathAndQuery);
 
-    /// <summary>Follows a language link as a full page load (the router would treat /culture/set as an app page).</summary>
-    private void ChangeLanguage(Language language) => Navigation.NavigateTo(LanguageLink(language), forceLoad: true);
+    /// <summary>The address that saves a language in the culture cookie and comes back to this page.</summary>
+    private static string LanguageLink(Language language, string returnPath)
+        => $"culture/set?culture={Uri.EscapeDataString(language.Code)}&redirectUri={returnPath}";
 
     private int ConnectedCount => ViewModel.AlpacaServers.Count(s => s.IsConnected);
 

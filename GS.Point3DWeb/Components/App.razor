@@ -22,15 +22,7 @@
     <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
-    <script>
-        // Firefox only starts a drag when data is set; Blazor can't set dataTransfer from C#.
-        document.addEventListener('dragstart', e => {
-            const el = e.target.closest && e.target.closest('[data-server-id]');
-            if (!el) return;
-            e.dataTransfer.setData('text/plain', el.dataset.serverId);
-            e.dataTransfer.effectAllowed = 'copy';
-        });
-    </script>
+    <script src="@Assets["app.js"]"></script>
 </body>
 
 </html>

@@ -1,29 +1,37 @@
 // GS Point3D Web feature-key generator.
 //
-// A feature key is   GSP3W1.<payload>.<signature>   (both parts base64url):
-//   payload   = UTF-8 JSON {"name":"...","issued":"yyyy-MM-dd","expires":"yyyy-MM-dd" | null}
-//   signature = ECDSA P-256 / SHA-256 over the payload bytes (IEEE P1363 format)
-// The web app holds only the public key (Services/FeatureKeyService.cs), so it can check keys
-// but not make them. The private key stays with this tool, outside the repository.
+// The key format and the web app's public key are in GS.Point3DWeb/Support/FeatureKeyFormat.cs, which
+// this tool compiles too, so the two always agree. The web app holds only the public key, so it can check
+// keys but not make them. The private key stays with this tool, outside the repository.
 //
 // Commands:
 //   init   [--key <file>] [--force]                  create the signing key pair; prints the public key
-//   public [--key <file>]                            print the public key (paste into FeatureKeyService)
+//   public [--key <file>]                            print the public key (paste into FeatureKeyFormat.cs)
 //   issue  --name "<licensee>" [--expires yyyy-MM-dd] [--key <file>]   print a new feature key
-//   verify <feature-key> [--key <file>]              check a key against the key pair
+//   verify <feature-key>                             check a key the way the web app does
 
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-
-const string Prefix = "GSP3W1";
+using GS.Point3DWeb.Support;
 
 var defaultKeyFile = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
     "GS.Point3DWeb.KeyGen", "private-key.pem");
 
 if (args.Length == 0) return Usage();
+
+// An option given without its value (e.g. "--name --expires 2027-01-01") is an error, not the next
+// option's name taken as the value.
+foreach (var option in new[] { "--key", "--name", "--expires" })
+{
+    if (HasFlag(option) && Option(option) is null)
+    {
+        Console.Error.WriteLine($"{option} needs a value.");
+        return 1;
+    }
+}
 
 var command = args[0].ToLowerInvariant();
 var keyFile = Option("--key") ?? defaultKeyFile;
@@ -42,12 +50,12 @@ try
             }
 
             using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-            Directory.CreateDirectory(Path.GetDirectoryName(keyFile)!);
-            File.WriteAllText(keyFile, ecdsa.ExportPkcs8PrivateKeyPem());
+            WritePrivateKey(keyFile, ecdsa.ExportPkcs8PrivateKeyPem());
             Console.WriteLine($"Private key written to {keyFile}");
             Console.WriteLine("Back this file up and keep it private.");
             Console.WriteLine();
-            Console.WriteLine("Public key (goes in the web app):");
+            Console.WriteLine("Public key: paste it into PublicKeyPem in GS.Point3DWeb/Support/FeatureKeyFormat.cs,");
+            Console.WriteLine("then rebuild the web app and this tool:");
             Console.WriteLine(ecdsa.ExportSubjectPublicKeyInfoPem());
             return 0;
         }
@@ -80,34 +88,42 @@ try
                 expires = expiresDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             }
 
+            using var ecdsa = LoadPrivateKey(keyFile);
+            if (!MatchesApp(ecdsa))
+            {
+                // Signing anyway would hand out a key the app rejects.
+                Console.Error.WriteLine($"The key in {keyFile} isn't the one the web app checks against " +
+                                        "(FeatureKeyFormat.PublicKeyPem). Use the right --key, or paste this key's " +
+                                        "public half ('public') into FeatureKeyFormat.cs and rebuild the app and this tool.");
+                return 1;
+            }
+
             var payload = JsonSerializer.SerializeToUtf8Bytes(new
             {
                 name = name.Trim(),
                 issued = DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 expires
             });
-
-            using var ecdsa = LoadPrivateKey(keyFile);
-            var signature = ecdsa.SignData(payload, HashAlgorithmName.SHA256);
-            Console.WriteLine($"{Prefix}.{Base64Url(payload)}.{Base64Url(signature)}");
+            Console.WriteLine(FeatureKeyFormat.Format(payload, ecdsa.SignData(payload, HashAlgorithmName.SHA256)));
             return 0;
         }
 
         case "verify":
         {
             if (args.Length < 2) return Usage();
-            var parts = args[1].Trim().Split('.');
-            if (parts.Length != 3 || parts[0] != Prefix)
+            if (!FeatureKeyFormat.TryParse(args[1], out var payload, out var signature))
             {
                 Console.WriteLine("Invalid: not a GS Point3D Web feature key.");
                 return 1;
             }
 
-            var payload = FromBase64Url(parts[1]);
-            var signature = FromBase64Url(parts[2]);
-            using var ecdsa = LoadPrivateKey(keyFile);
-            var valid = ecdsa.VerifyData(payload, signature, HashAlgorithmName.SHA256);
-            Console.WriteLine(valid ? $"Valid: {Encoding.UTF8.GetString(payload)}" : "Invalid signature.");
+            // Against the public key built into the web app: what the customer's copy will accept.
+            using var appKey = ECDsa.Create();
+            appKey.ImportFromPem(FeatureKeyFormat.PublicKeyPem);
+            var valid = appKey.VerifyData(payload, signature, HashAlgorithmName.SHA256);
+            Console.WriteLine(valid
+                ? $"Valid (the web app accepts it): {Encoding.UTF8.GetString(payload)}"
+                : "Invalid: the web app would reject it (not signed with the app's key, or changed).");
             return valid ? 0 : 1;
         }
 
@@ -115,16 +131,21 @@ try
             return Usage();
     }
 }
-catch (Exception ex) when (ex is IOException or CryptographicException or FormatException)
+catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException
+                               or FormatException or ArgumentException)
 {
+    // A missing or unreadable key file, a file that isn't a PEM key, a folder that can't be written...
     Console.Error.WriteLine(ex.Message);
     return 1;
 }
 
+// The value after an option, or null if the option is missing or has no value after it.
 string? Option(string name)
 {
     var index = Array.FindIndex(args, a => string.Equals(a, name, StringComparison.OrdinalIgnoreCase));
-    return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
+    return index >= 0 && index + 1 < args.Length && !args[index + 1].StartsWith("--", StringComparison.Ordinal)
+        ? args[index + 1]
+        : null;
 }
 
 bool HasFlag(string name) => args.Any(a => string.Equals(a, name, StringComparison.OrdinalIgnoreCase));
@@ -134,17 +155,46 @@ static ECDsa LoadPrivateKey(string path)
     if (!File.Exists(path))
         throw new IOException($"No signing key at {path}. Run 'init' first (or pass --key).");
     var ecdsa = ECDsa.Create();
-    ecdsa.ImportFromPem(File.ReadAllText(path));
+    try
+    {
+        ecdsa.ImportFromPem(File.ReadAllText(path));
+    }
+    catch
+    {
+        ecdsa.Dispose();
+        throw;
+    }
     return ecdsa;
 }
 
-static string Base64Url(byte[] bytes)
-    => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-
-static byte[] FromBase64Url(string text)
+// Whether a private key is the pair of the public key compiled into the web app.
+static bool MatchesApp(ECDsa privateKey)
 {
-    var s = text.Replace('-', '+').Replace('_', '/');
-    return Convert.FromBase64String(s.PadRight(s.Length + (4 - s.Length % 4) % 4, '='));
+    using var appKey = ECDsa.Create();
+    appKey.ImportFromPem(FeatureKeyFormat.PublicKeyPem);
+    return privateKey.ExportSubjectPublicKeyInfo().AsSpan().SequenceEqual(appKey.ExportSubjectPublicKeyInfo());
+}
+
+// Writes the private key readable by its owner only. On Windows the default folder (%APPDATA%) is
+// already private to the account; on Linux and macOS the file would otherwise get the usual 0644.
+static void WritePrivateKey(string path, string pem)
+{
+    var folder = Path.GetDirectoryName(Path.GetFullPath(path))!;
+    if (OperatingSystem.IsWindows())
+    {
+        Directory.CreateDirectory(folder);
+    }
+    else
+    {
+        Directory.CreateDirectory(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        // The mode only applies to a new file, so a key being replaced (--force) is removed first.
+        File.Delete(path);
+    }
+
+    var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write };
+    if (!OperatingSystem.IsWindows()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+    using var writer = new StreamWriter(path, Encoding.ASCII, options);
+    writer.Write(pem);
 }
 
 static int Usage()
@@ -155,7 +205,7 @@ static int Usage()
           init   [--key <file>] [--force]                          create the signing key pair
           public [--key <file>]                                    print the public key
           issue  --name "<licensee>" [--expires yyyy-MM-dd] [--key <file>]
-          verify <feature-key> [--key <file>]
+          verify <feature-key>                                     check a key as the web app does
         """);
     return 1;
 }

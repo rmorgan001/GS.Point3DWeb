@@ -9,4 +9,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- The key format and the web app's public key: the same file the app compiles, so they always agree. -->
+    <Compile Include="..\..\GS.Point3DWeb\Support\FeatureKeyFormat.cs" Link="FeatureKeyFormat.cs" />
+  </ItemGroup>
+
 </Project>

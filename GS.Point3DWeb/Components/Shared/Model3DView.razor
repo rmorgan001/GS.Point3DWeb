@@ -307,19 +307,23 @@
     private async Task LoadModelAsync()
     {
         if (_module is null || _viewer is null) return;
+        string? key = null;
         try
         {
             _modelLoaded = false;
             ViewModel.StatusText = L.T("Loading {0} model…", ViewModel.ModelName);
-            _loadedModelKey = ModelKey;
+            // Set before the load, so a second change while it runs doesn't start the same load again.
+            key = _loadedModelKey = ModelKey;
             var result = await _module.InvokeAsync<string>("loadModel", _viewer, ViewModel.ModelUrl, ViewModel.MountInfo);
             if (result == "Superseded") return; // a newer load replaced this one (model3d.js)
             if (result.Contains("Error", StringComparison.OrdinalIgnoreCase))
             {
                 ViewModel.StatusText = L.T("Failed to load model: {0}", result);
+                LoadFailed(key);
                 return;
             }
 
+            _loadFailedAt = null;
             _modelLoaded = true;
             ViewModel.StatusText = L.T("Telescope loaded: {0}", ViewModel.ModelName);
             await ApplyCurrentRotationAsync();
@@ -330,7 +334,20 @@
         catch (JSException ex)
         {
             ViewModel.StatusText = L.T("Failed to load model: {0}", ex.Message);
+            LoadFailed(key);
         }
+    }
+
+    // When the last model load failed (null = it didn't). A failed load (e.g. a network hiccup fetching
+    // the .obj) is tried again on a later update, at most every RetryLoadAfter, rather than never.
+    private DateTime? _loadFailedAt;
+    private static readonly TimeSpan RetryLoadAfter = TimeSpan.FromSeconds(10);
+
+    private void LoadFailed(string? key)
+    {
+        // Forget the failed model, unless a newer load has started meanwhile.
+        if (key is not null && _loadedModelKey == key) _loadedModelKey = null;
+        _loadFailedAt = DateTime.UtcNow;
     }
 
     private Task ApplyCurrentRotationAsync() => _modelLoaded ? SetPoseAsync() : Task.CompletedTask;
@@ -393,7 +410,16 @@
 
     private void OnRotationChanged()
     {
-        if (!_modelLoaded) return;
+        if (!_modelLoaded)
+        {
+            // The model failed to load: try again now and then while updates come in.
+            if (_loadFailedAt is { } failedAt && DateTime.UtcNow - failedAt >= RetryLoadAfter)
+            {
+                _loadFailedAt = DateTime.UtcNow; // one retry per interval, however often updates come
+                _ = InvokeAsync(ReloadModelIfChangedAsync);
+            }
+            return;
+        }
         // Drop updates while one is still in flight to the browser (like the desktop TimerLock).
         if (Interlocked.Exchange(ref _rotationPending, 1) == 1) return;
         _ = InvokeAsync(async () =>

@@ -129,7 +129,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     /// The server list (a copy: the list is shared by every browser tab, and changed through
-    /// <see cref="SettingsService.AddServer"/> / <see cref="SettingsService.RemoveServer"/>).
+    /// <see cref="SettingsService.TryAddServer"/> / <see cref="SettingsService.RemoveServer"/>).
     /// </summary>
     public AlpacaServer[] AlpacaServers => _settingsService.Servers;
 
@@ -172,9 +172,15 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     /// Servers beyond the limit (e.g. added while a key was installed) stay in the list but
     /// can't be connected or shown until a key is added.
     /// </summary>
-    public bool IsServerAllowed(AlpacaServer server)
+    public bool IsServerAllowed(AlpacaServer server) => IsServerAllowed(server, AlpacaServers);
+
+    /// <summary>
+    /// <see cref="IsServerAllowed(AlpacaServer)"/> against a copy of the list the caller already has: the
+    /// page takes one copy per render instead of one (under the list's lock) per server and per view.
+    /// </summary>
+    public bool IsServerAllowed(AlpacaServer server, AlpacaServer[] servers)
     {
-        var index = Array.IndexOf(AlpacaServers, server);
+        var index = Array.IndexOf(servers, server);
         return index >= 0 && index < MaxServers;
     }
 
@@ -278,11 +284,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task AddAsync()
     {
-        if (AlpacaServers.Length >= MaxServers)
-        {
-            await ShowLimitAsync(ServerLimitMessage);
-            return;
-        }
+        if (!await HasRoomForServerAsync()) return;
 
         var connection = new AlpacaServer(DefaultUrl, "Blank")
         {
@@ -290,20 +292,14 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
             UserName = null,
             Password = null
         };
-        _settingsService.AddServer(connection);
-        SelectedAlpacaServer = connection;
-        await PersistAsync();
+        await AddServerAsync(connection);
     }
 
     /// <summary>Searches the network for Alpaca telescopes and adds the one picked.</summary>
     [RelayCommand]
     private async Task DiscoveryAsync()
     {
-        if (AlpacaServers.Length >= MaxServers)
-        {
-            await ShowLimitAsync(ServerLimitMessage);
-            return;
-        }
+        if (!await HasRoomForServerAsync()) return;
 
         var discoveryViewModel = new DiscoveryDialogViewModel();
         await _dialogService.ShowDialog(discoveryViewModel);
@@ -319,9 +315,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
                 UserName = null,
                 Password = null
             };
-            _settingsService.AddServer(connection);
-            SelectedAlpacaServer = connection;
-            await PersistAsync();
+            await AddServerAsync(connection);
         }
     }
 
@@ -332,11 +326,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task AddComDriverAsync()
     {
-        if (AlpacaServers.Length >= MaxServers)
-        {
-            await ShowLimitAsync(ServerLimitMessage);
-            return;
-        }
+        if (!await HasRoomForServerAsync()) return;
 
         var driversViewModel = new ComDriversDialogViewModel();
         await _dialogService.ShowDialog(driversViewModel);
@@ -356,7 +346,31 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         }
 
         var connection = new AlpacaServer(url, driversViewModel.SelectedName ?? progId);
-        _settingsService.AddServer(connection);
+        await AddServerAsync(connection);
+    }
+
+    /// <summary>
+    /// Before an add opens its dialog: whether the server limit leaves room for one more (if not, says so).
+    /// Only a courtesy, so nobody picks a server that can't be added; <see cref="AddServerAsync"/> enforces it.
+    /// </summary>
+    private async Task<bool> HasRoomForServerAsync()
+    {
+        if (AlpacaServers.Length < MaxServers) return true;
+        await ShowLimitAsync(ServerLimitMessage);
+        return false;
+    }
+
+    /// <summary>
+    /// Adds a server, selects it and saves, if the server limit allows: checked again here, as another tab
+    /// may have added one while this tab's dialog was open.
+    /// </summary>
+    private async Task AddServerAsync(AlpacaServer connection)
+    {
+        if (!_settingsService.TryAddServer(connection, MaxServers))
+        {
+            await ShowLimitAsync(ServerLimitMessage);
+            return;
+        }
         SelectedAlpacaServer = connection;
         await PersistAsync();
     }

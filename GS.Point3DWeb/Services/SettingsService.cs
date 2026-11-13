@@ -62,10 +62,20 @@ public class SettingsService
     /// </summary>
     public event Action? ServersChanged;
 
-    public void AddServer(AlpacaServer server)
+    /// <summary>
+    /// Adds a server if the list has room for it (the feature key's server limit). The check and the add
+    /// are one step under the lock, so two tabs adding at once can't both fit into the last place.
+    /// </summary>
+    /// <returns>False, and nothing added, if the list already has <paramref name="maxServers"/> servers.</returns>
+    public bool TryAddServer(AlpacaServer server, int maxServers)
     {
-        lock (_serversLock) _servers.Add(server);
+        lock (_serversLock)
+        {
+            if (_servers.Count >= maxServers) return false;
+            _servers.Add(server);
+        }
         ServersChanged?.Invoke();
+        return true;
     }
 
     public void RemoveServer(string idGuid)

@@ -78,6 +78,11 @@
     </header>
 
     <div class="workspace">
+    @{
+        // One copy of the server list for this render (each AlpacaServers read copies it under a lock).
+        var servers = ViewModel.AlpacaServers;
+        var maxServers = ViewModel.MaxServers;
+    }
     <aside class="sidebar" @ondragenter="() => _hoverQuadrant = -1">
         <div class="sidebar-header">
             <h2>@L.T("Telescope Mounts")</h2>
@@ -122,9 +127,10 @@
 
         <nav class="server-nav" aria-label="@L.T("Telescope Mounts")">
             <ul class="server-list">
-                @foreach (var server in ViewModel.AlpacaServers)
+                @for (var position = 0; position < servers.Length; position++)
                 {
-                    var allowed = ViewModel.IsServerAllowed(server);
+                    var server = servers[position];
+                    var allowed = position < maxServers;
                     <li>
                         <button type="button"
                                 class="server-item @(server == ViewModel.SelectedAlpacaServer ? "selected" : null) @(allowed ? null : "locked")"
@@ -172,7 +178,7 @@
                  @ondragover:preventDefault
                  @ondrop="() => OnDrop(index)"
                  @ondrop:preventDefault>
-                @if (quadrant.Server is { } lockedServer && !ViewModel.IsServerAllowed(lockedServer))
+                @if (quadrant.Server is { } lockedServer && !ViewModel.IsServerAllowed(lockedServer, servers))
                 {
                     <div class="quadrant-empty">
                         <span class="empty-mark" aria-hidden="true"><Icon Kind="Lock" Size="22" /></span>

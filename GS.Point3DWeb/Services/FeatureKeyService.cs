@@ -1,7 +1,7 @@
 using GS.Point3DWeb.Localization;
+using GS.Point3DWeb.Support;
 using System.Globalization;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 
 namespace GS.Point3DWeb.Services;
@@ -13,12 +13,12 @@ public sealed record FeatureKeyInfo(string Name, DateOnly Issued, DateOnly? Expi
 }
 
 /// <summary>
-/// Feature key (registered as a singleton). Without a valid key the app is limited to one 3D view
-/// and five servers; a valid key unlocks up to four views and any number of servers.
+/// Feature key (registered as a singleton). Without a valid key the app is limited to two 3D views
+/// (<see cref="FreeMaxViews"/>) and five servers (<see cref="FreeMaxServers"/>); a valid key unlocks
+/// up to four views and any number of servers.
 ///
-/// A key is <c>GSP3W1.&lt;payload&gt;.&lt;signature&gt;</c> (base64url): the payload is JSON
-/// {name, issued, expires} and the signature is ECDSA P-256 / SHA-256 over it. Only the public key
-/// is here, so keys can be checked but not made; tools/GS.Point3DWeb.KeyGen issues them.
+/// The key format and the public key are in <see cref="FeatureKeyFormat"/>. Only the public key is
+/// here, so keys can be checked but not made; tools/GS.Point3DWeb.KeyGen issues them.
 /// The key is stored in feature.key next to the server list.
 /// </summary>
 public sealed class FeatureKeyService
@@ -26,16 +26,6 @@ public sealed class FeatureKeyService
     public const int FreeMaxViews = 2;
     public const int FreeMaxServers = 5;
     public const int LicensedMaxViews = SettingsService.QuadrantCount;
-
-    private const string Prefix = "GSP3W1";
-
-    // Public half of the signing key (tools/GS.Point3DWeb.KeyGen: "public").
-    private const string PublicKeyPem = """
-        -----BEGIN PUBLIC KEY-----
-        MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEnTK/KmWAVvDlUzLvMK0GUImFCFYY
-        qxusTKyLIalDpbQKrfCPegSBJnbY8v3d02KzBsh4tq0nTw3onhEf/6sQKw==
-        -----END PUBLIC KEY-----
-        """;
 
     private readonly ILogger<FeatureKeyService> _logger;
     private readonly Lock _lock = new();
@@ -123,8 +113,7 @@ public sealed class FeatureKeyService
     public static FeatureKeyInfo? Verify(string? keyText, out string error)
     {
         error = "";
-        var parts = (keyText ?? "").Trim().Split('.');
-        if (parts.Length != 3 || parts[0] != Prefix)
+        if (!FeatureKeyFormat.TryParse(keyText, out var payload, out var signature))
         {
             error = L.T("That isn't a GS Point3D Web feature key.");
             return null;
@@ -132,11 +121,8 @@ public sealed class FeatureKeyService
 
         try
         {
-            var payload = FromBase64Url(parts[1]);
-            var signature = FromBase64Url(parts[2]);
-
             using var ecdsa = ECDsa.Create();
-            ecdsa.ImportFromPem(PublicKeyPem);
+            ecdsa.ImportFromPem(FeatureKeyFormat.PublicKeyPem);
             if (!ecdsa.VerifyData(payload, signature, HashAlgorithmName.SHA256))
             {
                 error = L.T("This key isn't valid.");
@@ -169,15 +155,13 @@ public sealed class FeatureKeyService
             Key = Verify(File.ReadAllText(FilePath), out var error);
             if (Key is null) _logger.LogWarning("Ignoring feature key in {FilePath}: {Error}", FilePath, error);
         }
-        catch (IOException ex)
+        // Runs while the service is being created: an error escaping here would break every page that
+        // uses it, so an unreadable file (locked, or no access: written by another account) is logged
+        // and the app runs with the free limits.
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException
+                                       or System.Security.SecurityException)
         {
-            _logger.LogWarning(ex, "Could not read feature key from {FilePath}", FilePath);
+            _logger.LogWarning(ex, "Could not read feature key from {FilePath}; using the free limits", FilePath);
         }
-    }
-
-    private static byte[] FromBase64Url(string text)
-    {
-        var s = text.Replace('-', '+').Replace('_', '/');
-        return Convert.FromBase64String(s.PadRight(s.Length + (4 - s.Length % 4) % 4, '='));
     }
 }

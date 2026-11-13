@@ -1,10 +1,11 @@
 @page "/log"
+@using Microsoft.Extensions.Logging
 @inherits LocalizedComponentBase
 @implements IDisposable
 
 @* The log viewer, opened in its own window from the Home page's "View Log" button. Shows the end of the
-   most recent log file; with Follow on it re-reads the file every couple of seconds when it has changed,
-   and stays scrolled to the newest line (the scroll box is laid out bottom-up, so no script is needed). *@
+   newest log file; with Follow on it checks every couple of seconds and adds only the new lines, and stays
+   scrolled to the newest one (the scroll box is laid out bottom-up, so no script is needed). *@
 
 <PageTitle>@L.T("Log") · GS Point3D Web</PageTitle>
 
@@ -15,7 +16,7 @@
             @if (_file is not null)
             {
                 <span class="log-file" title="@_file.FullName">@_file.Name</span>
-                <span class="log-meta">@SizeText(_length) · @L.T("Updated {0}", _lastWrite.ToLocalTime().ToString("HH:mm:ss"))</span>
+                <span class="log-meta">@MetaText</span>
             }
         </div>
 
@@ -28,7 +29,7 @@
                 <input type="checkbox" @bind="Follow" />
                 <span>@L.T("Follow")</span>
             </label>
-            <button type="button" class="log-button" @onclick="ReloadAsync">@L.T("Refresh")</button>
+            <button type="button" class="log-button" @onclick="Reload">@L.T("Refresh")</button>
             @if (_file is not null)
             {
                 <a class="log-button" href="log/file" download="@_file.Name">@L.T("Download")</a>
@@ -51,26 +52,40 @@
 
     <div class="log-scroll">
         <pre class="log-text">@foreach (var line in VisibleLines)
-{<span class="@line.Css">@line.Text</span>@("\n")}</pre>
+{<span @key="line.Offset" class="@line.Css">@line.Text</span>@("\n")}</pre>
     </div>
 </div>
 
 @code {
-    // How much of the file to show: enough for a long session, small enough to render quickly.
+    // How much of the log to keep on screen: enough for a long session, small enough to render quickly.
     private const int MaxBytes = 512 * 1024;
     private static readonly TimeSpan FollowInterval = TimeSpan.FromSeconds(2);
 
     private FileInfo? _file;
-    private long _length;
-    private DateTime _lastWrite;
+    private long _length;         // the file's length at the last read
+    private long _next = -1;      // where the next read starts (-1: read the end of the file afresh)
+    private string? _lastEntry;   // time of the newest entry shown
     private bool _truncated;
     private string? _problem;
     private bool _problemsOnly;
-    private List<LogLine> _lines = [];
+    private readonly List<LogLine> _lines = [];
+    private long _shownBytes;
+    private string _css = "inf";  // the level of the entry the next line belongs to
+    private bool _inProblem;
+
     private Timer? _timer;
     private bool _follow = true;
+    private volatile bool _disposed;
+    private int _ticking;         // 1 while a timer tick is reading (ticks don't overlap)
 
-    private readonly record struct LogLine(string Text, string Css, bool Problem);
+    /// <param name="Offset">Where the line starts in the file: a stable key for rendering.</param>
+    /// <param name="Bytes">Its size in the file, to keep what is shown within <see cref="MaxBytes"/>.</param>
+    private readonly record struct LogLine(long Offset, int Bytes, string Text, string Css, bool Problem);
+
+    /// <summary>The file's size and the time of its newest entry.</summary>
+    private string MetaText => _lastEntry is { } last
+        ? $"{SizeText(_length)} · {L.T("Updated {0}", last)}"
+        : SizeText(_length);
 
     private IEnumerable<LogLine> VisibleLines => _problemsOnly ? _lines.Where(l => l.Problem) : _lines;
 
@@ -80,20 +95,20 @@
         set
         {
             _follow = value;
-            if (value) _ = ReloadAsync();
+            if (value) Update();
             UpdateTimer();
         }
     }
 
     protected override void OnInitialized()
     {
-        Load();
+        Update();
         UpdateTimer();
     }
 
     private void UpdateTimer()
     {
-        if (_follow) _timer ??= new Timer(_ => _ = InvokeAsync(ReloadIfChanged), null, FollowInterval, FollowInterval);
+        if (_follow && !_disposed) _timer ??= new Timer(_ => Tick(), null, FollowInterval, FollowInterval);
         else
         {
             _timer?.Dispose();
@@ -101,73 +116,115 @@
         }
     }
 
-    private Task ReloadAsync()
+    /// <summary>A Follow tick: adds new lines on the page's thread. Safe after the window has closed.</summary>
+    private async void Tick()
     {
-        Load();
-        return Task.CompletedTask;
-    }
-
-    /// <summary>Re-reads the log if a newer file was started or the current one changed.</summary>
-    private void ReloadIfChanged()
-    {
+        if (_disposed || Interlocked.Exchange(ref _ticking, 1) == 1) return;
         try
         {
-            var latest = LogFiles.Latest();
-            if (latest?.FullName == _file?.FullName && latest?.Length == _length && latest?.LastWriteTimeUtc == _lastWrite)
-                return;
+            await InvokeAsync(() =>
+            {
+                if (_disposed) return;
+                if (Update()) StateHasChanged();
+            });
         }
-        catch
+        catch (ObjectDisposedException)
         {
-            // reported by Load below
+            // the window closed (or its connection dropped) while this tick was queued
         }
-        Load();
-        StateHasChanged();
+        catch (Exception ex)
+        {
+            AppLog.For("LogView").LogWarning(ex, "Log viewer update failed");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _ticking, 0);
+        }
     }
 
-    private void Load()
+    /// <summary>Refresh: reads the end of the newest log afresh.</summary>
+    private void Reload()
+    {
+        _next = -1;
+        Update();
+    }
+
+    /// <summary>
+    /// Reads what was added since the last read (or the end of the file afresh, if a newer file was started,
+    /// the file started over, or nothing is shown yet). Returns whether anything changed.
+    /// </summary>
+    private bool Update()
     {
         try
         {
             _problem = null;
-            _file = LogFiles.Latest();
-            if (_file is null)
+            var latest = LogFiles.Latest();
+            if (latest is null)
             {
-                _lines = [];
-                return;
+                var hadFile = _file is not null;
+                _file = null;
+                Clear();
+                return hadFile;
             }
-            _length = _file.Length;
-            _lastWrite = _file.LastWriteTimeUtc;
-            var (text, truncated) = LogFiles.ReadTail(_file, MaxBytes);
-            _truncated = truncated;
-            _lines = Parse(text);
+            if (latest.FullName != _file?.FullName) _next = -1;
+            _file = latest;
+
+            var chunk = LogFiles.Read(latest, _next, MaxBytes);
+            var changed = chunk.Length != _length || chunk.FromStart;
+            _length = chunk.Length;
+            _next = chunk.End;
+            if (chunk.FromStart)
+            {
+                Clear();
+                _truncated = chunk.Truncated;
+            }
+            Append(chunk.Lines);
+            return changed;
         }
         catch (Exception ex)
         {
             _problem = L.T("Could not read the log: {0}", ex.Message);
+            return true;
         }
     }
 
-    /// <summary>
-    /// Splits the log into lines and colors each by its entry's level. Lines that don't start an entry
-    /// (an exception's stack trace) take the level of the entry they belong to.
-    /// </summary>
-    private static List<LogLine> Parse(string text)
+    private void Clear()
     {
-        var lines = new List<LogLine>();
-        var css = "inf";
-        var problem = false;
-        foreach (var raw in text.Split('\n'))
+        _lines.Clear();
+        _shownBytes = 0;
+        _truncated = false;
+        _lastEntry = null;
+        _css = "inf";
+        _inProblem = false;
+    }
+
+    /// <summary>
+    /// Adds lines, coloring each by its entry's level: lines that don't start an entry (an exception's stack
+    /// trace) take the level of the entry they belong to. Drops the oldest lines beyond <see cref="MaxBytes"/>.
+    /// </summary>
+    private void Append(IReadOnlyList<LogFiles.Line> lines)
+    {
+        foreach (var line in lines)
         {
-            var line = raw.TrimEnd('\r');
-            if (line.Length == 0) continue;
-            if (LevelOf(line) is { } level)
+            if (LevelOf(line.Text) is { } level)
             {
-                css = level;
-                problem = level is "wrn" or "err" or "ftl";
+                _css = level;
+                _inProblem = level is "wrn" or "err" or "ftl";
+                _lastEntry = line.Text.Substring(11, 8); // HH:mm:ss
             }
-            lines.Add(new LogLine(line, css, problem));
+            var bytes = System.Text.Encoding.UTF8.GetByteCount(line.Text) + 1;
+            _lines.Add(new LogLine(line.Offset, bytes, line.Text, _css, _inProblem));
+            _shownBytes += bytes;
         }
-        return lines;
+
+        var drop = 0;
+        while (_shownBytes > MaxBytes && drop < _lines.Count)
+            _shownBytes -= _lines[drop++].Bytes;
+        if (drop > 0)
+        {
+            _lines.RemoveRange(0, drop);
+            _truncated = true;
+        }
     }
 
     /// <summary>The level of a line that starts an entry ("2026-11-13 06:11:08.931 [INF] …"), else null.</summary>
@@ -191,6 +248,7 @@
 
     public void Dispose()
     {
+        _disposed = true;
         _timer?.Dispose();
         _timer = null;
     }

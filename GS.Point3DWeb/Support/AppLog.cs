@@ -27,7 +27,20 @@ public static class AppLog
     /// <summary>A logger for a category (a class name, shown in each log line).</summary>
     public static ILogger For(string category) => Loggers.GetOrAdd(category, c => _factory.CreateLogger(c));
 
-    /// <summary>The log folder: logs next to the server list, in %APPDATA%\GS.Point3DWeb\logs.</summary>
-    public static string Folder { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GS.Point3DWeb", "logs");
+    /// <summary>
+    /// The log folder. On Windows, Documents\GS.Point3DWeb, where it is easy to find. Elsewhere, or for an
+    /// account without a Documents folder (a service account), a "logs" folder next to the server list
+    /// (%APPDATA%\GS.Point3DWeb\logs, ~/.config/GS.Point3DWeb/logs on Linux).
+    /// </summary>
+    public static string Folder { get; } = ChooseFolder();
+
+    private static string ChooseFolder()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            if (!string.IsNullOrEmpty(documents)) return Path.Combine(documents, "GS.Point3DWeb");
+        }
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GS.Point3DWeb", "logs");
+    }
 }

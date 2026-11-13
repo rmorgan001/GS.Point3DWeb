@@ -121,14 +121,14 @@ public static class ComTelescopes
                 }
                 if (!driver.Telescope.Connected) driver.Telescope.Connected = true;
                 return driver.Telescope.Connected;
-            }), ConnectTimeout, progId, "connect");
+            }), ConnectTimeout);
             if (!connected && added) await ReleaseAsync(progId, owner);
             return connected;
         }
         catch
         {
             // Don't wait: the driver may be stuck. A connect still queued runs before the release does.
-            if (added) _ = ReleaseAsync(progId, owner);
+            if (added) LogIfFails(ReleaseAsync(progId, owner), progId);
             throw;
         }
     }
@@ -191,15 +191,16 @@ public static class ComTelescopes
                 return Task.CompletedTask;
             }
             Drivers.Remove(progId);
-            Releasing[progId] = release = DisposeAsync(driver);
+            Releasing[progId] = release = DisposeAsync(driver, "no server uses it any more");
         }
-        return WithTimeout(release, CallTimeout, progId, "release");
+        return WithTimeout(release, CallTimeout);
     }
 
     /// <summary>Disconnects and releases a driver no server holds any more, then stops its thread.</summary>
-    private static async Task<bool> DisposeAsync(Driver driver)
+    /// <param name="why">Why it is released, for the log.</param>
+    private static async Task<bool> DisposeAsync(Driver driver, string why)
     {
-        Log.LogInformation("Releasing ASCOM driver {ProgId}: no server uses it any more", driver.ProgId);
+        Log.LogInformation("Releasing ASCOM driver {ProgId}: {Reason}", driver.ProgId, why);
         try
         {
             var released = await driver.Thread.Run(() =>
@@ -218,12 +219,6 @@ public static class ComTelescopes
             });
             Log.LogInformation("Released ASCOM driver {ProgId}", driver.ProgId);
             return released;
-        }
-        catch (Exception ex)
-        {
-            Log.LogWarning(ex, "ASCOM driver {ProgId} failed while being released (it is released anyway): {Error}",
-                driver.ProgId, ex.Message);
-            throw;
         }
         finally
         {
@@ -309,7 +304,9 @@ public static class ComTelescopes
         if (held.Length + releasing.Length == 0) return;
 
         Log.LogInformation("Shutting down: releasing {Count} ASCOM driver(s)", held.Length + releasing.Length);
-        Task[] pending = [.. held.Select(DisposeAsync), .. releasing];
+        var disposing = held.Select(d => (d.ProgId, Task: (Task)DisposeAsync(d, "the app is shutting down"))).ToArray();
+        foreach (var (progId, task) in disposing) LogIfFails(task, progId);
+        Task[] pending = [.. disposing.Select(d => d.Task), .. releasing];
         try
         {
             Task.WaitAll(pending, TimeSpan.FromSeconds(5));
@@ -350,10 +347,10 @@ public static class ComTelescopes
 
     /// <summary>
     /// Stops waiting for a driver call that hasn't finished in time. The call itself carries on (it can't
-    /// be stopped), and later calls queue behind it on the driver's thread. A timed-out connect or release
-    /// is logged here; a timed-out read is logged by the view that polls (once per run of failures).
+    /// be stopped), and later calls queue behind it on the driver's thread. Not logged here: the caller
+    /// logs the error (the connector for a connect or disconnect, the polling view for a read).
     /// </summary>
-    private static async Task<T> WithTimeout<T>(Task<T> call, TimeSpan timeout, string? progId = null, string? what = null)
+    private static async Task<T> WithTimeout<T>(Task<T> call, TimeSpan timeout)
     {
         try
         {
@@ -361,11 +358,16 @@ public static class ComTelescopes
         }
         catch (TimeoutException) when (!call.IsCompleted) // the wait ran out, not a driver's own timeout error
         {
-            if (progId is not null)
-                Log.LogWarning("ASCOM driver {ProgId} did not answer a {Call} within {Seconds} s", progId, what, timeout.TotalSeconds);
             throw new TimeoutException($"the ASCOM driver did not answer within {timeout.TotalSeconds:0} s");
         }
     }
+
+    /// <summary>Logs the failure of a release that nobody waits for (so nothing else would log it).</summary>
+    private static void LogIfFails(Task release, string progId)
+        => release.ContinueWith(t => Log.LogWarning(t.Exception?.GetBaseException(),
+                "ASCOM driver {ProgId} failed while being released (it is released anyway): {Error}",
+                progId, t.Exception?.GetBaseException().Message),
+            CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
 
     /// <summary>
     /// A single-threaded-apartment thread that runs queued work one item at a time and, while waiting,

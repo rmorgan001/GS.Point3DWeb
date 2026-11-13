@@ -36,12 +36,15 @@ public static class AlpacaConnector
     public static async Task<bool> ConnectAsync(AlpacaServer server, CancellationToken token = default)
     {
         var name = Describe(server);
+        var url = server.Url;
         Log.LogInformation("Connecting to {Server}", name);
         try
         {
             var connected = await ConnectCoreAsync(server, token);
             if (connected) Log.LogInformation("Connected to {Server}", name);
-            else Log.LogWarning("Could not connect to {Server}: it reports not connected", name);
+            // Deleted or re-addressed meanwhile: not a failure (ConnectCoreAsync has logged it).
+            else if (!server.Removed && AlpacaServer.SameUrl(server.Url, url))
+                Log.LogWarning("Could not connect to {Server}: it reports not connected", name);
             return connected;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)

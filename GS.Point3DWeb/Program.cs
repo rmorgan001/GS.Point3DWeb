@@ -10,12 +10,17 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Logging: Serilog writes to the console and to a daily file in %APPDATA%\GS.Point3DWeb\logs (two weeks
+// Logging: Serilog writes to the console and to a daily file in AppLog.Folder (Documents\GS.Point3DWeb on Windows; two weeks
 // kept), with the levels from the "Serilog" section of appsettings.json. The Debug output and, on Windows,
-// the Event Log (warnings and errors) still get the messages too.
+// the Event Log (warnings and errors) still get the messages too. Serilog hands messages to those providers
+// directly, past the usual "Logging" filter rules, so the Event Log's level is set on the provider itself.
 builder.Logging.ClearProviders();
 builder.Logging.AddDebug();
-if (OperatingSystem.IsWindows()) builder.Logging.AddEventLog();
+if (OperatingSystem.IsWindows())
+    builder.Logging.AddEventLog(new Microsoft.Extensions.Logging.EventLog.EventLogSettings
+    {
+        Filter = (_, level) => level >= LogLevel.Warning
+    });
 builder.Services.AddSerilog((services, log) => log
         .ReadFrom.Configuration(builder.Configuration)
         .ReadFrom.Services(services)

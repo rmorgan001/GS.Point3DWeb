@@ -54,7 +54,10 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     public bool IsCom => IsComUrl(Url);
 
     /// <summary>The COM driver's ProgID (e.g. ASCOM.Simulator.Telescope); null for an Alpaca server.</summary>
-    public string? ProgId => IsCom ? Url.Trim()[ComPrefix.Length..].Trim() : null;
+    public string? ProgId => GetProgId(Url);
+
+    /// <summary>The ProgID in a COM driver's address (<c>ascom:&lt;ProgID&gt;</c>); null for an Alpaca address.</summary>
+    public static string? GetProgId(string url) => IsComUrl(url) ? url.Trim()[ComPrefix.Length..].Trim() : null;
 
     /// <summary>
     /// Trims the address and writes its Alpaca path in lower case (…/api/v1/telescope/{n}/), as Alpaca
@@ -64,7 +67,7 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     /// </summary>
     public static string NormalizeUrl(string url)
         => IsComUrl(url)
-            ? ComUrl(url.Trim()[ComPrefix.Length..])
+            ? ComUrl(GetProgId(url)!)
             : AlpacaPath.Replace(url.Trim(), m => $"/api/v1/telescope/{m.Groups[1].Value}/");
 
     /// <summary>

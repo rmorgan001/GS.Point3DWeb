@@ -252,13 +252,15 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         await PersistAsync();
 
         // A new address is a different device: disconnect the old one rather than leave this app
-        // connected to it. Best effort; the old address may no longer answer.
-        if (wasConnected && urlChanged)
+        // connected to it. Best effort; the old address may no longer answer. A COM driver is released
+        // even if it doesn't report connected any more: this server may still hold it.
+        if (urlChanged && (wasConnected || AlpacaServer.IsComUrl(oldUrl)))
         {
             try
             {
                 await AlpacaConnector.DisconnectAsync(new AlpacaServer(oldUrl, server.ServerName)
                 {
+                    IdGuid = server.IdGuid, // the COM driver is held for this server
                     UserName = oldUserName,
                     Password = oldPassword
                 });
@@ -340,7 +342,20 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         await _dialogService.ShowDialog(driversViewModel);
         if (!driversViewModel.Confirmed || driversViewModel.SelectedProgId is not { } progId) return;
 
-        var connection = new AlpacaServer(AlpacaServer.ComUrl(progId), driversViewModel.SelectedName ?? progId);
+        var url = AlpacaServer.ComUrl(progId);
+        if (AlpacaServers.FirstOrDefault(s => AlpacaServer.SameUrl(s.Url, url)) is { } existing)
+        {
+            // One entry per driver: the driver is shared, so a second entry would only confuse its state.
+            SelectedAlpacaServer = existing;
+            await _dialogService.ShowDialog(new ConfirmDialogViewModel
+            {
+                Message = L.T("{0} is already in the list.", existing.ServerName),
+                CancelVisible = false
+            });
+            return;
+        }
+
+        var connection = new AlpacaServer(url, driversViewModel.SelectedName ?? progId);
         _settingsService.AddServer(connection);
         SelectedAlpacaServer = connection;
         await PersistAsync();
@@ -474,6 +489,19 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
         // Removing it raises ServersChanged, which clears it from the quadrants of every open tab.
         _settingsService.RemoveServer(connection.IdGuid);
+
+        // Release a COM driver it held, so the driver (and its program) doesn't stay open for nothing.
+        if (connection.IsCom)
+        {
+            try
+            {
+                await AlpacaConnector.DisconnectAsync(connection);
+            }
+            catch
+            {
+                // released anyway
+            }
+        }
         SelectedAlpacaServer = AlpacaServers.LastOrDefault();
         await PersistAsync();
     }

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using ASCOM.Com;
 using ASCOM.Com.DriverAccess;
@@ -11,9 +12,11 @@ namespace GS.Point3DWeb.Services;
 /// ASCOM telescope drivers on this computer, used through COM (Windows only), alongside Alpaca servers.
 /// A server whose address is <c>ascom:&lt;ProgID&gt;</c> (see <see cref="Models.AlpacaServer.IsCom"/>) is one of these.
 ///
-/// COM drivers expect to be created and called on one single-threaded-apartment (STA) thread, so each driver
-/// gets its own thread, and every view and tab showing it shares the one driver instance. The ASCOM Chooser
-/// isn't used (see <see cref="GetDrivers"/>).
+/// COM drivers expect to be created and called on one single-threaded-apartment (STA) thread that handles
+/// window messages, so each driver gets its own such thread. Every view and tab showing a driver shares the
+/// one driver instance, which is held for each server ("owner") that connected it and released once the last
+/// one lets go. A driver being released is disconnected and released completely before a new instance of it is
+/// created. The ASCOM Chooser isn't used (see <see cref="GetDrivers"/>).
 /// </summary>
 [SupportedOSPlatform("windows")]
 public static class ComTelescopes
@@ -24,12 +27,35 @@ public static class ComTelescopes
 
     private sealed class Driver(string progId)
     {
+        public string ProgId { get; } = progId;
         public StaThread Thread { get; } = new($"ASCOM {progId}");
-        public Telescope? Telescope { get; set; }
+
+        /// <summary>The driver instance; only used on <see cref="Thread"/>.</summary>
+        public Telescope? Telescope;
+
+        // The rest is guarded by Gate.
+
+        /// <summary>The servers (by ID) holding this driver; it is released when the last one lets go.</summary>
+        public readonly HashSet<string> Owners = [];
+
+        // Reads under way, shared by every caller: a slow or stuck driver gets one of each queued, not one per poll.
+        public Task<bool>? ConnectedRead;
+        public Task<TelescopeDeviceState>? StateRead;
+        public Task<(int? Mode, double? Latitude)>? InfoRead;
     }
 
-    // By ProgID (case-insensitive, as COM treats it). Only drivers this app has connected are here.
-    private static readonly ConcurrentDictionary<string, Driver> Drivers = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object Gate = new();
+
+    // Under Gate. By ProgID (case-insensitive, as COM treats it). Only drivers some server holds are here.
+    private static readonly Dictionary<string, Driver> Drivers = new(StringComparer.OrdinalIgnoreCase);
+
+    // Under Gate. Drivers being released, by ProgID: a new instance waits until the old one is released.
+    private static readonly Dictionary<string, Task> Releasing = new(StringComparer.OrdinalIgnoreCase);
+
+    // Connecting can be slow (a driver that runs as its own program starts up, a mount answers);
+    // a single read or a disconnect should not be.
+    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>
     /// The telescope drivers registered with ASCOM on this computer, by name. Listed in the browser instead
@@ -43,64 +69,93 @@ public static class ComTelescopes
             .OrderBy(d => d.Item2, StringComparer.CurrentCultureIgnoreCase)];
 
     /// <summary>
-    /// Creates the driver if needed and connects it. Returns whether it reports connected. A driver that
-    /// can't be created, or fails or refuses to connect, is released again (unless another view had it
-    /// connected already), and the error is thrown.
+    /// Connects the driver for <paramref name="owner"/> (a server's ID), creating it if no server holds it yet.
+    /// Returns whether it reports connected. If it can't be created, or fails or refuses to connect, the
+    /// owner's hold is dropped again (unless it already held the driver), and the error is thrown. Other
+    /// owners keep the driver.
     /// </summary>
-    public static async Task<bool> ConnectAsync(string progId)
+    public static async Task<bool> ConnectAsync(string progId, string owner)
     {
-        var driver = Drivers.GetOrAdd(progId, id => new Driver(id));
-        var wasConnected = false;
+        var (driver, added) = await AcquireAsync(progId, owner);
         try
         {
             var connected = await WithTimeout(driver.Thread.Run(() =>
             {
-                driver.Telescope ??= new Telescope(progId);
-                wasConnected = driver.Telescope.Connected;
-                if (!wasConnected) driver.Telescope.Connected = true;
+                driver.Telescope ??= new Telescope(driver.ProgId);
+                if (!driver.Telescope.Connected) driver.Telescope.Connected = true;
                 return driver.Telescope.Connected;
             }), ConnectTimeout);
-            if (!connected) await DisconnectAsync(progId);
+            if (!connected && added) await ReleaseAsync(progId, owner);
             return connected;
         }
         catch
         {
-            if (!wasConnected) _ = DisconnectAsync(progId); // don't wait on a driver that may be stuck
+            // Don't wait: the driver may be stuck. A connect still queued runs before the release does.
+            if (added) _ = ReleaseAsync(progId, owner);
             throw;
         }
     }
 
-    // Connecting can be slow (a driver that runs as its own program starts up, a mount answers);
-    // a single read should not be.
-    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(10);
-
     /// <summary>
-    /// Stops waiting for a driver call that hasn't finished in time. The call itself carries on (it can't
-    /// be stopped), and later calls queue behind it on the driver's thread.
+    /// Adds the owner to the driver, creating the driver if needed, once any earlier instance of it has been
+    /// released. Returns whether the owner was added (false if it already held the driver).
     /// </summary>
-    private static async Task<T> WithTimeout<T>(Task<T> call, TimeSpan timeout)
+    private static async Task<(Driver Driver, bool Added)> AcquireAsync(string progId, string owner)
     {
-        try
+        while (true)
         {
-            return await call.WaitAsync(timeout);
-        }
-        catch (TimeoutException)
-        {
-            throw new TimeoutException($"the ASCOM driver did not answer within {timeout.TotalSeconds:0} s");
+            Task? releasing;
+            lock (Gate)
+            {
+                if (!Releasing.TryGetValue(progId, out releasing) || releasing.IsCompleted)
+                {
+                    Releasing.Remove(progId);
+                    if (!Drivers.TryGetValue(progId, out var driver))
+                        Drivers[progId] = driver = new Driver(progId);
+                    return (driver, driver.Owners.Add(owner));
+                }
+            }
+
+            try
+            {
+                await releasing.WaitAsync(ConnectTimeout);
+            }
+            catch (TimeoutException)
+            {
+                throw new TimeoutException("the ASCOM driver is still being disconnected; try again later");
+            }
+            catch
+            {
+                // a release that failed has still finished
+            }
         }
     }
 
     /// <summary>
-    /// Disconnects the driver and releases it (so a driver that runs as its own program can close).
-    /// Does nothing if this app hasn't connected it.
+    /// Drops <paramref name="owner"/>'s hold on the driver. When no server holds it any more, it is disconnected
+    /// and released (so a driver that runs as its own program can close); other owners keep it connected.
+    /// Does nothing if the owner doesn't hold it. Throws if the driver fails or doesn't answer while being
+    /// disconnected; it is released either way.
     /// </summary>
-    public static async Task DisconnectAsync(string progId)
+    public static Task ReleaseAsync(string progId, string owner)
     {
-        if (!Drivers.TryRemove(progId, out var driver)) return;
+        Task release;
+        lock (Gate)
+        {
+            if (!Drivers.TryGetValue(progId, out var driver) || !driver.Owners.Remove(owner) || driver.Owners.Count > 0)
+                return Task.CompletedTask;
+            Drivers.Remove(progId);
+            Releasing[progId] = release = DisposeAsync(driver);
+        }
+        return WithTimeout(release, CallTimeout);
+    }
+
+    /// <summary>Disconnects and releases a driver no server holds any more, then stops its thread.</summary>
+    private static async Task DisposeAsync(Driver driver)
+    {
         try
         {
-            await WithTimeout(driver.Thread.Run(() =>
+            await driver.Thread.Run(() =>
             {
                 if (driver.Telescope is not { } telescope) return true;
                 try
@@ -113,7 +168,7 @@ public static class ComTelescopes
                     driver.Telescope = null;
                 }
                 return true;
-            }), CallTimeout);
+            });
         }
         finally
         {
@@ -122,17 +177,22 @@ public static class ComTelescopes
     }
 
     /// <summary>
-    /// Whether the driver reports connected. False if this app hasn't connected it: the driver isn't
-    /// started just to ask (that would launch a driver that runs as its own program).
+    /// Whether <paramref name="owner"/> holds the driver and it reports connected. False if the owner doesn't
+    /// hold it: the driver isn't started just to ask (that would launch a driver that runs as its own program).
     /// </summary>
-    public static Task<bool> IsConnectedAsync(string progId)
-        => Drivers.TryGetValue(progId, out var driver)
-            ? WithTimeout(driver.Thread.Run(() => driver.Telescope?.Connected ?? false), CallTimeout)
-            : Task.FromResult(false);
+    public static Task<bool> IsConnectedAsync(string progId, string owner)
+    {
+        lock (Gate)
+        {
+            if (!Drivers.TryGetValue(progId, out var driver) || !driver.Owners.Contains(owner))
+                return Task.FromResult(false);
+            return Shared(driver, ref driver.ConnectedRead, telescope => telescope.Connected);
+        }
+    }
 
     /// <summary>The mount's alignment mode (ASCOM numbering) and site latitude; null for one it doesn't implement.</summary>
     public static Task<(int? Mode, double? Latitude)> ReadMountInfoAsync(string progId)
-        => Run(progId, telescope =>
+        => Read(progId, driver => ref driver.InfoRead, telescope =>
         {
             int? mode = null;
             double? latitude = null;
@@ -146,7 +206,7 @@ public static class ComTelescopes
     /// each property on its own. Azimuth, Altitude and SideOfPier are optional on an equatorial mount.
     /// </summary>
     public static Task<TelescopeDeviceState> ReadStateAsync(string progId)
-        => Run(progId, telescope =>
+        => Read(progId, driver => ref driver.StateRead, telescope =>
         {
             var state = new TelescopeDeviceState { SideOfPier = -1 }; // unknown unless the mount says
             try
@@ -178,12 +238,17 @@ public static class ComTelescopes
         });
 
     /// <summary>
-    /// Disconnects and releases every driver this app connected (when the app shuts down), so drivers that
-    /// count their clients don't stay connected for it. Waits a few seconds at most.
+    /// Disconnects and releases every driver (when the app shuts down), so drivers that count their clients
+    /// don't stay connected for it. Waits a few seconds at most.
     /// </summary>
     public static void DisconnectAll()
     {
-        var pending = Drivers.Keys.Select(progId => DisconnectAsync(progId)).ToArray();
+        Task[] pending;
+        lock (Gate)
+        {
+            pending = [.. Drivers.Values.Select(DisposeAsync), .. Releasing.Values];
+            Drivers.Clear();
+        }
         try
         {
             Task.WaitAll(pending, TimeSpan.FromSeconds(5));
@@ -194,41 +259,121 @@ public static class ComTelescopes
         }
     }
 
-    /// <summary>Runs work on a connected driver's thread; throws if this app hasn't connected it.</summary>
-    private static Task<T> Run<T>(string progId, Func<Telescope, T> work)
+    private delegate ref Task<T>? PendingRead<T>(Driver driver);
+
+    /// <summary>Reads from a held driver (sharing a read already under way); throws if no server holds it.</summary>
+    private static Task<T> Read<T>(string progId, PendingRead<T> pending, Func<Telescope, T> work)
     {
-        if (!Drivers.TryGetValue(progId, out var driver))
-            return Task.FromException<T>(new InvalidOperationException($"{progId} is not connected"));
-        return WithTimeout(driver.Thread.Run(() => driver.Telescope is { } telescope
-            ? work(telescope)
-            : throw new InvalidOperationException($"{progId} is not connected")), CallTimeout);
+        lock (Gate)
+        {
+            return Drivers.TryGetValue(progId, out var driver)
+                ? Shared(driver, ref pending(driver), work)
+                : Task.FromException<T>(new InvalidOperationException($"{progId} is not connected"));
+        }
     }
 
-    /// <summary>A single-threaded-apartment thread that runs queued work one item at a time.</summary>
+    /// <summary>
+    /// Runs a read on the driver's thread, or joins the same read if one is already queued or running. Call
+    /// under <see cref="Gate"/>. Each caller stops waiting after <see cref="CallTimeout"/>.
+    /// </summary>
+    private static Task<T> Shared<T>(Driver driver, ref Task<T>? pending, Func<Telescope, T> work)
+    {
+        if (pending is not { IsCompleted: false })
+        {
+            pending = driver.Thread.Run(() => driver.Telescope is { } telescope
+                ? work(telescope)
+                : throw new InvalidOperationException($"{driver.ProgId} is not connected"));
+        }
+        return WithTimeout(pending, CallTimeout);
+    }
+
+    /// <summary>
+    /// Stops waiting for a driver call that hasn't finished in time. The call itself carries on (it can't
+    /// be stopped), and later calls queue behind it on the driver's thread.
+    /// </summary>
+    private static async Task<T> WithTimeout<T>(Task<T> call, TimeSpan timeout)
+    {
+        try
+        {
+            return await call.WaitAsync(timeout);
+        }
+        catch (TimeoutException)
+        {
+            throw new TimeoutException($"the ASCOM driver did not answer within {timeout.TotalSeconds:0} s");
+        }
+    }
+
+    private static async Task WithTimeout(Task call, TimeSpan timeout)
+    {
+        try
+        {
+            await call.WaitAsync(timeout);
+        }
+        catch (TimeoutException)
+        {
+            throw new TimeoutException($"the ASCOM driver did not answer within {timeout.TotalSeconds:0} s");
+        }
+    }
+
+    /// <summary>
+    /// A single-threaded-apartment thread that runs queued work one item at a time and, while waiting,
+    /// dispatches window messages, as COM drivers expect of the thread that created them (WinForms timers,
+    /// hidden windows, calls from an out-of-process driver).
+    /// </summary>
     private sealed class StaThread : IDisposable
     {
-        private readonly BlockingCollection<Action> _work = [];
+        private readonly ConcurrentQueue<Action> _work = new();
+        private readonly AutoResetEvent _signal = new(false);
+        private readonly object _gate = new();
+        private bool _stopping; // under _gate
 
         public StaThread(string name)
         {
-            var thread = new Thread(() =>
-            {
-                foreach (var item in _work.GetConsumingEnumerable()) item();
-            })
-            {
-                IsBackground = true,
-                Name = name
-            };
+            var thread = new Thread(Loop) { IsBackground = true, Name = name };
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();
+        }
+
+        private void Loop()
+        {
+            var handles = new[] { _signal.SafeWaitHandle.DangerousGetHandle() };
+            try
+            {
+                while (true)
+                {
+                    while (_work.TryDequeue(out var item)) item();
+                    lock (_gate)
+                    {
+                        if (_stopping && _work.IsEmpty) return;
+                    }
+
+                    // Wake for new work or for a window message.
+                    MsgWaitForMultipleObjectsEx(1, handles, Infinite, QsAllInput, MwmoInputAvailable);
+                    while (PeekMessage(out var msg, IntPtr.Zero, 0, 0, PmRemove))
+                    {
+                        TranslateMessage(in msg);
+                        DispatchMessage(in msg);
+                    }
+                }
+            }
+            finally
+            {
+                _signal.Dispose();
+            }
         }
 
         public Task<T> Run<T>(Func<T> work)
         {
             var result = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-            try
+            lock (_gate)
             {
-                _work.Add(() =>
+                if (_stopping)
+                {
+                    // the driver was released and its thread stopped
+                    result.SetException(new ObjectDisposedException("The ASCOM driver was disconnected."));
+                    return result.Task;
+                }
+                _work.Enqueue(() =>
                 {
                     try
                     {
@@ -239,16 +384,52 @@ public static class ComTelescopes
                         result.SetException(ex);
                     }
                 });
-            }
-            catch (InvalidOperationException)
-            {
-                // the driver was disconnected and its thread stopped
-                result.SetException(new ObjectDisposedException("The ASCOM driver was disconnected."));
+                _signal.Set();
             }
             return result.Task;
         }
 
         /// <summary>Stops the thread once the work already queued has run.</summary>
-        public void Dispose() => _work.CompleteAdding();
+        public void Dispose()
+        {
+            lock (_gate)
+            {
+                if (_stopping) return;
+                _stopping = true;
+                _signal.Set();
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Msg
+        {
+            public IntPtr Hwnd;
+            public uint Message;
+            public IntPtr WParam;
+            public IntPtr LParam;
+            public uint Time;
+            public int X;
+            public int Y;
+            public uint Private;
+        }
+
+        private const uint Infinite = 0xFFFFFFFF;
+        private const uint QsAllInput = 0x04FF;
+        private const uint MwmoInputAvailable = 0x0004;
+        private const uint PmRemove = 0x0001;
+
+        [DllImport("user32.dll")]
+        private static extern uint MsgWaitForMultipleObjectsEx(uint count, IntPtr[] handles, uint milliseconds, uint wakeMask, uint flags);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool PeekMessage(out Msg msg, IntPtr hwnd, uint filterMin, uint filterMax, uint remove);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool TranslateMessage(in Msg msg);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr DispatchMessage(in Msg msg);
     }
 }

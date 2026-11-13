@@ -34,8 +34,12 @@ public static class AlpacaConnector
             if (server.IsCom)
             {
                 if (!ComTelescopes.IsSupported) throw ComNotSupported();
-                var comConnected = await ComTelescopes.ConnectAsync(server.ProgId!).WaitAsync(token);
-                SetConnected(server, url, comConnected);
+                // Not cancelled: a driver that is starting can't be stopped, so the connect is seen through
+                // and its outcome recorded, and the driver released again if the address changed meanwhile.
+                // Otherwise a connect abandoned part way would leave the driver connected with nothing holding it.
+                var comConnected = await ComTelescopes.ConnectAsync(server.ProgId!, server.IdGuid);
+                if (!SetConnected(server, url, comConnected) && comConnected)
+                    await ComTelescopes.ReleaseAsync(AlpacaServer.GetProgId(url)!, server.IdGuid);
                 return comConnected;
             }
 
@@ -83,11 +87,12 @@ public static class AlpacaConnector
     /// state counts as this app's (<see cref="AlpacaServer.ConnectRequested"/>). Skipped if the user changed
     /// the address meanwhile: the outcome is then for the old device, not the new one.
     /// </summary>
-    private static void SetConnected(AlpacaServer server, string url, bool connected)
+    private static bool SetConnected(AlpacaServer server, string url, bool connected)
     {
-        if (!string.Equals(server.Url, url, StringComparison.Ordinal)) return;
+        if (!string.Equals(server.Url, url, StringComparison.Ordinal)) return false;
         server.ConnectRequested = connected;
         server.IsConnected = connected;
+        return true;
     }
 
     /// <summary>
@@ -103,7 +108,7 @@ public static class AlpacaConnector
             // Releasing the driver always ends this app's connection; other programs have their own instances.
             try
             {
-                if (ComTelescopes.IsSupported) await ComTelescopes.DisconnectAsync(server.ProgId!);
+                if (ComTelescopes.IsSupported) await ComTelescopes.ReleaseAsync(server.ProgId!, server.IdGuid);
             }
             finally
             {
@@ -156,7 +161,7 @@ public static class AlpacaConnector
             if (server.IsCom)
             {
                 connected = ComTelescopes.IsSupported
-                            && await ComTelescopes.IsConnectedAsync(server.ProgId!).WaitAsync(token);
+                            && await ComTelescopes.IsConnectedAsync(server.ProgId!, server.IdGuid).WaitAsync(token);
             }
             else
             {
@@ -233,9 +238,10 @@ public static class AlpacaConnector
             ? L.T("Disconnect from {0}? Its views stop updating, and some ASCOM drivers disconnect the mount for every program using them.", server.ServerName)
             : L.T("Disconnect from {0}? Its views stop updating, and other programs using this mount's Alpaca device may be disconnected too.", server.ServerName);
 
-    /// <summary>The error for a COM driver when this app isn't running on Windows.</summary>
-    private static PlatformNotSupportedException ComNotSupported()
-        => new(L.T("ASCOM drivers can only be used when this app runs on Windows."));
+    /// <summary>The message for a COM driver when this app isn't running on Windows.</summary>
+    public static string ComNotSupportedMessage => L.T("ASCOM drivers can only be used when this app runs on Windows.");
+
+    private static PlatformNotSupportedException ComNotSupported() => new(ComNotSupportedMessage);
 
     /// <summary>The server's "connected" property; false if it returned an error or no value.</summary>
     private static async Task<bool> ReadConnectedAsync(AlpacaClient client, CancellationToken token = default)

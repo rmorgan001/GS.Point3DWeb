@@ -84,10 +84,20 @@ public partial class EditServerDialogViewModel : DialogViewModel
 
         server.ServerName = ServerName.Trim();
         server.Url = url;
-        server.UserName = string.IsNullOrWhiteSpace(UserName) ? null : UserName;
-        server.Password = string.IsNullOrEmpty(Password) ? null : Password;
-        // A saved password that couldn't be decrypted is replaced (or removed) only when the user edits it.
-        if (_passwordEdited) server.PasswordUnreadable = false;
+        if (AlpacaServer.IsComUrl(url))
+        {
+            // A COM driver has no credentials: the fields are hidden, so don't keep any it can't show.
+            server.UserName = null;
+            server.Password = null;
+            server.PasswordUnreadable = false;
+        }
+        else
+        {
+            server.UserName = string.IsNullOrWhiteSpace(UserName) ? null : UserName;
+            server.Password = string.IsNullOrEmpty(Password) ? null : Password;
+            // A saved password that couldn't be decrypted is replaced (or removed) only when the user edits it.
+            if (_passwordEdited) server.PasswordUnreadable = false;
+        }
         server.PollSeconds = AlpacaServer.ClampPollSeconds(PollSeconds);
 
         // A different address is a different device, so the old connection no longer applies.
@@ -134,9 +144,9 @@ public partial class EditServerDialogViewModel : DialogViewModel
         // An ASCOM COM driver on this computer: ascom:<ProgID>, e.g. ascom:ASCOM.Simulator.Telescope
         if (AlpacaServer.IsComUrl(value))
         {
-            var progId = AlpacaServer.NormalizeUrl(value)[AlpacaServer.ComPrefix.Length..];
+            var progId = AlpacaServer.GetProgId(value)!;
             UrlError = !Services.ComTelescopes.IsSupported
-                ? L.T("ASCOM drivers can only be used when this app runs on Windows.")
+                ? Services.AlpacaConnector.ComNotSupportedMessage
                 : ComProgId.IsMatch(progId) ? null : L.T("Invalid ProgID (expected ascom:<ProgID>)");
             return;
         }

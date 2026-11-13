@@ -12,18 +12,27 @@ namespace GS.Point3DWeb.Dialogs;
 /// </summary>
 public partial class ComDriversDialogViewModel : DialogViewModel
 {
+    /// <summary>Opens with "Loading…"; the drivers are read from the registry off the page's thread.</summary>
     public ComDriversDialogViewModel()
     {
         if (!ComTelescopes.IsSupported)
         {
-            Message = L.T("ASCOM drivers can only be used when this app runs on Windows.");
+            Message = AlpacaConnector.ComNotSupportedMessage;
             return;
         }
 
+        Message = L.T("Loading…");
+        _ = LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         try
         {
-            Drivers = ComTelescopes.GetDrivers();
-            Message = Drivers.Count > 0
+            // (IsSupported was checked in the constructor; the analyzer needs to see it here too.)
+            var drivers = await Task.Run(() => OperatingSystem.IsWindows() ? ComTelescopes.GetDrivers() : []);
+            Drivers = drivers;
+            Message = drivers.Count > 0
                 ? L.T("Select an ASCOM telescope driver on the computer running this app.")
                 : L.T("No ASCOM telescope drivers are installed on the computer running this app.");
         }
@@ -35,10 +44,10 @@ public partial class ComDriversDialogViewModel : DialogViewModel
 
     public string Title => L.T("ASCOM Drivers");
 
-    public string Message { get; }
+    [ObservableProperty] public partial string Message { get; set; }
 
     /// <summary>The registered telescope drivers, by name.</summary>
-    public IReadOnlyList<(string ProgId, string Name)> Drivers { get; } = [];
+    [ObservableProperty] public partial IReadOnlyList<(string ProgId, string Name)> Drivers { get; set; } = [];
 
     [ObservableProperty] public partial string? SelectedProgId { get; set; }
 

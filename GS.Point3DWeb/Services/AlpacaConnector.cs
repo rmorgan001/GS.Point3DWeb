@@ -13,6 +13,10 @@ namespace GS.Point3DWeb.Services;
 /// </summary>
 public static class AlpacaConnector
 {
+    /// <summary>A client for the server's address, with its credentials (if any).</summary>
+    public static AlpacaClient CreateClient(AlpacaServer server)
+        => new(server.Url, server.ClientTransactionId, server.UserName, server.Password);
+
     /// <summary>
     /// Connects the server if it is not already connected. Returns the server's connected state afterwards.
     /// Throws with the server's error message if it refused to connect.
@@ -21,7 +25,7 @@ public static class AlpacaConnector
     {
         try
         {
-            var client = new AlpacaClient(server.Url, server.ClientTransactionId);
+            var client = CreateClient(server);
 
             var isConnected = await ReadConnectedAsync(client);
             server.SetClientTransactionId(client.ClientTransactionId);
@@ -57,7 +61,7 @@ public static class AlpacaConnector
     /// </summary>
     public static async Task<bool> DisconnectAsync(AlpacaServer server)
     {
-        var client = new AlpacaClient(server.Url, server.ClientTransactionId);
+        var client = CreateClient(server);
         await client.DisconnectAsync();
         server.SetClientTransactionId(client.ClientTransactionId);
 
@@ -85,7 +89,7 @@ public static class AlpacaConnector
         bool connected;
         try
         {
-            var client = new AlpacaClient(server.Url, server.ClientTransactionId);
+            var client = CreateClient(server);
             connected = await ReadConnectedAsync(client);
             server.SetClientTransactionId(client.ClientTransactionId);
         }
@@ -107,7 +111,7 @@ public static class AlpacaConnector
     /// </summary>
     public static async Task<bool> ReadMountInfoAsync(AlpacaServer server)
     {
-        var client = new AlpacaClient(server.Url, server.ClientTransactionId);
+        var client = CreateClient(server);
 
         var mode = await client.GetPropertyAsync("alignmentmode");
         var latitude = await client.GetPropertyAsync("sitelatitude");

@@ -35,7 +35,10 @@ function loadScript(src) {
         const el = document.createElement('script');
         el.src = src;
         el.onload = resolve;
-        el.onerror = () => reject(new Error(`Failed to load ${src}`));
+        el.onerror = () => {
+            el.remove();
+            reject(new Error(`Failed to load ${src}`));
+        };
         document.head.appendChild(el);
     });
 }
@@ -43,7 +46,11 @@ function loadScript(src) {
 function ensureBabylon() {
     if (window.BABYLON && window.BABYLON.SceneLoader) return Promise.resolve();
     // Trimmed Babylon.js build with only what this viewer uses (tools/babylon-bundle).
-    babylonReady ??= loadScript(base + 'babylon.custom.min.js');
+    // A failed download isn't kept: the next view tries again instead of failing until a reload.
+    babylonReady ??= loadScript(base + 'babylon.custom.min.js').catch(error => {
+        babylonReady = null;
+        throw error;
+    });
     return babylonReady;
 }
 
@@ -67,6 +74,7 @@ class TelescopeViewer {
             compassN: base + 'compassN.png',
             compassS: base + 'compassS.png'
         };
+        this.compassRequest = 0; // so a compass image that loads late can't replace a newer one
         this.modelMeshes = [];
         this.modelMaterials = [];
         this.pierMeshes = [];
@@ -409,9 +417,10 @@ class TelescopeViewer {
     setHemisphere(isNorthern) {
         const B = window.BABYLON;
         const url = isNorthern ? this.textures.compassN : this.textures.compassS;
+        const request = ++this.compassRequest;
         const image = new Image();
         image.onload = () => {
-            if (this.scene.isDisposed) return;
+            if (this.scene.isDisposed || request !== this.compassRequest) return;
             // The compass image is dark markings on a transparent background. Draw it inverted
             // (light markings) over the panel color, so it reads as a dark disc.
             const size = 1024;

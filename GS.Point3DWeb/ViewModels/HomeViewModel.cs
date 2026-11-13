@@ -14,7 +14,6 @@ namespace GS.Point3DWeb.ViewModels;
 /// </summary>
 public partial class HomeViewModel : ViewModelBase, IDisposable
 {
-    private const string SimulatorName = "ASCOM Alpaca Simulators";
     private const string DefaultUrl = "http://127.0.0.1:32323/api/v1/telescope/0/";
 
     private readonly SettingsService _settingsService;
@@ -29,15 +28,52 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
         // Read the saved selection first: selecting a server (below) also stores it in the settings.
         var savedSelection = _settingsService.SelectedAlpacaServer;
-        AutoAddComm();
         RestoreQuadrants();
         var servers = AlpacaServers;
         Count = servers.Length;
         SelectedAlpacaServer = savedSelection is not null && Array.IndexOf(servers, savedSelection) >= 0
             ? savedSelection
-            : SelectedAlpacaServer ?? servers.FirstOrDefault();
+            : servers.FirstOrDefault();
 
         _settingsService.ServersChanged += OnServersChanged;
+        _settingsService.LayoutChanged += OnLayoutChanged;
+    }
+
+    /// <summary>
+    /// Tells the user once if the saved server list couldn't be read at start-up. Called after the
+    /// page's first interactive render (not during prerendering, where a dialog would be lost).
+    /// </summary>
+    public async Task ShowStartupNoticeAsync()
+    {
+        if (_settingsService.LoadProblem is not { } problem || _settingsService.LoadProblemShown) return;
+        _settingsService.LoadProblemShown = true;
+        await _dialogService.ShowDialog(new ConfirmDialogViewModel
+        {
+            Title = L.T("Server list"),
+            Message = problem,
+            CancelVisible = false
+        });
+    }
+
+    /// <summary>
+    /// The quadrant layout or view count changed, here or in another tab: show the shared layout.
+    /// A quadrant whose server changed is rebuilt (and reconnects); the others are left alone.
+    /// </summary>
+    private void OnLayoutChanged()
+    {
+        var ids = _settingsService.QuadrantServerIds;
+        var servers = AlpacaServers;
+        var changed = false;
+        for (var i = 0; i < Quadrants.Length && i < ids.Length; i++)
+        {
+            if (Quadrants[i].Server?.IdGuid == ids[i]) continue;
+            Quadrants[i].Server = ids[i] is { } id ? servers.FirstOrDefault(s => s.IdGuid == id) : null;
+            Quadrants[i].Generation++;
+            Quadrants[i].Flipped = false;
+            changed = true;
+        }
+        if (changed) OnPropertyChanged(nameof(Quadrants));
+        OnPropertyChanged(nameof(ViewCount));
     }
 
     /// <summary>
@@ -58,18 +94,15 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
             SelectedAlpacaServer = servers.LastOrDefault();
 
         var cleared = false;
-        foreach (var quadrant in Quadrants)
+        for (var i = 0; i < Quadrants.Length; i++)
         {
-            if (quadrant.Server is not { } server || Array.IndexOf(servers, server) >= 0) continue;
-            quadrant.Server = null;
-            quadrant.Flipped = false;
+            if (Quadrants[i].Server is not { } server || Array.IndexOf(servers, server) >= 0) continue;
+            Quadrants[i].Server = null;
+            Quadrants[i].Flipped = false;
+            _settingsService.SetQuadrant(i, null);
             cleared = true;
         }
-        if (cleared)
-        {
-            StoreQuadrants();
-            OnPropertyChanged(nameof(Quadrants));
-        }
+        if (cleared) OnPropertyChanged(nameof(Quadrants));
         OnPropertyChanged(nameof(AlpacaServers));
     }
 
@@ -132,6 +165,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
     {
         FeatureKeys.Changed -= OnFeatureKeyChanged;
         _settingsService.ServersChanged -= OnServersChanged;
+        _settingsService.LayoutChanged -= OnLayoutChanged;
         GC.SuppressFinalize(this);
     }
 
@@ -159,8 +193,27 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
         if (!editViewModel.Confirmed) return;
 
+        var (oldUrl, oldUserName, oldPassword, wasConnected) = (server.Url, server.UserName, server.Password, server.IsConnected);
         editViewModel.ApplyTo(server);
         await PersistAsync();
+
+        // A new address is a different device: disconnect the old one rather than leave this app
+        // connected to it. Best effort; the old address may no longer answer.
+        if (wasConnected && !string.Equals(oldUrl, server.Url, StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                await AlpacaConnector.DisconnectAsync(new AlpacaServer(oldUrl, server.ServerName)
+                {
+                    UserName = oldUserName,
+                    Password = oldPassword
+                });
+            }
+            catch
+            {
+                // nothing more to do
+            }
+        }
     }
 
     // ===== Toolbar commands =====
@@ -398,7 +451,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         Quadrants[index].Generation++;
         Quadrants[index].Flipped = false;
         SelectedAlpacaServer = server;
-        StoreQuadrants();
+        _settingsService.SetQuadrant(index, server.IdGuid);
         OnPropertyChanged(nameof(Quadrants));
         _ = PersistAsync();
     }
@@ -408,7 +461,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         if (index < 0 || index >= Quadrants.Length) return;
         Quadrants[index].Server = null;
         Quadrants[index].Flipped = false;
-        StoreQuadrants();
+        _settingsService.SetQuadrant(index, null);
         OnPropertyChanged(nameof(Quadrants));
         _ = PersistAsync();
     }
@@ -433,12 +486,6 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>
-    /// Keeps the settings in step with the quadrants, so a page refresh keeps them;
-    /// Save writes them to disk with the server list.
-    /// </summary>
-    private void StoreQuadrants()
-        => _settingsService.QuadrantServerIds = [.. Quadrants.Select(q => q.Server?.IdGuid)];
 
     public sealed class ModelQuadrant
     {
@@ -455,21 +502,4 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
     // ===== Helpers =====
 
-    /// <summary>Adds the default simulator connection when it is missing.</summary>
-    private void AutoAddComm()
-    {
-        var servers = AlpacaServers;
-        if (servers.Any(i => i.ServerName == SimulatorName)) return;
-        if (!_settingsService.AutoAddComm) return;
-        if (servers.Length >= MaxServers) return;
-
-        var connection = new AlpacaServer(DefaultUrl, SimulatorName)
-        {
-            IsConnected = false,
-            UserName = null,
-            Password = null
-        };
-        _settingsService.AddServer(connection);
-        SelectedAlpacaServer = connection;
-    }
 }

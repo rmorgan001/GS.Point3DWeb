@@ -205,6 +205,12 @@
 @code {
     private int _hoverQuadrant = -1;
 
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // After the first interactive render (never during prerendering), so the dialog reaches the page.
+        if (firstRender) _ = ViewModel.ShowStartupNoticeAsync();
+    }
+
     /// <summary>The 3D view in each quadrant, to read or set its camera.</summary>
     private readonly Model3DView?[] _views = new Model3DView?[SettingsService.QuadrantCount];
 

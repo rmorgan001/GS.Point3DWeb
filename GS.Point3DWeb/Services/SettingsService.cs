@@ -1,6 +1,6 @@
-using System.Collections.ObjectModel;
 using System.Text.Json;
 using GS.Alpaca.Shared;
+using GS.Point3DWeb.Localization;
 using GS.Point3DWeb.Models;
 using GS.Point3DWeb.Support;
 
@@ -71,20 +71,64 @@ public class SettingsService
     /// <summary>Number of 3D model quadrants on the Home page.</summary>
     public const int QuadrantCount = 4;
 
-    /// <summary>
-    /// Server IdGuid shown in each 3D model quadrant (null = empty), saved with the server list.
-    /// </summary>
-    public string?[] QuadrantServerIds { get; set; } = new string?[QuadrantCount];
+    // The quadrant layout is shared by every tab too: each tab shows it, and a change in one is
+    // pushed to the others (LayoutChanged), so no tab saves a stale copy over another's change.
+    private readonly Lock _layoutLock = new();
+    private string?[] _quadrantServerIds = new string?[QuadrantCount];
+
+    /// <summary>Server IdGuid shown in each 3D model quadrant (null = empty), as a copy.</summary>
+    public string?[] QuadrantServerIds
+    {
+        get
+        {
+            lock (_layoutLock) return [.. _quadrantServerIds];
+        }
+    }
+
+    /// <summary>Shows a server (or nothing) in one quadrant, for every tab.</summary>
+    public void SetQuadrant(int index, string? serverId)
+    {
+        if (index < 0 || index >= QuadrantCount) return;
+        lock (_layoutLock)
+        {
+            if (_quadrantServerIds[index] == serverId) return;
+            _quadrantServerIds[index] = serverId;
+        }
+        LayoutChanged?.Invoke();
+    }
 
     /// <summary>How many quadrants are shown (1 to <see cref="QuadrantCount"/>), saved with the server list.</summary>
     public int ViewCount
     {
         get;
-        set => field = Math.Clamp(value, 1, QuadrantCount);
+        set
+        {
+            var count = Math.Clamp(value, 1, QuadrantCount);
+            if (field == count) return;
+            field = count;
+            LayoutChanged?.Invoke();
+        }
     } = QuadrantCount;
 
-    /// <summary>Automatically add the "ASCOM Alpaca Simulators" connection when it is missing.</summary>
-    public bool AutoAddComm { get; set; } = true;
+    /// <summary>Raised after the quadrant layout or the view count changes (on the thread that changed it).</summary>
+    public event Action? LayoutChanged;
+
+    /// <summary>
+    /// Why servers.json couldn't be read at start-up (null if it was fine). The app then starts with
+    /// an empty list; the page tells the user once.
+    /// </summary>
+    public string? LoadProblem { get; private set; }
+
+    /// <summary>Set once the page has shown <see cref="LoadProblem"/>.</summary>
+    public bool LoadProblemShown { get; set; }
+
+    // Set when servers.json couldn't be read or copied aside: then it is never saved over, so the
+    // user's servers are kept until the file can be read again.
+    private bool _saveBlocked;
+
+    // A first run (no servers.json yet) starts with the ASCOM Alpaca Simulators connection.
+    private const string SimulatorName = "ASCOM Alpaca Simulators";
+    private const string SimulatorUrl = "http://127.0.0.1:32323/api/v1/telescope/0/";
 
     // ===== 3D model (mirrors the Model settings in GS.Alpaca.Client) =====
 
@@ -94,22 +138,34 @@ public class SettingsService
     /// <summary>Scene light color (Green Swamp moon white).</summary>
     public string ModelSecondaryColor { get; set; } = "#e8e6df";
 
-    /// <summary>Loads the saved server list, if there is one.</summary>
+    /// <summary>
+    /// Loads the saved server list. A first run (no file) starts with the simulator connection. If the
+    /// file can't be read, the app starts with an empty list and the file is kept: it is copied aside
+    /// before anything can save over it, or, if even that fails, it is never saved over.
+    /// </summary>
     public void Load()
     {
-        if (!File.Exists(FilePath)) return;
+        if (!File.Exists(FilePath))
+        {
+            var simulator = new AlpacaServer(SimulatorUrl, SimulatorName);
+            _servers.Add(simulator);
+            SelectedAlpacaServer = simulator;
+            return;
+        }
 
         try
         {
-            var stored = JsonSerializer.Deserialize<StoredSettings>(File.ReadAllText(FilePath), JsonOptions);
-            if (stored is null) return;
+            var stored = JsonSerializer.Deserialize<StoredSettings>(ReadAllTextWithRetry(FilePath), JsonOptions)
+                         ?? throw new InvalidDataException("The file is empty.");
+            if (stored.Servers is null) throw new InvalidDataException("The file has no server list.");
 
             // Version 1 files stored the old viewer's full offsets (default RA 0, Dec -90); from
             // version 2 they are adjustments on top of GSServer's offsets, so keep only the change
             // the user made from those defaults.
             var (legacyRa, legacyDec) = stored.Version is null or < 2 ? (0.0, -90.0) : (0.0, 0.0);
 
-            _servers.AddRange(stored.Servers.Select(s =>
+            // Build the whole list before using any of it, so a bad entry can't leave half a list.
+            var servers = stored.Servers.Select(s =>
                 new AlpacaServer(s.Url, s.ServerName)
                 {
                     IdGuid = s.IdGuid,
@@ -133,7 +189,8 @@ public class SettingsService
                     ModelColor = ModelAppearance.NormalizeColor(s.ModelColor),
                     Background = ModelAppearance.GetBackground(s.Background).Key,
                     ShowGrid = s.ShowGrid ?? true
-                }));
+                }).ToList();
+            _servers.AddRange(servers);
             SelectedAlpacaServer = _servers.FirstOrDefault(s => s.IdGuid == stored.SelectedId);
 
             // Older files have no quadrants; ids for servers that no longer exist are dropped.
@@ -143,12 +200,51 @@ public class SettingsService
                 var id = stored.Quadrants![i];
                 quadrants[i] = _servers.Any(s => s.IdGuid == id) ? id : null;
             }
-            QuadrantServerIds = quadrants;
+            _quadrantServerIds = quadrants;
             if (stored.ViewCount is { } viewCount) ViewCount = viewCount;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Could not read server list from {FilePath}", FilePath);
+            _servers.Clear();
+            SelectedAlpacaServer = null;
+            _logger.LogError(ex, "Could not read server list from {FilePath}", FilePath);
+            KeepUnreadableFile(ex);
+        }
+    }
+
+    /// <summary>Reads the file, retrying briefly if another program (antivirus, backup) has it open.</summary>
+    private static string ReadAllTextWithRetry(string path)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return File.ReadAllText(path);
+            }
+            catch (IOException) when (attempt < 5)
+            {
+                Thread.Sleep(200 * attempt);
+            }
+        }
+    }
+
+    /// <summary>Copies an unreadable servers.json aside so saving can't lose it; if that fails, blocks saving.</summary>
+    private void KeepUnreadableFile(Exception error)
+    {
+        var copy = $"{FilePath}.unreadable-{DateTime.Now:yyyyMMdd-HHmmss}";
+        try
+        {
+            File.Copy(FilePath, copy, overwrite: false);
+            _logger.LogWarning("Kept a copy of the unreadable server list as {Copy}", copy);
+            LoadProblem = L.T("The server list could not be read ({0}). A copy of the file was saved as {1}, and the app started with an empty list.",
+                error.Message, copy);
+        }
+        catch (Exception copyError)
+        {
+            _saveBlocked = true;
+            _logger.LogError(copyError, "Could not copy {FilePath} aside; it will not be saved over", FilePath);
+            LoadProblem = L.T("The server list could not be read ({0}). It won't be saved over, so your servers are kept: close any program using {1}, or fix the file, then restart the app.",
+                error.Message, FilePath);
         }
     }
 
@@ -158,22 +254,28 @@ public class SettingsService
     /// </summary>
     public void Save()
     {
-        var servers = Servers;
-        var stored = new StoredSettings(
-            SelectedAlpacaServer?.IdGuid,
-            [.. servers.Select(s => new StoredServer(s.IdGuid, s.ServerName, s.Url, s.UserName,
-                s.ModelType.ToString(), s.RaOffset, s.DecOffset,
-                s.ShowRa, s.ShowDec, s.ShowAz, s.ShowAlt, s.ShowLha,
-                s.PolarMode.ToString(), s.AlignmentMode.ToString(), s.Latitude, s.Camera,
-                s.PollSeconds, s.ShowLst, s.RaInDegrees, s.ModelColor, s.Background, s.ShowGrid))],
-            [.. QuadrantServerIds.Select(id => servers.Any(s => s.IdGuid == id) ? id : null)],
-            ViewCount,
-            CurrentVersion);
+        if (_saveBlocked)
+            throw new InvalidOperationException(L.T("{0} couldn't be read at start-up, so it isn't saved over. Restart the app once the file can be read.", FilePath));
 
-        var json = JsonSerializer.Serialize(stored, JsonOptions);
-
+        // Snapshot, serialize and write in one step: two tabs saving at once can't then leave the
+        // older snapshot on disk.
         lock (_saveLock)
         {
+            var servers = Servers;
+            var quadrants = QuadrantServerIds;
+            var stored = new StoredSettings(
+                SelectedAlpacaServer?.IdGuid,
+                [.. servers.Select(s => new StoredServer(s.IdGuid, s.ServerName, s.Url, s.UserName,
+                    s.ModelType.ToString(), s.RaOffset, s.DecOffset,
+                    s.ShowRa, s.ShowDec, s.ShowAz, s.ShowAlt, s.ShowLha,
+                    s.PolarMode.ToString(), s.AlignmentMode.ToString(), s.Latitude, s.Camera,
+                    s.PollSeconds, s.ShowLst, s.RaInDegrees, s.ModelColor, s.Background, s.ShowGrid))],
+                [.. quadrants.Select(id => servers.Any(s => s.IdGuid == id) ? id : null)],
+                ViewCount,
+                CurrentVersion);
+
+            var json = JsonSerializer.Serialize(stored, JsonOptions);
+
             // Write to a temp file then swap it in, so a crash mid-write can't corrupt the list.
             Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
             var tempPath = FilePath + ".tmp";
@@ -186,7 +288,7 @@ public class SettingsService
     private const int CurrentVersion = 2;
 
     private sealed record StoredSettings(
-        string? SelectedId, List<StoredServer> Servers, List<string?>? Quadrants = null, int? ViewCount = null,
+        string? SelectedId, List<StoredServer>? Servers, List<string?>? Quadrants = null, int? ViewCount = null,
         int? Version = null);
 
     private sealed record StoredServer(

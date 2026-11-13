@@ -131,7 +131,9 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
     private async Task RunTimerAsync(CancellationToken token)
     {
-        _timer = Stopwatch.StartNew();
+        // This loop's own stopwatch: a cancelled earlier loop finishing late must not stop the new one's.
+        var timer = Stopwatch.StartNew();
+        _timer = timer;
         try
         {
             await AutoConnectAsync(token);
@@ -153,10 +155,10 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 {
                     _mountInfoRead = false; // read it again after reconnecting
                     if (!IsChangingConnection) StatusText = _connectionMessage ?? L.T("Not connected");
-                    if (IsChangingConnection || _timer.Elapsed - _lastConnectedCheck < ConnectedCheckInterval)
+                    if (IsChangingConnection || timer.Elapsed - _lastConnectedCheck < ConnectedCheckInterval)
                         continue;
 
-                    _lastConnectedCheck = _timer.Elapsed;
+                    _lastConnectedCheck = timer.Elapsed;
                     if (await AlpacaConnector.RefreshConnectedAsync(server) && !token.IsCancellationRequested)
                     {
                         _connectionMessage = null;
@@ -167,7 +169,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 }
 
                 // Polls run one after another, so a slow one delays the next rather than overlapping it.
-                var pollStarted = _timer.Elapsed;
+                var pollStarted = timer.Elapsed;
                 try
                 {
                     // Alignment mode and latitude pick the model and tilt; read them once per connection.
@@ -177,9 +179,9 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                         if (token.IsCancellationRequested) break;
                     }
 
-                    if (!IsChangingConnection && _timer.Elapsed - _lastConnectedCheck >= ConnectedCheckInterval)
+                    if (!IsChangingConnection && timer.Elapsed - _lastConnectedCheck >= ConnectedCheckInterval)
                     {
-                        _lastConnectedCheck = _timer.Elapsed;
+                        _lastConnectedCheck = timer.Elapsed;
                         if (!await AlpacaConnector.RefreshConnectedAsync(server))
                         {
                             if (token.IsCancellationRequested) break;
@@ -188,7 +190,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                         }
                     }
 
-                    var client = new AlpacaClient(server.Url, server.ClientTransactionId);
+                    var client = AlpacaConnector.CreateClient(server);
                     var deviceState = await client.GetDeviceStateAsync();
                     server.SetClientTransactionId(client.ClientTransactionId);
                     if (token.IsCancellationRequested) break;
@@ -212,8 +214,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     UpdateLocalProperties(deviceState);
                     TimerCounter++;
                     // A poll that took longer than the interval: count it as an overrun.
-                    if (_timer.Elapsed - pollStarted > TimeSpan.FromMilliseconds(TimerInMs)) TimerOverruns++;
-                    ElapsedTime = (int)_timer.Elapsed.TotalSeconds;
+                    if (timer.Elapsed - pollStarted > TimeSpan.FromMilliseconds(TimerInMs)) TimerOverruns++;
+                    ElapsedTime = (int)timer.Elapsed.TotalSeconds;
                     StatusText = $"Int={TimerInMs}ms, overruns={TimerOverruns}, counter={TimerCounter}, timer={ElapsedTime}s";
 
                     RotationChanged?.Invoke();
@@ -231,7 +233,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         }
         finally
         {
-            _timer.Stop();
+            timer.Stop();
         }
     }
 

@@ -1,14 +1,23 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Globalization;
+using System.Net.Http.Headers;
+using System.Text;
 
 // ReSharper disable StringLiteralTypo
 
 namespace GS.Alpaca.Support
 {
-    public class AlpacaClient(string url, double clientTransactionId)
+    /// <summary>
+    /// Alpaca telescope API client. A user name (and password) is sent as HTTP basic authentication,
+    /// for servers that require it.
+    /// </summary>
+    public class AlpacaClient(string url, double clientTransactionId, string? userName = null, string? password = null)
     {
         private readonly string _baseUrl = $"{url}";
+        private readonly AuthenticationHeaderValue? _authorization = string.IsNullOrEmpty(userName)
+            ? null
+            : new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{userName}:{password}")));
         // One HttpClient for every request (a new one per poll leaks sockets). The timeout is short so a
         // server that stops answering is reported as disconnected in seconds, not after the 100 s default.
         private static readonly HttpClient SharedHttpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
@@ -50,11 +59,31 @@ namespace GS.Alpaca.Support
             var url = BuildUrl(method).ToLower();
             ClientTransactionId++;
             url += $"?ClientID={ClientId}&ClientTransactionID={ClientTransactionId}";
-            var httpResponse = await _httpClient.GetAsync(url);
-            var jsonResponse = await httpResponse.Content.ReadAsStringAsync();
-            var alpacaResponse = JsonConvert.DeserializeObject<AlpacaResponse>(jsonResponse);
-            //todo log any return errors
-            return alpacaResponse;
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            return await SendAsync(request);
+        }
+
+        /// <summary>
+        /// Sends a request (with the credentials, if any) and reads the Alpaca response. An HTTP error
+        /// (e.g. 401 when the credentials are wrong) throws with its status, rather than failing to parse
+        /// an error page as JSON.
+        /// </summary>
+        private async Task<AlpacaResponse?> SendAsync(HttpRequestMessage request)
+        {
+            if (_authorization is not null) request.Headers.Authorization = _authorization;
+            using var response = await _httpClient.SendAsync(request);
+            var body = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+                throw new HttpRequestException(DescribeHttpError(response, body), null, response.StatusCode);
+            return JsonConvert.DeserializeObject<AlpacaResponse>(body);
+        }
+
+        /// <summary>"HTTP 401 Unauthorized", plus the server's short plain-text reason if it gave one.</summary>
+        private static string DescribeHttpError(HttpResponseMessage response, string body)
+        {
+            var text = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
+            var detail = body.Trim();
+            return detail.Length is > 0 and <= 200 && !detail.StartsWith('<') ? $"{text}: {detail}" : text;
         }
 
        /// <summary>
@@ -149,12 +178,11 @@ namespace GS.Alpaca.Support
                 formEntries.Add(new KeyValuePair<string, string>(key, value));
             }
 
-            using var content = new FormUrlEncodedContent(formEntries);
-
-            var response = await _httpClient.PutAsync(url, content);
-            var jsonResponse = await response.Content.ReadAsStringAsync();
-            
-            return JsonConvert.DeserializeObject<AlpacaResponse>(jsonResponse);
+            using var request = new HttpRequestMessage(HttpMethod.Put, url)
+            {
+                Content = new FormUrlEncodedContent(formEntries)
+            };
+            return await SendAsync(request);
         }
 
         /// <summary>
@@ -190,30 +218,5 @@ namespace GS.Alpaca.Support
             var response = await PutAsync("connected", ("Connected", "false"));
             return response is { ErrorNumber: 0 };
         }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="rightAscension"></param>
-        /// <param name="declination"></param>
-        /// <returns></returns>
-        public async Task<bool> SlewToAsync(double rightAscension, double declination)
-        {
-            var response = await PutAsync("slewtocoordinates", 
-                ("RightAscension", rightAscension.ToString(CultureInfo.InvariantCulture)),
-                ("Declination", declination.ToString(CultureInfo.InvariantCulture)));
-            return response is { ErrorNumber: 0 };
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public async Task<bool> AbortSlewAsync()
-        {
-            var response = await PutAsync("abortslew");
-            return response is { ErrorNumber: 0 };
-        }
-
     }
 }

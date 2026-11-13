@@ -165,7 +165,7 @@
                 {
                     <FlipCard @key="quadrant.Key" Flipped="quadrant.Flipped">
                         <Front>
-                            <Model3DView @ref="_views[index]" Server="server" ConnectOnOpen="quadrant.TakeConnectOnOpen"
+                            <Model3DView @ref="_views[index]" Server="server"
                                          OnSettings="() => ViewModel.ToggleFlip(index)"
                                          OnClose="() => ViewModel.ClearQuadrant(index)"
                                          OnConnectionChanged="StateHasChanged"

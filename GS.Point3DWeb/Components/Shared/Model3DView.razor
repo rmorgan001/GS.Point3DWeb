@@ -67,12 +67,12 @@
             {
                 var connected = Server.IsConnected;
                 <button type="button" class="connect-btn @(connected ? "connected" : null)"
-                        disabled="@ViewModel.IsChangingConnection"
+                        disabled="@ViewModel.IsConnectionBusy"
                         title="@(connected ? L.T("Disconnect from {0}", Server.ServerName) : L.T("Connect to {0}", Server.ServerName))"
                         @onclick="ViewModel.ToggleConnectionAsync">
                     <Icon Kind="Connection" Size="14" />
                     <span>
-                        @(ViewModel.IsChangingConnection
+                        @(ViewModel.IsConnectionBusy
                             ? (connected ? L.T("Disconnecting…") : L.T("Connecting…"))
                             : (connected ? L.T("Disconnect") : L.T("Connect")))
                     </span>
@@ -109,12 +109,6 @@
 
     /// <summary>Shows a close button when set.</summary>
     [Parameter] public EventCallback OnClose { get; set; }
-
-    /// <summary>
-    /// Asked once, as the view starts: true if it should connect its server (the user just dragged the server
-    /// onto it). Otherwise the view only shows the server's state.
-    /// </summary>
-    [Parameter] public Func<bool>? ConnectOnOpen { get; set; }
 
     /// <summary>Raised after the view (connecting on open, or polling) changes the server's connection state.</summary>
     [Parameter] public EventCallback OnConnectionChanged { get; set; }
@@ -227,6 +221,10 @@
             case nameof(AlpacaServer.ServerName):
                 ViewModel.DeviceName = Server?.ServerName ?? ViewModel.DeviceName;
                 break;
+            case nameof(AlpacaServer.IsConnecting):
+                // A connect from elsewhere (toolbar, a drop): the button shows "Connecting…".
+                _ = InvokeAsync(StateHasChanged);
+                break;
             case nameof(AlpacaServer.IsConnected):
                 // Whoever changed it (toolbar, another view, a lost connection), the page's dots,
                 // count and buttons follow the server's real state. The running clock starts or pauses with it.
@@ -334,7 +332,6 @@
 
             ViewModel.RotationChanged += OnRotationChanged;
             ViewModel.ConnectionChanged += OnVmConnectionChanged;
-            ViewModel.ConnectOnStart = ConnectOnOpen?.Invoke() == true;
             ViewModel.StartTimerUpdates();
         }
         catch (JSDisconnectedException)
@@ -383,8 +380,7 @@
         ViewModel.RotationChanged -= OnRotationChanged;
         ViewModel.ConnectionChanged -= OnVmConnectionChanged;
         if (_watchedServer is not null) _watchedServer.PropertyChanged -= OnServerPropertyChanged;
-        ViewModel.Dispose();
-        base.Dispose();
+        base.Dispose(); // detaches and disposes the view model
         await TearDownViewerAsync();
     }
 

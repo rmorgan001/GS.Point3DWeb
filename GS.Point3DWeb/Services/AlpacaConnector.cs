@@ -24,7 +24,8 @@ public static class AlpacaConnector
     /// </summary>
     public static async Task<bool> ConnectAsync(AlpacaServer server, CancellationToken token = default)
     {
-        server.ConnectRequested = true;
+        var url = server.Url; // the result is for this address (see SetConnected)
+        server.IsConnecting = true;
         try
         {
             var client = CreateClient(server);
@@ -40,27 +41,42 @@ public static class AlpacaConnector
 
                 if (!isConnected && response is { ErrorNumber: not 0 })
                 {
-                    server.IsConnected = false;
                     throw new InvalidOperationException(string.IsNullOrWhiteSpace(response.ErrorMessage)
                         ? $"the server returned error {response.ErrorNumber}"
                         : response.ErrorMessage);
                 }
             }
 
-            server.IsConnected = isConnected;
+            SetConnected(server, url, isConnected);
             return isConnected;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            // The view that was connecting stopped. The server is shared, so leave its state alone:
+            // The caller stopped. The server is shared, so leave its state alone:
             // another view or tab may have connected it meanwhile.
             throw;
         }
         catch
         {
-            server.IsConnected = false;
+            SetConnected(server, url, false);
             throw;
         }
+        finally
+        {
+            server.IsConnecting = false;
+        }
+    }
+
+    /// <summary>
+    /// Records a connect's outcome: whether this app is connected, and so whether the server's connected
+    /// state counts as this app's (<see cref="AlpacaServer.ConnectRequested"/>). Skipped if the user changed
+    /// the address meanwhile: the outcome is then for the old device, not the new one.
+    /// </summary>
+    private static void SetConnected(AlpacaServer server, string url, bool connected)
+    {
+        if (!string.Equals(server.Url, url, StringComparison.Ordinal)) return;
+        server.ConnectRequested = connected;
+        server.IsConnected = connected;
     }
 
     /// <summary>
@@ -93,6 +109,8 @@ public static class AlpacaConnector
             stillConnected = false; // it stopped answering, so it isn't connected for us
         }
 
+        // Not connected any more (whatever the error said): stop counting the device's state as ours.
+        server.ConnectRequested = stillConnected;
         server.IsConnected = stillConnected;
         return stillConnected;
     }

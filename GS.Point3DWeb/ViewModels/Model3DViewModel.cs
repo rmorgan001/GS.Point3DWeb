@@ -128,10 +128,16 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     private readonly Lock _runningClockLock = new();
 
     /// <summary>How long this view has been connected, in total.</summary>
-    public TimeSpan RunningTime => _runningClock.Elapsed;
+    public TimeSpan RunningTime
+    {
+        get { lock (_runningClockLock) return _runningClock.Elapsed; }
+    }
 
     /// <summary>Whether the running clock is counting right now (the server is connected).</summary>
-    public bool IsRunningClockOn => _runningClock.IsRunning;
+    public bool IsRunningClockOn
+    {
+        get { lock (_runningClockLock) return _runningClock.IsRunning; }
+    }
 
     /// <summary>Runs the clock while the view is updating and the server is connected; pauses it otherwise.</summary>
     public void SyncRunningClock()
@@ -177,10 +183,6 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         _timer = timer;
         try
         {
-            // Only a view the user just dragged a server onto connects it; a view that is rebuilt (page reload,
-            // another tab, a layout change) shows the server as it is.
-            if (ConnectOnStart) await AutoConnectAsync(token);
-
             while (!token.IsCancellationRequested)
             {
                 await Task.Delay(TimerInMs, token);
@@ -199,9 +201,10 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 if (!server.IsConnected)
                 {
                     _mountInfoRead = false; // read it again after reconnecting
-                    if (!IsChangingConnection) StatusText = _connectionMessage ?? L.T("Not connected");
+                    if (server.IsConnecting) StatusText = L.T("Connecting to {0}…", server.ServerName);
+                    else if (!IsChangingConnection) StatusText = _connectionMessage ?? L.T("Not connected");
                     // Not connected by the user (never, or they disconnected): don't ask until they connect.
-                    if (IsChangingConnection || !server.ConnectRequested
+                    if (IsConnectionBusy || !server.ConnectRequested
                         || timer.Elapsed - _lastConnectedCheck < ConnectedCheckInterval)
                         continue;
 
@@ -224,7 +227,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                         if (token.IsCancellationRequested) break;
                     }
 
-                    if (!IsChangingConnection && timer.Elapsed - _lastConnectedCheck >= ConnectedCheckInterval)
+                    if (!IsConnectionBusy && timer.Elapsed - _lastConnectedCheck >= ConnectedCheckInterval)
                     {
                         _lastConnectedCheck = timer.Elapsed;
                         if (!await AlpacaConnector.RefreshConnectedAsync(server))
@@ -297,8 +300,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     /// </summary>
     private async Task CheckStillConnectedAsync(AlpacaServer server, string reason, CancellationToken token)
     {
-        if (IsChangingConnection)
-            return; // the Connect / Disconnect button is changing it right now
+        if (IsConnectionBusy)
+            return; // a Connect / Disconnect (here, the toolbar or a drop) is changing it right now
 
         if (await AlpacaConnector.RefreshConnectedAsync(server) || token.IsCancellationRequested)
         {
@@ -321,13 +324,19 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     [ObservableProperty] public partial bool IsChangingConnection { get; set; }
 
     /// <summary>
+    /// True while the connection is being changed, by this view's button or by a connect from anywhere else
+    /// (the toolbar, a server dragged onto a view): the button then shows it and stays disabled.
+    /// </summary>
+    public bool IsConnectionBusy => IsChangingConnection || Server?.IsConnecting == true;
+
+    /// <summary>
     /// Connects or disconnects this view's server (the button next to the coordinates).
     /// After a disconnect the view stops polling until it is connected again.
     /// </summary>
     public async Task ToggleConnectionAsync()
     {
         var server = Server;
-        if (server is null || IsChangingConnection) return;
+        if (server is null || IsConnectionBusy) return;
 
         if (server.IsConnected)
         {
@@ -377,47 +386,6 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
             _lastConnectedCheck = _timer?.Elapsed ?? TimeSpan.Zero;
             IsChangingConnection = false;
         }
-        ConnectionChanged?.Invoke();
-    }
-
-    /// <summary>Connect when the view starts: set for a view the user just dragged a server onto.</summary>
-    public bool ConnectOnStart { get; set; }
-
-    private async Task AutoConnectAsync(CancellationToken token)
-    {
-        var server = Server;
-        if (server is null) return;
-
-        DeviceName = server.ServerName;
-        // Already connected, or the user's Connect / Disconnect from this view is under way.
-        if (server.IsConnected || IsChangingConnection) return;
-
-        // Marks the connection as changing, so the view's button shows "Connecting…" and stays disabled.
-        IsChangingConnection = true;
-        StatusText = L.T("Connecting to {0}…", server.ServerName);
-        try
-        {
-            // Cancelled when the view stops, so a server that doesn't answer can't hold the view's
-            // button on "Connecting…" for the whole HTTP timeout after it is gone.
-            var connected = await AlpacaConnector.ConnectAsync(server, token);
-            if (token.IsCancellationRequested) return;
-            _connectionMessage = connected ? null : L.T("Could not connect");
-            StatusText = connected ? L.T("Connected") : L.T("Could not connect");
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
-        {
-            return; // the view stopped
-        }
-        catch (Exception ex)
-        {
-            _connectionMessage = L.T("Connect failed: {0}", ex.Message);
-            StatusText = _connectionMessage;
-        }
-        finally
-        {
-            IsChangingConnection = false;
-        }
-        _lastConnectedCheck = _timer?.Elapsed ?? TimeSpan.Zero;
         ConnectionChanged?.Invoke();
     }
 

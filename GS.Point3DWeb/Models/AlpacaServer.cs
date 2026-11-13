@@ -16,6 +16,10 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     [ObservableProperty]
     public partial bool IsConnected { get; set; }
 
+    /// <summary>True while a connect is under way (from any view, the toolbar, or a drop); not saved.</summary>
+    [ObservableProperty]
+    public partial bool IsConnecting { get; set; }
+
     /// <summary>
     /// True once the user has connected this server from this app (Connect, or dragging it to a view), until
     /// they disconnect it or change its address; not saved, so every run starts disconnected.

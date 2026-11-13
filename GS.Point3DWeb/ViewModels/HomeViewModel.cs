@@ -217,12 +217,12 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         if (!editViewModel.Confirmed) return;
 
         var (oldUrl, oldUserName, oldPassword, wasConnected) = (server.Url, server.UserName, server.Password, server.IsConnected);
-        editViewModel.ApplyTo(server);
+        var urlChanged = editViewModel.ApplyTo(server);
         await PersistAsync();
 
         // A new address is a different device: disconnect the old one rather than leave this app
         // connected to it. Best effort; the old address may no longer answer.
-        if (wasConnected && !AlpacaServer.SameUrl(oldUrl, server.Url))
+        if (wasConnected && urlChanged)
         {
             try
             {
@@ -473,11 +473,35 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         Quadrants[index].Server = server;
         Quadrants[index].Generation++;
         Quadrants[index].Flipped = false;
-        Quadrants[index].ConnectOnOpen = true; // dragging a server to a view is the one automatic connect
         SelectedAlpacaServer = server;
         _settingsService.SetQuadrant(index, server.IdGuid);
         OnPropertyChanged(nameof(Quadrants));
         _ = PersistAsync();
+
+        // Dragging a server onto a view is the one automatic connect; views opened any other way (a reload,
+        // another tab, a layout change) only show the server's state.
+        if (!server.IsConnected && !server.IsConnecting) _ = ConnectDroppedAsync(server);
+    }
+
+    /// <summary>
+    /// Connects a server dragged onto a view. Its views show "Connecting…" meanwhile
+    /// (<see cref="AlpacaServer.IsConnecting"/>); a failure is reported in a dialog.
+    /// </summary>
+    private async Task ConnectDroppedAsync(AlpacaServer server)
+    {
+        string? problem;
+        try
+        {
+            problem = await AlpacaConnector.ConnectAsync(server)
+                ? null
+                : L.T("Could not connect to {0}.", server.ServerName);
+        }
+        catch (Exception e)
+        {
+            problem = L.T("Connect to {0} failed: {1}", server.ServerName, e.Message);
+        }
+        if (problem is not null)
+            await _dialogService.ShowDialog(new ConfirmDialogViewModel { Message = problem, CancelVisible = false });
     }
 
     public void ClearQuadrant(int index)
@@ -520,17 +544,6 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
 
         /// <summary>Bumped on every drop so the view is rebuilt.</summary>
         public int Generation { get; set; }
-
-        /// <summary>Set by a drop: the view it opens connects its server. Taken once, by that view.</summary>
-        public bool ConnectOnOpen { get; set; }
-
-        /// <summary>Whether the view now opening should connect; clears it, so a later rebuild doesn't.</summary>
-        public bool TakeConnectOnOpen()
-        {
-            var connect = ConnectOnOpen;
-            ConnectOnOpen = false;
-            return connect;
-        }
 
         public string Key => $"{Server?.IdGuid}-{Generation}";
     }

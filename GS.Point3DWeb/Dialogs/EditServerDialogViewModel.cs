@@ -68,8 +68,8 @@ public partial class EditServerDialogViewModel : DialogViewModel
 
     partial void OnUrlChanged(string value) => ValidateUrl(value);
 
-    /// <summary>Copies the edited values onto the real server.</summary>
-    public void ApplyTo(AlpacaServer server)
+    /// <summary>Copies the edited values onto the real server. Returns true if its address changed.</summary>
+    public bool ApplyTo(AlpacaServer server)
     {
         var url = AlpacaServer.NormalizeUrl(Url);
         var urlChanged = !AlpacaServer.SameUrl(server.Url, url);
@@ -88,6 +88,7 @@ public partial class EditServerDialogViewModel : DialogViewModel
             server.ConnectRequested = false;
             server.IsConnected = false;
         }
+        return urlChanged;
     }
 
     [RelayCommand]

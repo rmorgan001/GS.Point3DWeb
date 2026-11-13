@@ -12,6 +12,7 @@
         <li><a href="help#settings">Configuración de la vista</a></li>
         <li><a href="help#top">La barra superior</a></li>
         <li><a href="help#network">Usarla desde otros equipos</a></li>
+        <li><a href="help#upgrade">Actualizar a una nueva versión</a></li>
         <li><a href="help#files">Dónde se guardan los datos</a></li>
         <li><a href="help#trouble">Solución de problemas</a></li>
     </ol>
@@ -233,6 +234,28 @@
         <p class="warning">
             Cualquiera que llegue a esa dirección puede conectar y desconectar sus monturas y cambiar la lista
             de servidores, así que hágalo solo en una red de confianza.
+        </p>
+    </section>
+
+    <section id="upgrade">
+        <h2>Actualizar a una nueva versión</h2>
+        <p>
+            Su configuración no se guarda en la carpeta de la aplicación (vea
+            <a href="help#files">Dónde se guardan los datos</a>), así que una nueva versión conserva sus
+            servidores, vistas, configuración de las vistas y vistas de cámara guardadas:
+        </p>
+        <ol>
+            <li>Cierre la aplicación en ejecución.</li>
+            <li>Extraiga la nueva descarga en una carpeta nueva (lo más seguro: la versión anterior sigue
+                funcionando si la necesita) o sobre la anterior.</li>
+            <li>Si modificó <code>appsettings.json</code> (por ejemplo <code>Urls</code>), haga el mismo cambio
+                en la nueva copia: al extraer sobre la carpeta anterior se sustituye por el predeterminado.</li>
+            <li>Inicie la nueva versión y abra la misma dirección.</li>
+        </ol>
+        <p class="note">
+            Ejecute solo una copia a la vez, ya que comparten la misma configuración. El navegador recuerda el
+            idioma elegido para cada dirección, así que se mantiene mientras no cambien la dirección ni el
+            puerto. Para mayor seguridad, haga antes una copia de <code>servers.json</code>.
         </p>
     </section>
 

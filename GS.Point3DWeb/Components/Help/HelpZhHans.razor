@@ -12,6 +12,7 @@
         <li><a href="help#settings">视图设置</a></li>
         <li><a href="help#top">顶部栏</a></li>
         <li><a href="help#network">从其他计算机使用</a></li>
+        <li><a href="help#upgrade">升级到新版本</a></li>
         <li><a href="help#files">数据存放位置</a></li>
         <li><a href="help#trouble">故障排除</a></li>
     </ol>
@@ -185,6 +186,22 @@
         <p>也可以一次性设置地址：修改应用文件夹中 <code>appsettings.json</code> 的 <code>Urls</code>（默认为 <code>http://localhost:5000</code>）。用 <code>--urls</code> 指定的地址优先。</p>
         <p class="warning">
             任何能访问该地址的人都可以连接和断开您的支架并修改服务器列表，因此请只在可信的网络中这样做。
+        </p>
+    </section>
+
+    <section id="upgrade">
+        <h2>升级到新版本</h2>
+        <p>
+            您的设置并不保存在应用文件夹中（参见<a href="help#files">数据存放位置</a>），因此新版本会保留您的服务器、视图、视图设置和保存的相机视角：
+        </p>
+        <ol>
+            <li>停止正在运行的应用。</li>
+            <li>将新下载的文件解压到一个新文件夹（最稳妥：需要时旧版本仍可使用），或直接覆盖旧文件夹。</li>
+            <li>如果您修改过 <code>appsettings.json</code>（例如 <code>Urls</code>），请在新副本中做同样的修改：覆盖旧文件夹解压时，该文件会被替换为默认版本。</li>
+            <li>启动新版本并打开相同的地址。</li>
+        </ol>
+        <p class="note">
+            一次只运行一个副本，因为它们共用同一份设置。浏览器会按地址记住您选择的语言，因此只要地址和端口不变，语言就会保持不变。为稳妥起见，可先备份 <code>servers.json</code>。
         </p>
     </section>
 

@@ -12,6 +12,7 @@
         <li><a href="help#settings">Ansichtseinstellungen</a></li>
         <li><a href="help#top">Die obere Leiste</a></li>
         <li><a href="help#network">Von anderen Computern aus nutzen</a></li>
+        <li><a href="help#upgrade">Auf eine neue Version aktualisieren</a></li>
         <li><a href="help#files">Wo Daten gespeichert werden</a></li>
         <li><a href="help#trouble">Fehlerbehebung</a></li>
     </ol>
@@ -243,6 +244,29 @@
         <p class="warning">
             Jeder, der diese Adresse erreicht, kann Ihre Montierungen verbinden und trennen und die
             Serverliste ändern. Tun Sie das also nur in einem Netzwerk, dem Sie vertrauen.
+        </p>
+    </section>
+
+    <section id="upgrade">
+        <h2>Auf eine neue Version aktualisieren</h2>
+        <p>
+            Ihre Einstellungen liegen nicht im Ordner der App (siehe
+            <a href="help#files">Wo Daten gespeichert werden</a>). Eine neue Version behält daher Ihre Server,
+            Ansichten, Ansichtseinstellungen und gespeicherten Kameraansichten:
+        </p>
+        <ol>
+            <li>Beenden Sie die laufende App.</li>
+            <li>Entpacken Sie den neuen Download in einen neuen Ordner (am sichersten: die alte Version bleibt
+                nutzbar, falls Sie sie brauchen) oder über den alten.</li>
+            <li>Wenn Sie <code>appsettings.json</code> geändert haben (zum Beispiel <code>Urls</code>),
+                übernehmen Sie die Änderung in die neue Kopie: Beim Entpacken über den alten Ordner wird die
+                Datei durch die Standardversion ersetzt.</li>
+            <li>Starten Sie die neue Version und öffnen Sie dieselbe Adresse.</li>
+        </ol>
+        <p class="note">
+            Lassen Sie immer nur eine Kopie laufen, da sich alle dieselben Einstellungen teilen. Die gewählte
+            Sprache merkt sich der Browser pro Adresse; sie bleibt also, solange Adresse und Port gleich
+            bleiben. Zur Sicherheit können Sie vorher <code>servers.json</code> sichern.
         </p>
     </section>
 

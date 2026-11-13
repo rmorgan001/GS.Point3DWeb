@@ -12,6 +12,7 @@
         <li><a href="help#settings">Impostazioni vista</a></li>
         <li><a href="help#top">La barra superiore</a></li>
         <li><a href="help#network">Usarla da altri computer</a></li>
+        <li><a href="help#upgrade">Aggiornare a una nuova versione</a></li>
         <li><a href="help#files">Dove vengono salvati i dati</a></li>
         <li><a href="help#trouble">Risoluzione dei problemi</a></li>
     </ol>
@@ -238,6 +239,29 @@
         <p class="warning">
             Chiunque raggiunga quell'indirizzo può connettere e disconnettere le vostre montature e modificare
             l'elenco dei server, quindi fatelo solo su una rete di cui vi fidate.
+        </p>
+    </section>
+
+    <section id="upgrade">
+        <h2>Aggiornare a una nuova versione</h2>
+        <p>
+            Le vostre impostazioni non sono salvate nella cartella dell'app (vedere
+            <a href="help#files">Dove vengono salvati i dati</a>), quindi una nuova versione conserva server,
+            viste, impostazioni delle viste e viste della telecamera salvate:
+        </p>
+        <ol>
+            <li>Chiudete l'app in esecuzione.</li>
+            <li>Estraete il nuovo download in una nuova cartella (la scelta più sicura: la versione precedente
+                resta utilizzabile se serve) oppure sopra quella vecchia.</li>
+            <li>Se avete modificato <code>appsettings.json</code> (ad esempio <code>Urls</code>), ripetete la
+                modifica nella nuova copia: estraendo sopra la vecchia cartella viene sostituito con quello
+                predefinito.</li>
+            <li>Avviate la nuova versione e aprite lo stesso indirizzo.</li>
+        </ol>
+        <p class="note">
+            Eseguite una sola copia alla volta, perché condividono le stesse impostazioni. Il browser ricorda la
+            lingua scelta per ogni indirizzo, quindi resta finché indirizzo e porta non cambiano. Per maggiore
+            sicurezza, fate prima una copia di <code>servers.json</code>.
         </p>
     </section>
 

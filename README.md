@@ -75,6 +75,22 @@ GS.Point3DWeb --urls "http://0.0.0.0:5000"
 Anyone who can reach that address can connect and disconnect your mounts, so only do this on a
 network you trust.
 
+### Upgrading
+
+Your settings aren't kept in the app's folder (see [Where things are stored](#where-things-are-stored)),
+so a new version keeps your servers, views, view settings and saved cameras:
+
+1. Stop the running app.
+2. Extract the new download, into a new folder (safest: the old version still works if you need it)
+   or over the old one.
+3. If you changed `appsettings.json` (for example `Urls`), make the same change in the new copy:
+   extracting over the old folder replaces it with the default.
+4. Start the new version and open the same address.
+
+Run only one copy at a time, as they share the same settings. Your language choice is kept by the
+browser for each address, so it stays as long as the address and port don't change. To be extra safe,
+back up `servers.json` first.
+
 ## Running from source
 
 ```shell

@@ -12,6 +12,7 @@
         <li><a href="help#settings">Paramètres de la vue</a></li>
         <li><a href="help#top">La barre du haut</a></li>
         <li><a href="help#network">Utiliser l'application depuis d'autres ordinateurs</a></li>
+        <li><a href="help#upgrade">Passer à une nouvelle version</a></li>
         <li><a href="help#files">Où sont stockées les données</a></li>
         <li><a href="help#trouble">Dépannage</a></li>
     </ol>
@@ -241,6 +242,29 @@
         <p class="warning">
             Toute personne qui peut atteindre cette adresse peut connecter et déconnecter vos montures et
             modifier la liste des serveurs : ne le faites que sur un réseau de confiance.
+        </p>
+    </section>
+
+    <section id="upgrade">
+        <h2>Passer à une nouvelle version</h2>
+        <p>
+            Vos paramètres ne sont pas stockés dans le dossier de l'application (voir
+            <a href="help#files">Où sont stockées les données</a>) : une nouvelle version conserve donc vos
+            serveurs, vos vues, leurs paramètres et vos vues de caméra enregistrées :
+        </p>
+        <ol>
+            <li>Arrêtez l'application en cours.</li>
+            <li>Extrayez le nouveau téléchargement dans un nouveau dossier (le plus sûr : l'ancienne version
+                reste utilisable en cas de besoin) ou par-dessus l'ancien.</li>
+            <li>Si vous avez modifié <code>appsettings.json</code> (par exemple <code>Urls</code>), refaites la
+                même modification dans la nouvelle copie : l'extraction par-dessus l'ancien dossier le remplace
+                par celui par défaut.</li>
+            <li>Démarrez la nouvelle version et ouvrez la même adresse.</li>
+        </ol>
+        <p class="note">
+            N'exécutez qu'une copie à la fois, car elles partagent les mêmes paramètres. Le navigateur retient
+            la langue choisie pour chaque adresse : elle est conservée tant que l'adresse et le port ne changent
+            pas. Par précaution, sauvegardez d'abord <code>servers.json</code>.
         </p>
     </section>
 

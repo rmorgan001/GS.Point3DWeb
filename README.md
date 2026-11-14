@@ -60,8 +60,10 @@ platform, named `GS.Point3DWeb-<version>-<platform>`:
 | `osx-x64` (.tar.gz) | macOS on Intel |
 | `osx-arm64` (.tar.gz) | macOS on Apple silicon |
 
-Extract it, run `GS.Point3DWeb` (`GS.Point3DWeb.exe` on Windows) and open
-<http://localhost:5000>.
+Extract it and run `GS.Point3DWeb` (`GS.Point3DWeb.exe` on Windows). It opens
+<http://localhost:5000> in your default browser once it has started. It doesn't when it runs as a
+service, in a container or on Linux without a desktop; to stop it opening the browser, set
+`"OpenBrowser": false` in `appsettings.json` or start it with `--OpenBrowser=false`.
 
 The downloads aren't code-signed, so the operating system may warn about them the first time:
 

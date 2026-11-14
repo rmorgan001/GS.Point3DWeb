@@ -55,7 +55,7 @@ nohup "$run/fake/GS.Point3DWeb.FakeAlpaca" --port "$fake_port" --mounts "$mounts
 echo $! > "$run/fake.pid"
 
 start=$(date +%s%N)
-ASPNETCORE_ENVIRONMENT=Production nohup "$run/app/GS.Point3DWeb" --urls "http://localhost:$app_port" > "$run/app.log" 2>&1 &
+ASPNETCORE_ENVIRONMENT=Production nohup "$run/app/GS.Point3DWeb" --urls "http://localhost:$app_port" --OpenBrowser=false > "$run/app.log" 2>&1 &
 echo $! > "$run/app.pid"
 for ((i = 0; i < 600; i++)); do
   curl -sf -o /dev/null "http://localhost:$app_port/" && break

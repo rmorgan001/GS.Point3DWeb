@@ -163,4 +163,15 @@ app.MapGet("/log/file", () => LogFiles.Latest() is { } file
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
+// Started by hand (the exe, a shortcut): open the app in the browser once the server is listening (see
+// BrowserLauncher.ShouldOpen for when it doesn't, and how to turn it off).
+if (BrowserLauncher.ShouldOpen(app.Configuration, app.Environment))
+{
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()?.Addresses ?? [];
+        if (BrowserLauncher.PickUrl(addresses) is { } url) BrowserLauncher.Open(url, app.Logger);
+    });
+}
+
 app.Run();

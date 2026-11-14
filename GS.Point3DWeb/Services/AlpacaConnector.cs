@@ -139,16 +139,28 @@ public static class AlpacaConnector
         AlpacaServer server, CancellationToken token)
     {
         var url = server.Url; // the result is for this address (see SetConnected)
+        // A COM driver hold this connect took for a caller that then stopped: released once the last connect of
+        // the server has finished (see the finally below).
+        var stoppedComHold = false;
         server.BeginConnect();
         try
         {
             if (server.IsCom)
             {
                 if (!ComTelescopes.IsSupported) throw ComNotSupported();
-                // Not cancelled: a driver that is starting can't be stopped, so the connect is seen through
-                // and its outcome recorded, and the driver released again if the address changed meanwhile.
+                // Not cancelled: a driver that is starting can't be stopped, so the connect is seen through,
+                // and the driver released again if the address changed meanwhile or the caller stopped.
                 // Otherwise a connect abandoned part way would leave the driver connected with nothing holding it.
                 var comConnected = await ComTelescopes.ConnectAsync(server.ProgId!, server.IdGuid);
+                if (token.IsCancellationRequested)
+                {
+                    // The caller stopped (the view closed): as for an Alpaca device, its result isn't recorded
+                    // and the hold it took is let go. The hold is the server entry's, shared by its connects (two
+                    // tabs join one driver connect), so it is only let go once none of them is still under way
+                    // and the entry isn't connected: one tab closing mustn't end another's connection.
+                    stoppedComHold = comConnected;
+                    token.ThrowIfCancellationRequested();
+                }
                 // Deleted meanwhile, or now pointing at a different driver: this hold isn't wanted any more.
                 if (server.Removed || !SetConnected(server, url, comConnected))
                 {
@@ -245,7 +257,12 @@ public static class AlpacaConnector
         }
         finally
         {
-            server.EndConnect();
+            // The last connect of the server to finish: any that recorded a connection has done so by now.
+            if (server.EndConnect() == 0 && stoppedComHold && !server.ConnectRequested)
+            {
+                Log.LogInformation("Releasing {Server}: its connect was stopped", Describe(server));
+                await ComTelescopes.ReleaseAndLogAsync(AlpacaServer.GetProgId(url)!, server.IdGuid);
+            }
         }
     }
 

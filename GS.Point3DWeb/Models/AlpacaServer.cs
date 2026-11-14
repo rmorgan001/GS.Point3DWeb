@@ -39,14 +39,18 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
         }
     }
 
-    /// <summary>A connect has finished: <see cref="IsConnecting"/> clears once no other is under way.</summary>
-    public void EndConnect()
+    /// <summary>
+    /// A connect has finished: <see cref="IsConnecting"/> clears once no other is under way. Returns how many
+    /// other connects are still under way, so the last one to finish can tidy up for them all.
+    /// </summary>
+    public int EndConnect()
     {
         lock (_connectsLock)
         {
             // Never below 0, so an unbalanced end can't leave the next connect's end short of clearing it.
             _connects = Math.Max(0, _connects - 1);
             if (_connects == 0) IsConnecting = false;
+            return _connects;
         }
     }
 

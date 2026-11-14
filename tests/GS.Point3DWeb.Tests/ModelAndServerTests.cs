@@ -205,9 +205,9 @@ public class AlpacaServerTests
         var server = new AlpacaServer("http://h/api/v1/telescope/0/", "x");
         server.BeginConnect(); // two tabs connect at once
         server.BeginConnect();
-        server.EndConnect();
+        Assert.Equal(1, server.EndConnect()); // one still under way
         Assert.True(server.IsConnecting);
-        server.EndConnect();
+        Assert.Equal(0, server.EndConnect());
         Assert.False(server.IsConnecting);
     }
 

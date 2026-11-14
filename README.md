@@ -7,7 +7,7 @@ servers on the network, or to ASCOM COM drivers on the computer it runs on. It t
 mount as a live 3D model that moves as the mount does, so you can see where the telescope is
 pointing from any browser.
 
-![GS Point3D Web showing a German equatorial mount connected to the ASCOM Alpaca Simulators](docs/screenshot.png)
+![GS Point3D Web showing a German equatorial mount connected to the ASCOM Alpaca Simulators](docs/Point3dWeb_1.jpg)
 
 ## Features
 

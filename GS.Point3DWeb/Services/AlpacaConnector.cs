@@ -64,13 +64,25 @@ public static class AlpacaConnector
     }
 
     /// <summary>
-    /// One gate per Alpaca device (by <see cref="AlpacaServer.DeviceKey"/>): connects to the device, and the release
-    /// of a device a connect connected for nothing, take turns. So a release never runs alongside a connect to the
-    /// same device: it can't disconnect what that connect connects, and when it decides whether the device is still
-    /// wanted, no connect is half way through. COM drivers don't need it: each server entry has its own instance.
+    /// One gate per Alpaca device (by <see cref="AlpacaServer.DeviceKey"/>): connects to the device, disconnects
+    /// from it, and the release of a device a connect connected for nothing, take turns. So none of them runs
+    /// alongside another: a release can't disconnect what a connect connects, a connect can't record a state a
+    /// disconnect is changing, and when a release decides whether the device is still wanted, no connect is half
+    /// way through. COM drivers don't need it: each server entry has its own instance.
     /// </summary>
     private static SemaphoreSlim DeviceGate(string url)
         => DeviceGates.GetOrAdd(AlpacaServer.DeviceKey(url), _ => new SemaphoreSlim(1, 1));
+
+    /// <summary>
+    /// Takes a device's turn (see <see cref="DeviceGate"/>), saying so in the log when it has to wait: a release of
+    /// a device that doesn't answer can hold the turn for as long as the request limit.
+    /// </summary>
+    private static async Task EnterGateAsync(SemaphoreSlim gate, string url, CancellationToken token = default)
+    {
+        if (gate.Wait(0)) return;
+        Log.LogInformation("Waiting for another connect, disconnect or release of {Url} to finish", url);
+        await gate.WaitAsync(token);
+    }
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> DeviceGates = new();
 
@@ -82,13 +94,15 @@ public static class AlpacaConnector
     private static readonly object Registered = new();
 
     /// <summary>
-    /// Disconnects a device that a connect connected for a server that was deleted or moved meanwhile: nothing
-    /// else will (the delete or the address change found no connection to end, as this one was under way).
-    /// Runs holding the device's gate, handed on by that connect, and lets it go when done: the connect returns
-    /// without waiting (this can take as long as the request limit), and the next connect to the device waits for
-    /// it. Left alone if another server entry is connected to the device: it is still wanted. Never throws.
+    /// Disconnects a device that a connect connected (or may have) for nothing: its server was deleted or moved
+    /// meanwhile, or the connect was stopped or failed after asking the device to connect. Nothing else would:
+    /// no entry holds the connection. Runs holding the device's gate, handed on by that connect, and lets it go
+    /// when done: the connect returns without waiting (this can take as long as the request limit), and the next
+    /// connect to the device waits for it. Left alone if a server entry is connected to the device: it is still
+    /// wanted. Never throws.
     /// </summary>
-    private static async Task ReleaseAsync(AlpacaClient client, string url, SemaphoreSlim gate)
+    /// <param name="why">Why the device isn't wanted, in English, for the log.</param>
+    private static async Task ReleaseAsync(AlpacaClient client, string url, SemaphoreSlim gate, string why)
     {
         try
         {
@@ -100,11 +114,11 @@ public static class AlpacaConnector
                 return;
             }
             await client.DisconnectAsync();
-            Log.LogInformation("Released {Url}: it was connected for a server that was deleted or moved meanwhile", url);
+            Log.LogInformation("Released {Url}: {Why}", url, why);
         }
         catch (Exception ex)
         {
-            Log.LogWarning(ex, "Could not release {Url} after its server was deleted or moved: {Error}", url, ex.Message);
+            Log.LogWarning(ex, "Could not release {Url} ({Why}): {Error}", url, why, ex.Message);
         }
         finally
         {
@@ -138,14 +152,16 @@ public static class AlpacaConnector
                 return (comConnected, false);
             }
 
-            // Takes turns with other connects to the device and with a release of it (see DeviceGate).
+            // Takes turns with other connects to the device, disconnects and releases (see DeviceGate).
             var gate = DeviceGate(url);
-            await gate.WaitAsync(token);
+            await EnterGateAsync(gate, url, token);
             var gateHandedOn = false;
+            var client = CreateClient(server);
+            // Set while the device has been asked to connect but not yet read back: a connect stopped or failing
+            // in between may have left the device connected with no entry holding it.
+            var connectSent = false;
             try
             {
-                var client = CreateClient(server);
-
                 var isConnected = await ReadConnectedAsync(client, token);
                 server.SetClientTransactionId(client.ClientTransactionId);
                 // Whether this connect is what connects the device (it wasn't connected already, for another program).
@@ -153,10 +169,12 @@ public static class AlpacaConnector
 
                 if (!isConnected)
                 {
+                    connectSent = true;
                     var response = await client.ConnectAsync(token);
                     isConnected = await ReadConnectedAsync(client, token);
                     server.SetClientTransactionId(client.ClientTransactionId);
                     connectedHere = isConnected;
+                    connectSent = false; // read back: what the device did is known
 
                     if (!isConnected && response is { ErrorNumber: not 0 })
                     {
@@ -173,9 +191,17 @@ public static class AlpacaConnector
                 if (!used && connectedHere)
                 {
                     gateHandedOn = true;
-                    _ = ReleaseAsync(client, url, gate);
+                    _ = ReleaseAsync(client, url, gate, "it was connected for a server that was deleted or moved meanwhile");
                 }
                 return (used && isConnected, !used);
+            }
+            catch when (connectSent)
+            {
+                // Stopped (the view closed) or failed after asking the device to connect, before reading back
+                // whether it did: release it, unless an entry is connected to it (ReleaseAsync checks).
+                gateHandedOn = true;
+                _ = ReleaseAsync(client, url, gate, "its connect was stopped or failed part way");
+                throw;
             }
             finally
             {
@@ -278,6 +304,21 @@ public static class AlpacaConnector
             return false;
         }
 
+        // Takes turns with connects to the device and releases of it (see DeviceGate).
+        var gate = DeviceGate(server.Url);
+        await EnterGateAsync(gate, server.Url);
+        try
+        {
+            return await DisconnectAlpacaAsync(server);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private static async Task<bool> DisconnectAlpacaAsync(AlpacaServer server)
+    {
         var client = CreateClient(server);
         bool accepted;
         try

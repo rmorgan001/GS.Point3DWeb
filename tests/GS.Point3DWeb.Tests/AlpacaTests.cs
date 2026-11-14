@@ -341,6 +341,21 @@ public class AlpacaConnectorTests : FakeServerTest
     }
 
     [Fact]
+    public async Task A_connect_stopped_after_the_device_connected_releases_it()
+    {
+        // Every request takes 300 ms: the connected check ends at 300, the connect at 600 (the device is then
+        // connected), and the read back would end at 900. Stopping at 750 leaves the device connected with no
+        // entry holding it, unless the connect releases it.
+        Mount.LatencyMs = 300;
+        var server = NewServer();
+        using var cts = new CancellationTokenSource(750);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => AlpacaConnector.ConnectAsync(server, cts.Token));
+        Assert.True(Mount.Connected, "the connect should have reached the device before it was stopped");
+        Assert.False(server.ConnectRequested);
+        await Wait.UntilAsync(() => !Mount.Connected, TimeSpan.FromSeconds(3), "the device released");
+    }
+
+    [Fact]
     public async Task A_device_another_entry_is_connecting_is_not_released()
     {
         Mount.ConnectLatencyMs = 500;

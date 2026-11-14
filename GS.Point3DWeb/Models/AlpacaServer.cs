@@ -25,25 +25,34 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     public partial bool IsConnecting { get; private set; }
 
     private int _connects;
-    private readonly Lock _connectsLock = new();
 
     /// <summary>A connect starts (AlpacaConnector): <see cref="IsConnecting"/> is set.</summary>
     public void BeginConnect()
     {
-        lock (_connectsLock)
-        {
-            _connects++;
-            IsConnecting = true;
-        }
+        Interlocked.Increment(ref _connects);
+        SyncIsConnecting();
     }
 
     /// <summary>A connect has finished: <see cref="IsConnecting"/> clears once no other is under way.</summary>
     public void EndConnect()
     {
-        lock (_connectsLock)
+        Interlocked.Decrement(ref _connects);
+        SyncIsConnecting();
+    }
+
+    /// <summary>
+    /// Sets <see cref="IsConnecting"/> from the count without holding a lock, so the change handlers (every tab's)
+    /// don't run inside one. A connect starting or ending meanwhile can make this write out of date; looking at
+    /// the count again after writing puts it right, so whichever writes last leaves the right value.
+    /// </summary>
+    private void SyncIsConnecting()
+    {
+        bool value;
+        do
         {
-            if (--_connects == 0) IsConnecting = false;
-        }
+            value = Volatile.Read(ref _connects) > 0;
+            IsConnecting = value;
+        } while (Volatile.Read(ref _connects) > 0 != value);
     }
 
     /// <summary>

@@ -3,6 +3,7 @@ using GS.Alpaca.Support;
 using GS.Point3DWeb.Localization;
 using GS.Point3DWeb.Models;
 using GS.Point3DWeb.Support;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -63,61 +64,51 @@ public static class AlpacaConnector
     }
 
     /// <summary>
-    /// Starts releasing a device (<see cref="ReleaseAsync"/>) without waiting for it: it can take as long as the
-    /// request limit, and nothing waits on its outcome. It is recorded until done, so a connect to the same
-    /// address waits for it (<see cref="WaitForReleasesAsync"/>) rather than being disconnected by it. Skipped if
-    /// another server entry for the same device is connected or connecting: the device is still wanted. The check,
-    /// the start and the record are one step under the lock, and a connect sets IsConnecting before it looks for
-    /// releases under the same lock, so each connect either is seen here or sees the release.
+    /// One gate per Alpaca device (by <see cref="AlpacaServer.DeviceKey"/>): connects to the device, and the release
+    /// of a device a connect connected for nothing, take turns. So a release never runs alongside a connect to the
+    /// same device: it can't disconnect what that connect connects, and when it decides whether the device is still
+    /// wanted, no connect is half way through. COM drivers don't need it: each server entry has its own instance.
     /// </summary>
-    private static void StartRelease(AlpacaClient client, string url)
-    {
-        lock (ReleasesLock)
-        {
-            var holder = Known.Select(k => k.Key).FirstOrDefault(s => !s.Removed && AlpacaServer.SameUrl(s.Url, url)
-                                                                       && (s.ConnectRequested || s.IsConnecting));
-            if (holder is not null)
-            {
-                Log.LogInformation("Not releasing {Url}: {Server} uses it", url, Describe(holder));
-                return;
-            }
-            var task = ReleaseAsync(client, url);
-            var entry = (url, task);
-            Releases.Add(entry);
-            _ = task.ContinueWith(_ => { lock (ReleasesLock) Releases.Remove(entry); }, TaskScheduler.Default);
-        }
-    }
+    private static SemaphoreSlim DeviceGate(string url)
+        => DeviceGates.GetOrAdd(AlpacaServer.DeviceKey(url), _ => new SemaphoreSlim(1, 1));
 
-    /// <summary>Every server a connect has been asked for, so a release can tell whether another still uses its device.</summary>
-    private static readonly ConditionalWeakTable<AlpacaServer, object> Known = [];
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> DeviceGates = new();
 
-    /// <summary>Waits for releases of the same device still under way (see <see cref="StartRelease"/>).</summary>
-    private static Task WaitForReleasesAsync(string url, CancellationToken token)
-    {
-        Task[] pending;
-        lock (ReleasesLock)
-            pending = [.. Releases.Where(r => AlpacaServer.SameUrl(r.Url, url)).Select(r => r.Task)];
-        return pending.Length == 0 ? Task.CompletedTask : Task.WhenAll(pending).WaitAsync(token);
-    }
-
-    private static readonly Lock ReleasesLock = new();
-    private static readonly List<(string Url, Task Task)> Releases = [];
+    /// <summary>
+    /// Every server a connect has connected (registered by <see cref="SetConnected"/>, the only place that marks
+    /// a server connected), so a release can tell whether another entry still holds its device.
+    /// </summary>
+    private static readonly ConditionalWeakTable<AlpacaServer, object> ConnectedServers = [];
+    private static readonly object Registered = new();
 
     /// <summary>
     /// Disconnects a device that a connect connected for a server that was deleted or moved meanwhile: nothing
     /// else will (the delete or the address change found no connection to end, as this one was under way).
-    /// Never throws.
+    /// Runs holding the device's gate, handed on by that connect, and lets it go when done: the connect returns
+    /// without waiting (this can take as long as the request limit), and the next connect to the device waits for
+    /// it. Left alone if another server entry is connected to the device: it is still wanted. Never throws.
     /// </summary>
-    private static async Task ReleaseAsync(AlpacaClient client, string url)
+    private static async Task ReleaseAsync(AlpacaClient client, string url, SemaphoreSlim gate)
     {
         try
         {
+            var holder = ConnectedServers.Select(c => c.Key)
+                .FirstOrDefault(s => !s.Removed && s.ConnectRequested && AlpacaServer.SameUrl(s.Url, url));
+            if (holder is not null)
+            {
+                Log.LogInformation("Not releasing {Url}: {Server} is connected to it", url, Describe(holder));
+                return;
+            }
             await client.DisconnectAsync();
             Log.LogInformation("Released {Url}: it was connected for a server that was deleted or moved meanwhile", url);
         }
         catch (Exception ex)
         {
             Log.LogWarning(ex, "Could not release {Url} after its server was deleted or moved: {Error}", url, ex.Message);
+        }
+        finally
+        {
+            gate.Release();
         }
     }
 
@@ -128,8 +119,7 @@ public static class AlpacaConnector
         AlpacaServer server, CancellationToken token)
     {
         var url = server.Url; // the result is for this address (see SetConnected)
-        Known.AddOrUpdate(server, Known);
-        server.IsConnecting = true;
+        server.BeginConnect();
         try
         {
             if (server.IsCom)
@@ -148,38 +138,49 @@ public static class AlpacaConnector
                 return (comConnected, false);
             }
 
-            // A release of this device still under way (an earlier connect's, for a server since moved away and
-            // back) would otherwise disconnect what this connect connects.
-            await WaitForReleasesAsync(url, token);
-
-            var client = CreateClient(server);
-
-            var isConnected = await ReadConnectedAsync(client, token);
-            server.SetClientTransactionId(client.ClientTransactionId);
-            // Whether this connect is what connects the device (it wasn't connected already, for another program).
-            var connectedHere = false;
-
-            if (!isConnected)
+            // Takes turns with other connects to the device and with a release of it (see DeviceGate).
+            var gate = DeviceGate(url);
+            await gate.WaitAsync(token);
+            var gateHandedOn = false;
+            try
             {
-                var response = await client.ConnectAsync(token);
-                isConnected = await ReadConnectedAsync(client, token);
+                var client = CreateClient(server);
+
+                var isConnected = await ReadConnectedAsync(client, token);
                 server.SetClientTransactionId(client.ClientTransactionId);
-                connectedHere = isConnected;
+                // Whether this connect is what connects the device (it wasn't connected already, for another program).
+                var connectedHere = false;
 
-                if (!isConnected && response is { ErrorNumber: not 0 })
+                if (!isConnected)
                 {
-                    throw new InvalidOperationException(string.IsNullOrWhiteSpace(response.ErrorMessage)
-                        ? $"the server returned error {response.ErrorNumber}"
-                        : response.ErrorMessage);
-                }
-            }
+                    var response = await client.ConnectAsync(token);
+                    isConnected = await ReadConnectedAsync(client, token);
+                    server.SetClientTransactionId(client.ClientTransactionId);
+                    connectedHere = isConnected;
 
-            // Deleted meanwhile, or now pointing at a different device: this result isn't for it.
-            var used = !server.Removed && SetConnected(server, url, isConnected);
-            // Not used, but this connect connected the device: release it (started here, while IsConnecting is
-            // still set), as for a COM driver. A device that was already connected (another program's) is left alone.
-            if (!used && connectedHere) StartRelease(client, url);
-            return (used && isConnected, !used);
+                    if (!isConnected && response is { ErrorNumber: not 0 })
+                    {
+                        throw new InvalidOperationException(string.IsNullOrWhiteSpace(response.ErrorMessage)
+                            ? $"the server returned error {response.ErrorNumber}"
+                            : response.ErrorMessage);
+                    }
+                }
+
+                // Deleted meanwhile, or now pointing at a different device: this result isn't for it.
+                var used = !server.Removed && SetConnected(server, url, isConnected);
+                // Not used, but this connect connected the device: release it, as for a COM driver, with the gate
+                // handed on to the release. A device that was already connected (another program's) is left alone.
+                if (!used && connectedHere)
+                {
+                    gateHandedOn = true;
+                    _ = ReleaseAsync(client, url, gate);
+                }
+                return (used && isConnected, !used);
+            }
+            finally
+            {
+                if (!gateHandedOn) gate.Release();
+            }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -197,7 +198,7 @@ public static class AlpacaConnector
         }
         finally
         {
-            server.IsConnecting = false;
+            server.EndConnect();
         }
     }
 
@@ -211,6 +212,7 @@ public static class AlpacaConnector
     private static bool SetConnected(AlpacaServer server, string url, bool connected)
     {
         if (!AlpacaServer.SameUrl(server.Url, url)) return false;
+        if (connected) ConnectedServers.AddOrUpdate(server, Registered);
         // Every connect tries devicestate again (a reconnect is how the user starts afresh). A new connection, or
         // the end of one, also drops the read under way; one to a server this app already has connected (another
         // tab, a dropped connection found again) lets the views' reads go on.
@@ -246,9 +248,21 @@ public static class AlpacaConnector
 
     private static async Task<bool> DisconnectCoreAsync(AlpacaServer server)
     {
-        // A read under way stops asking the device being disconnected. One a view starts while the disconnect is
-        // under way is dropped by the views' own loops as soon as they see the server disconnected.
-        ResetStateReads(server);
+        ResetStateReads(server); // a read under way stops asking the device being disconnected
+        try
+        {
+            return await DisconnectDeviceAsync(server);
+        }
+        finally
+        {
+            // Again once IsConnected is settled: a view may have started a read while the disconnect was under
+            // way, which would otherwise ask the device until the view's next cycle.
+            if (!server.IsConnected) ResetStateReads(server);
+        }
+    }
+
+    private static async Task<bool> DisconnectDeviceAsync(AlpacaServer server)
+    {
         if (server.IsCom)
         {
             // Releasing the driver always ends this app's connection; other programs have their own instances.
@@ -485,6 +499,7 @@ public static class AlpacaConnector
         {
             poll.UseDeviceState = true;
             poll.DeviceStateRetryAt = 0;
+            poll.Resets++; // a read from before this can't switch devicestate off again
             if (!dropRead) return;
             cancel = poll.Cancel;
             poll.Cancel = null;
@@ -509,9 +524,11 @@ public static class AlpacaConnector
         // property at a time. Tried again after DeviceStateRetry (one odd answer, from a proxy or a server
         // restarting, mustn't leave every view on the slower reads for the rest of the run) and after a
         // reconnect (ResetStateReads).
-        // Both read and written under Lock.
+        // All read and written under Lock. Resets counts ResetStateReads calls: a read only switches devicestate
+        // off if there has been none since it looked, so its answer is about what is in force now.
         public bool UseDeviceState = true;
         public long DeviceStateRetryAt;
+        public long Resets;
     }
 
     /// <summary>How long a server that didn't take devicestate is read one property at a time before trying it again.</summary>
@@ -529,10 +546,12 @@ public static class AlpacaConnector
         try
         {
             bool useDeviceState;
+            long resets;
             lock (poll.Lock)
             {
                 if (!poll.UseDeviceState && Stopwatch.GetTimestamp() >= poll.DeviceStateRetryAt) poll.UseDeviceState = true;
                 useDeviceState = poll.UseDeviceState;
+                resets = poll.Resets;
             }
             if (useDeviceState)
             {
@@ -546,9 +565,9 @@ public static class AlpacaConnector
                 }
                 lock (poll.Lock)
                 {
-                    // Only while this is still the server's read: one that ResetStateReads dropped mustn't undo
-                    // its "try devicestate again" (the reset replaces poll.Cancel under this lock).
-                    if (poll.Cancel is { } current && current.Token == token)
+                    // Not if the reads were reset since this one looked (a connect, a disconnect, the read dropped):
+                    // that reset's "try devicestate again" stands.
+                    if (poll.Resets == resets)
                     {
                         poll.UseDeviceState = false;
                         poll.DeviceStateRetryAt = Stopwatch.GetTimestamp() + (long)(DeviceStateRetry.TotalSeconds * Stopwatch.Frequency);

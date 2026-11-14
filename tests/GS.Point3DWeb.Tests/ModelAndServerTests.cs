@@ -200,6 +200,18 @@ public class AlpacaServerTests
     }
 
     [Fact]
+    public void Connecting_shows_until_the_last_of_overlapping_connects_ends()
+    {
+        var server = new AlpacaServer("http://h/api/v1/telescope/0/", "x");
+        server.BeginConnect(); // two tabs connect at once
+        server.BeginConnect();
+        server.EndConnect();
+        Assert.True(server.IsConnecting);
+        server.EndConnect();
+        Assert.False(server.IsConnecting);
+    }
+
+    [Fact]
     public void Defaults_for_a_new_server()
     {
         var server = new AlpacaServer("http://h/api/v1/telescope/0/", "x");

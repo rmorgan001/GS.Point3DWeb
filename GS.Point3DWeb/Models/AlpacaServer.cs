@@ -16,9 +16,35 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     [ObservableProperty]
     public partial bool IsConnected { get; set; }
 
-    /// <summary>True while a connect is under way (from any view, the toolbar, or a drop); not saved.</summary>
+    /// <summary>
+    /// True while a connect is under way (from any view, the toolbar, or a drop); not saved. Set through
+    /// <see cref="BeginConnect"/> and <see cref="EndConnect"/>, so it stays set until the last of overlapping
+    /// connects (two tabs) has finished.
+    /// </summary>
     [ObservableProperty]
-    public partial bool IsConnecting { get; set; }
+    public partial bool IsConnecting { get; private set; }
+
+    private int _connects;
+    private readonly Lock _connectsLock = new();
+
+    /// <summary>A connect starts (AlpacaConnector): <see cref="IsConnecting"/> is set.</summary>
+    public void BeginConnect()
+    {
+        lock (_connectsLock)
+        {
+            _connects++;
+            IsConnecting = true;
+        }
+    }
+
+    /// <summary>A connect has finished: <see cref="IsConnecting"/> clears once no other is under way.</summary>
+    public void EndConnect()
+    {
+        lock (_connectsLock)
+        {
+            if (--_connects == 0) IsConnecting = false;
+        }
+    }
 
     /// <summary>
     /// True once the user has connected this server from this app (Connect, or dragging it to a view), until
@@ -97,12 +123,19 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     /// Whether two addresses are the same device: the scheme and host may differ in case, the path may not
     /// (a proxy prefix can be case-sensitive). COM ProgIDs aren't case-sensitive.
     /// </summary>
-    public static bool SameUrl(string a, string b)
-        => IsComUrl(a) || IsComUrl(b)
-            ? string.Equals(NormalizeUrl(a), NormalizeUrl(b), StringComparison.OrdinalIgnoreCase)
-            : Uri.TryCreate(NormalizeUrl(a), UriKind.Absolute, out var ua) && Uri.TryCreate(NormalizeUrl(b), UriKind.Absolute, out var ub)
-                ? Uri.Compare(ua, ub, UriComponents.AbsoluteUri, UriFormat.UriEscaped, StringComparison.Ordinal) == 0
-                : string.Equals(NormalizeUrl(a), NormalizeUrl(b), StringComparison.Ordinal);
+    public static bool SameUrl(string a, string b) => string.Equals(DeviceKey(a), DeviceKey(b), StringComparison.Ordinal);
+
+    /// <summary>
+    /// The address in a form that is the same for every way of writing the same device (see <see cref="SameUrl"/>):
+    /// a COM ProgID in upper case; an Alpaca URL with its scheme and host in lower case, as <see cref="Uri"/> writes
+    /// them, and its path as typed.
+    /// </summary>
+    public static string DeviceKey(string url)
+        => IsComUrl(url)
+            ? NormalizeUrl(url).ToUpperInvariant()
+            : Uri.TryCreate(NormalizeUrl(url), UriKind.Absolute, out var uri)
+                ? uri.GetComponents(UriComponents.AbsoluteUri, UriFormat.UriEscaped)
+                : NormalizeUrl(url);
 
     /// <summary>
     /// Set at start-up when the saved password couldn't be decrypted (Password is then null); not saved.

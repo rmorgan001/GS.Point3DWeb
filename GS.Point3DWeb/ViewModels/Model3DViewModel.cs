@@ -43,7 +43,9 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
     // The shared read this view last had (AlpacaConnector.ReadStateAsync), so it isn't handed the same one again.
     // The number counts one server's reads, so it starts again (0, never a read's number) when the server changes.
+    // Under _lastReadLock with the server, so a switch can't fall between the poll's check and its write.
     private long _lastRead;
+    private readonly Lock _lastReadLock = new();
 
     // How often to read the server's "connected" property: while connected, to notice another program
     // disconnecting it (devicestate keeps answering on some servers); while not, to notice it reconnecting.
@@ -61,8 +63,11 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         get;
         set
         {
-            if (!ReferenceEquals(field, value)) _lastRead = 0;
-            field = value;
+            lock (_lastReadLock)
+            {
+                if (!ReferenceEquals(field, value)) _lastRead = 0;
+                field = value;
+            }
         }
     }
 
@@ -319,7 +324,9 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     AlpacaConnector.SharedRead read;
                     try
                     {
-                        read = await AlpacaConnector.ReadStateAsync(server, interval * 0.8, _lastRead, token);
+                        long seen;
+                        lock (_lastReadLock) seen = ReferenceEquals(Server, server) ? _lastRead : 0;
+                        read = await AlpacaConnector.ReadStateAsync(server, interval * 0.8, seen, token);
                     }
                     catch (OperationCanceledException) when (!token.IsCancellationRequested)
                     {
@@ -327,7 +334,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     }
                     if (token.IsCancellationRequested) break;
                     // Unless the view moved to another server while this read was under way.
-                    if (ReferenceEquals(Server, server)) _lastRead = read.Generation;
+                    lock (_lastReadLock)
+                        if (ReferenceEquals(Server, server)) _lastRead = read.Generation;
                     var deviceState = read.State;
 
                     if (deviceState?.AlpacaResponse?.ErrorNumber > 0)

@@ -291,8 +291,7 @@ public class AlpacaConnectorTests : FakeServerTest
         await Task.Delay(100);
         server.Removed = true;
         await connect;
-        await Task.Delay(300);
-        Assert.False(Mount.Connected, "the deleted server's device was left connected");
+        await Wait.UntilAsync(() => !Mount.Connected, TimeSpan.FromSeconds(2), "the deleted server's device released");
     }
 
     [Fact]
@@ -317,10 +316,46 @@ public class AlpacaConnectorTests : FakeServerTest
         var connect = AlpacaConnector.ConnectAsync(server);
         await Task.Delay(100);
         server.Url = Fake.MountUrl(1);
-        await Wait.UntilAsync(() => !server.IsConnecting, TimeSpan.FromSeconds(2), "IsConnecting cleared");
-        Assert.False(connect.IsCompleted); // still releasing the old device
+        // The connect returns without waiting for the old device's slow release, which still goes on.
+        Assert.False(await connect.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.False(server.IsConnecting);
+        Assert.True(Mount.Connected, "the release should still be under way");
+        await Wait.UntilAsync(() => !Mount.Connected, TimeSpan.FromSeconds(5), "the old device released");
+    }
+
+    [Fact]
+    public async Task A_connect_to_a_device_being_released_waits_for_the_release()
+    {
+        Mount.ConnectLatencyMs = 500;
+        Mount.DisconnectLatencyMs = 1000;
+        var server = NewServer();
+        var connect = AlpacaConnector.ConnectAsync(server);
+        await Task.Delay(100);
+        server.Url = Fake.MountUrl(1);
+        Assert.False(await connect); // the old device's release is now under way
+        server.Url = Fake.MountUrl(0); // and back: connecting again mustn't be undone by that release
+        Assert.True(await AlpacaConnector.ConnectAsync(server));
+        await Task.Delay(500);
+        Assert.True(Mount.Connected);
+        Assert.True(server.IsConnected);
+    }
+
+    [Fact]
+    public async Task A_device_another_entry_is_connecting_is_not_released()
+    {
+        Mount.ConnectLatencyMs = 500;
+        var moved = NewServer();
+        var other = NewServer(); // a second entry for the same device
+        var connect = AlpacaConnector.ConnectAsync(moved);
+        await Task.Delay(100);
+        var otherConnect = AlpacaConnector.ConnectAsync(other);
+        await Task.Delay(50);
+        moved.Url = Fake.MountUrl(1);
         Assert.False(await connect);
-        Assert.False(Mount.Connected);
+        Assert.True(await otherConnect);
+        await Task.Delay(500);
+        Assert.True(Mount.Connected, "the device was released under the other entry");
+        Assert.True(other.IsConnected);
     }
 
     [Fact]
@@ -332,7 +367,7 @@ public class AlpacaConnectorTests : FakeServerTest
         await Task.Delay(100);
         server.Url = Fake.MountUrl(1);
         Assert.False(await connect);
-        Assert.False(Mount.Connected);
+        await Wait.UntilAsync(() => !Mount.Connected, TimeSpan.FromSeconds(2), "the old device released");
         Assert.False(Fake[1].Connected);
     }
 

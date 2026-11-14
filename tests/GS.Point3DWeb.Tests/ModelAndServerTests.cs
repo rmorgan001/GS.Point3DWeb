@@ -72,6 +72,11 @@ public class Model3DTests
     public void Offsets_are_whole_degrees_within_90(double value, double expected) => Assert.Equal(expected, Model3D.ClampOffset(value));
 
     [Fact]
+    public void An_offset_just_below_zero_is_written_like_the_lists_zero()
+        // Rounding -0.3 gives -0, written "-0", which matches no option of the adjust lists ("0").
+        => Assert.Equal("0", Model3D.ClampOffset(-0.3).ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+    [Fact]
     public void Offset_list_has_every_whole_degree()
     {
         Assert.Equal(181, Model3D.OffsetValues.Count);

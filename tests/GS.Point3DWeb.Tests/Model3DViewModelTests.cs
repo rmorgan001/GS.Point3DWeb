@@ -478,4 +478,22 @@ public class DeviceStateRetryTests : FakeServerTest
             AlpacaConnector.DeviceStateRetry = retry;
         }
     }
+
+    [Fact]
+    public async Task Connecting_again_tries_devicestate_straight_away()
+    {
+        // The server is still connected, so the connect changes nothing else, but the user connecting is how they
+        // start afresh: devicestate is tried again then, not after the minute's wait.
+        var server = NewServer();
+        await AlpacaConnector.ConnectAsync(server);
+        var view = new Model3DViewModel(DiskFreeSettings.Create(), new DialogService(), NullLogger<Model3DViewModel>.Instance) { Server = server };
+        Mount.DeviceState = DeviceStateMode.Http404;
+        view.StartTimerUpdates();
+        await Wait.UntilAsync(() => view.TimerCounter >= 1, TimeSpan.FromSeconds(4), "first update");
+        Assert.Null(view.Status);
+        Mount.DeviceState = DeviceStateMode.Normal;
+        Assert.True(await AlpacaConnector.ConnectAsync(server));
+        await Wait.UntilAsync(() => view.Status is not null, TimeSpan.FromSeconds(3), "back on devicestate");
+        view.Dispose();
+    }
 }

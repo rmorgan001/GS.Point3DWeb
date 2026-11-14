@@ -41,10 +41,9 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     private const int MountInfoTries = 5;
     private static readonly TimeSpan MountInfoRetryInterval = TimeSpan.FromSeconds(2);
 
-    // The shared read this view last had (AlpacaConnector.ReadStateAsync), so it isn't handed the same one again,
-    // and the server it was for: the number counts that server's reads, so it means nothing for another one.
+    // The shared read this view last had (AlpacaConnector.ReadStateAsync), so it isn't handed the same one again.
+    // The number counts one server's reads, so it starts again (0, never a read's number) when the server changes.
     private long _lastRead;
-    private AlpacaServer? _lastReadServer;
 
     // How often to read the server's "connected" property: while connected, to notice another program
     // disconnecting it (devicestate keeps answering on some servers); while not, to notice it reconnecting.
@@ -57,7 +56,15 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     private string? _connectionMessage;
 
     /// <summary>The server this panel shows. Set before <see cref="StartTimerUpdates"/>.</summary>
-    public AlpacaServer? Server { get; set; }
+    public AlpacaServer? Server
+    {
+        get;
+        set
+        {
+            if (!ReferenceEquals(field, value)) _lastRead = 0;
+            field = value;
+        }
+    }
 
     /// <summary>Raised when this view finds or changes the server's connection state.</summary>
     public event Action? ConnectionChanged;
@@ -312,17 +319,15 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     AlpacaConnector.SharedRead read;
                     try
                     {
-                        // 0 is never a read's number (they start at 1), so another server's read is always taken.
-                        var seen = ReferenceEquals(_lastReadServer, server) ? _lastRead : 0;
-                        read = await AlpacaConnector.ReadStateAsync(server, interval * 0.8, seen, token);
+                        read = await AlpacaConnector.ReadStateAsync(server, interval * 0.8, _lastRead, token);
                     }
                     catch (OperationCanceledException) when (!token.IsCancellationRequested)
                     {
                         continue; // the read was dropped: the server was disconnected or reconnected meanwhile
                     }
                     if (token.IsCancellationRequested) break;
-                    _lastRead = read.Generation;
-                    _lastReadServer = server;
+                    // Unless the view moved to another server while this read was under way.
+                    if (ReferenceEquals(Server, server)) _lastRead = read.Generation;
                     var deviceState = read.State;
 
                     if (deviceState?.AlpacaResponse?.ErrorNumber > 0)

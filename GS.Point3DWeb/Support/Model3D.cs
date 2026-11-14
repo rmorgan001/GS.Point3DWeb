@@ -149,5 +149,9 @@ public static class Model3D
         _ => "Unknown"
     });
 
-    public static double ClampOffset(double value) => Math.Clamp(Math.Round(value), MinOffset, MaxOffset);
+    /// <summary>
+    /// Rounds an offset to whole degrees within -90 to 90. Adding 0.0 turns the -0 that rounding gives for values
+    /// just below zero into 0, which is written "0" like the lists' option, not "-0".
+    /// </summary>
+    public static double ClampOffset(double value) => Math.Clamp(Math.Round(value), MinOffset, MaxOffset) + 0.0;
 }

@@ -186,6 +186,13 @@
         <p class="sidebar-hint">
             @L.T("Drag a server onto a view to show its mount. Double-click a server (or press F2) to edit it.")
         </p>
+
+        @* Donations for the project; just the heart while the list is collapsed. *@
+        <a class="donate" href="https://www.gofundme.com/f/green-swamp-server" target="_blank" rel="noopener noreferrer"
+           title="@L.T("Support the GSServer project on GoFundMe (opens in a new tab)")" aria-label="@L.T("Support on GoFundMe")">
+            <Icon Kind="Heart" Size="18" />
+            <span class="donate-text">@L.T("Support on GoFundMe")</span>
+        </a>
     </aside>
 
     <section class="model-panel views-@ViewModel.ViewCount @(ViewModel.DragServer is not null ? "dragging" : null)" aria-label="@L.T("3D models")">

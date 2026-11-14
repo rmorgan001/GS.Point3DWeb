@@ -207,6 +207,8 @@ internal static partial class Translations
         ["Slate"] = "石板灰",
         ["Sorry, the content you are looking for does not exist."] = "抱歉，您查找的内容不存在。",
         ["Still connected: {0} kept the connection open"] = "仍处于连接状态：{0} 保持了连接",
+        ["Support on GoFundMe"] = "在 GoFundMe 上支持",
+        ["Support the GSServer project on GoFundMe (opens in a new tab)"] = "在 GoFundMe 上支持 GSServer 项目（在新标签页中打开）",
         ["Telescope Mounts"] = "望远镜支架",
         ["Telescope loaded: {0}"] = "望远镜已加载：{0}",
         ["That isn't a GS Point3D Web feature key."] = "这不是 GS Point3D Web 功能密钥。",

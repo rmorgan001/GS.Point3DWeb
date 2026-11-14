@@ -476,6 +476,33 @@
     color: var(--mare);
 }
 
+/* The GoFundMe link at the foot of the server list. */
+.donate {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    margin: .75rem .25rem 0;
+    padding: .55rem .75rem;
+    border: 1px solid var(--green);
+    border-radius: var(--radius-sm);
+    color: var(--green);
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+    .donate:hover {
+        background: var(--green);
+        color: var(--green-ink);
+    }
+
+    .donate:focus-visible {
+        outline: 2px solid var(--yellow);
+        outline-offset: 2px;
+    }
+
 /* ===== Model views: 1 fills, 2 side by side, 3 = two on top + one wide, 4 = 2 x 2 ===== */
 .model-panel {
     display: grid;
@@ -611,6 +638,15 @@ html[data-sidebar="collapsed"] .sidebar-toggle.collapse {
 
 html[data-sidebar="collapsed"] .sidebar-toggle.expand {
     display: inline-flex;
+}
+
+html[data-sidebar="collapsed"] .donate-text {
+    display: none;
+}
+
+html[data-sidebar="collapsed"] .donate {
+    margin: .75rem 0 0;
+    padding: .5rem 0;
 }
 
 html[data-sidebar="collapsed"] .server-item {

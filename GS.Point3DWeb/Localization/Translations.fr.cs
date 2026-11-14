@@ -207,6 +207,8 @@ internal static partial class Translations
         ["Slate"] = "Ardoise",
         ["Sorry, the content you are looking for does not exist."] = "Désolé, le contenu que vous recherchez n'existe pas.",
         ["Still connected: {0} kept the connection open"] = "Toujours connecté : {0} a maintenu la connexion",
+        ["Support on GoFundMe"] = "Soutenir sur GoFundMe",
+        ["Support the GSServer project on GoFundMe (opens in a new tab)"] = "Soutenez le projet GSServer sur GoFundMe (s'ouvre dans un nouvel onglet)",
         ["Telescope Mounts"] = "Montures de télescope",
         ["Telescope loaded: {0}"] = "Télescope chargé : {0}",
         ["That isn't a GS Point3D Web feature key."] = "Ce n'est pas une clé de fonctionnalité GS Point3D Web.",

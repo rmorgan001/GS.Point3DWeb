@@ -106,7 +106,7 @@ jobs:
           | `osx-x64.tar.gz` | macOS on Intel |
           | `osx-arm64.tar.gz` | macOS on Apple silicon |
 
-          Extract it, run `GS.Point3DWeb` (`GS.Point3DWeb.exe` on Windows) and open <http://localhost:5000>. ASCOM COM drivers work only on Windows; Alpaca servers work everywhere. See the README for running it on another port or for other computers on the network.
+          Extract it and run `GS.Point3DWeb` (`GS.Point3DWeb.exe` on Windows): it opens <http://localhost:5000> in your browser once it has started (start it with `--OpenBrowser=false`, or set `"OpenBrowser": false` in `appsettings.json`, to stop that). ASCOM COM drivers work only on Windows; Alpaca servers work everywhere. See the README for running it on another port or for other computers on the network.
 
           The downloads aren't code-signed. On Windows, if "Windows protected your PC" appears, click **More info** then **Run anyway**, or unblock the `.zip` before extracting it (right-click it, **Properties**, tick **Unblock**). On macOS, if the app is blocked, run `xattr -dr com.apple.quarantine` on the extracted folder. The macOS downloads can appear a little after the others, as GitHub's macOS build machines are sometimes slow to start. `SHA256SUMS.txt` lists each file's checksum.
 

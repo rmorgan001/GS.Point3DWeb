@@ -24,4 +24,13 @@ public class BrowserLauncherTests
 
     [Fact]
     public void No_address_opens_nothing() => Assert.Null(BrowserLauncher.PickUrl([]));
+
+    [Theory]
+    [InlineData("http://unix:/tmp/app.sock")]
+    [InlineData("http://pipe:/app")]
+    public void A_socket_or_pipe_opens_nothing(string address) => Assert.Null(BrowserLauncher.PickUrl([address]));
+
+    [Fact]
+    public void A_socket_is_passed_over_for_an_address_a_browser_can_open()
+        => Assert.Equal("http://localhost:5000", BrowserLauncher.PickUrl(["http://unix:/tmp/app.sock", "http://localhost:5000"]));
 }

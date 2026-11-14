@@ -27,8 +27,11 @@ public static class AlpacaConnector
     internal static string Describe(AlpacaServer server) => $"{server.ServerName} ({server.Url})";
 
     /// <summary>A client for the server's address, with its credentials (if any).</summary>
-    public static AlpacaClient CreateClient(AlpacaServer server)
-        => new(server.Url, server.ClientTransactionId, server.UserName, server.Password);
+    public static AlpacaClient CreateClient(AlpacaServer server) => CreateClient(server, server.Url);
+
+    /// <summary>A client for one address of the server (one taken before a wait, which an edit can't change).</summary>
+    private static AlpacaClient CreateClient(AlpacaServer server, string url)
+        => new(url, server.ClientTransactionId, server.UserName, server.Password);
 
     /// <summary>
     /// Connects the server if it is not already connected. Returns the server's connected state afterwards.
@@ -159,12 +162,7 @@ public static class AlpacaConnector
             var gate = DeviceGate(url);
             await EnterGateAsync(gate, url, token);
             var gateHandedOn = false;
-            var client = CreateClient(server);
-            // Set once the device has answered the request to connect, until it is read back: a connect stopped
-            // or failing in between may have left the device connected with no entry holding it. Not before the
-            // answer: a request that was dropped didn't connect it, and a release then could disconnect another
-            // program that connected it meanwhile (Connected is the whole device's, not this app's).
-            var connectAnswered = false;
+            var client = CreateClient(server, url);
             try
             {
                 var isConnected = await ReadConnectedAsync(client, token);
@@ -174,12 +172,25 @@ public static class AlpacaConnector
 
                 if (!isConnected)
                 {
-                    var response = await client.ConnectAsync(token);
-                    connectAnswered = response is not { ErrorNumber: not 0 }; // a refusal didn't connect it
-                    isConnected = await ReadConnectedAsync(client, token);
+                    // Once the device is asked to connect, the request and the read back run to the end even if
+                    // the caller stops (as a COM driver's connect does): stopping part way would leave unknown
+                    // whether the device connected, and either guess is wrong for someone (a device left connected
+                    // with nothing holding it, or another program's connection ended). The stop is acted on below.
+                    var response = await client.ConnectAsync(CancellationToken.None);
+                    try
+                    {
+                        isConnected = await ReadConnectedAsync(client, CancellationToken.None);
+                    }
+                    catch when (response is { ErrorNumber: 0 })
+                    {
+                        // The device accepted the connect but its state can't be read: it may be connected with no
+                        // entry holding it. Release it, unless an entry is connected to it (ReleaseAsync checks).
+                        gateHandedOn = true;
+                        _ = ReleaseAsync(client, url, gate, "it accepted a connect that couldn't be read back");
+                        throw;
+                    }
                     server.SetClientTransactionId(client.ClientTransactionId);
                     connectedHere = isConnected;
-                    connectAnswered = false; // read back: what the device did is known
 
                     if (!isConnected && response is { ErrorNumber: not 0 })
                     {
@@ -187,6 +198,19 @@ public static class AlpacaConnector
                             ? $"the server returned error {response.ErrorNumber}"
                             : response.ErrorMessage);
                     }
+                }
+
+                if (token.IsCancellationRequested)
+                {
+                    // The caller stopped (the view closed) while the connect ran. Its result isn't recorded: the
+                    // server is shared, and another view or tab may have connected it meanwhile. A device this
+                    // connect connected is released, unless an entry is connected to it (ReleaseAsync checks).
+                    if (connectedHere)
+                    {
+                        gateHandedOn = true;
+                        _ = ReleaseAsync(client, url, gate, "its connect was stopped");
+                    }
+                    token.ThrowIfCancellationRequested();
                 }
 
                 // Deleted meanwhile, or now pointing at a different device: this result isn't for it.
@@ -199,14 +223,6 @@ public static class AlpacaConnector
                     _ = ReleaseAsync(client, url, gate, "it was connected for a server that was deleted or moved meanwhile");
                 }
                 return (used && isConnected, !used);
-            }
-            catch when (connectAnswered)
-            {
-                // Stopped (the view closed) or failed after the device accepted the connect, before reading back
-                // whether it is connected: release it, unless an entry is connected to it (ReleaseAsync checks).
-                gateHandedOn = true;
-                _ = ReleaseAsync(client, url, gate, "its connect was stopped or failed part way");
-                throw;
             }
             finally
             {
@@ -281,14 +297,20 @@ public static class AlpacaConnector
     {
         // An Alpaca device: takes turns with connects to it and releases of it (see DeviceGate). The reads are
         // dropped once this has its turn, not before: during a wait the views would only start new ones.
-        var gate = server.IsCom ? null : DeviceGate(server.Url);
-        if (gate is not null) await EnterGateAsync(gate, server.Url);
+        // The address is taken once: an edit during the wait mustn't send the disconnect to a device whose turn
+        // this doesn't hold.
+        var url = server.Url;
+        // A read under way stops asking the device being disconnected, at once rather than after a wait for the
+        // device's turn; and again once this has its turn, for any a view started meanwhile.
+        ResetStateReads(server);
+        var gate = AlpacaServer.IsComUrl(url) ? null : DeviceGate(url);
+        if (gate is not null) await EnterGateAsync(gate, url);
         try
         {
-            ResetStateReads(server); // a read under way stops asking the device being disconnected
+            ResetStateReads(server);
             try
             {
-                return await DisconnectDeviceAsync(server);
+                return await DisconnectDeviceAsync(server, url);
             }
             finally
             {
@@ -303,14 +325,14 @@ public static class AlpacaConnector
         }
     }
 
-    private static async Task<bool> DisconnectDeviceAsync(AlpacaServer server)
+    private static async Task<bool> DisconnectDeviceAsync(AlpacaServer server, string url)
     {
-        if (server.IsCom)
+        if (AlpacaServer.IsComUrl(url))
         {
             // Releasing the driver always ends this app's connection; other programs have their own instances.
             try
             {
-                if (ComTelescopes.IsSupported) await ComTelescopes.ReleaseAsync(server.ProgId!, server.IdGuid);
+                if (ComTelescopes.IsSupported) await ComTelescopes.ReleaseAsync(AlpacaServer.GetProgId(url)!, server.IdGuid);
             }
             finally
             {
@@ -320,7 +342,7 @@ public static class AlpacaConnector
             return false;
         }
 
-        var client = CreateClient(server);
+        var client = CreateClient(server, url);
         bool accepted;
         try
         {

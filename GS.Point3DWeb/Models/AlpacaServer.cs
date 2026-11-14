@@ -44,7 +44,9 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     {
         lock (_connectsLock)
         {
-            if (--_connects == 0) IsConnecting = false;
+            // Never below 0, so an unbalanced end can't leave the next connect's end short of clearing it.
+            _connects = Math.Max(0, _connects - 1);
+            if (_connects == 0) IsConnecting = false;
         }
     }
 

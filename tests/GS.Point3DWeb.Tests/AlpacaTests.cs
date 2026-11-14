@@ -341,21 +341,45 @@ public class AlpacaConnectorTests : FakeServerTest
     }
 
     [Fact]
-    public async Task A_connect_stopped_after_the_device_connected_releases_it()
+    public async Task A_connect_stopped_while_connecting_releases_the_device()
     {
-        // Every request takes 500 ms. Stopping the connect a moment after the device has connected lands in the
-        // read back, which leaves the device connected with no entry holding it, unless the connect releases it.
-        Mount.LatencyMs = 500;
+        // Stopped while the connect request is on its way: the request still runs to the end (the device
+        // connects), and the connect then releases the device it connected for nothing.
+        Mount.ConnectLatencyMs = 500;
+        Mount.DisconnectLatencyMs = 500; // so the release is still under way when the connect returns
         var server = NewServer();
         using var cts = new CancellationTokenSource();
         var connect = AlpacaConnector.ConnectAsync(server, cts.Token);
-        await Wait.UntilAsync(() => Mount.Connected, TimeSpan.FromSeconds(5), "the device connected");
-        await Task.Delay(150); // the connect's answer is back; the read back has 350 ms to go
+        await Wait.UntilAsync(() => Mount.CallsTo("connected") >= 1, TimeSpan.FromSeconds(5), "the connected check");
+        await Task.Delay(100); // the connect request is in flight
         cts.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connect);
-        Assert.True(Mount.Connected, "the release should still be under way");
+        Assert.True(Mount.Connected, "the connect request should have run to the end");
         Assert.False(server.ConnectRequested);
+        Assert.False(server.IsConnecting);
         await Wait.UntilAsync(() => !Mount.Connected, TimeSpan.FromSeconds(3), "the device released");
+        Assert.Contains(Mount.Requests, r => r.HttpMethod == "PUT" && r.Method == "connected"
+                                             && r.Form.TryGetValue("Connected", out var c) && c == "true");
+    }
+
+    [Fact]
+    public async Task A_connect_queued_behind_a_stopped_one_still_connects()
+    {
+        // Another entry's connect waits for the device's turn behind a stopped connect, which releases the device
+        // it connected: the waiting connect then connects it again, and keeps it.
+        Mount.ConnectLatencyMs = 500;
+        var server = NewServer();
+        using var cts = new CancellationTokenSource();
+        var connect = AlpacaConnector.ConnectAsync(server, cts.Token);
+        await Task.Delay(100);
+        cts.Cancel();
+        var other = NewServer(); // queued behind the first connect on the device's turn
+        var otherConnect = AlpacaConnector.ConnectAsync(other);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connect);
+        Assert.True(await otherConnect);
+        await Task.Delay(300);
+        Assert.True(Mount.Connected);
+        Assert.True(other.IsConnected);
     }
 
     [Fact]

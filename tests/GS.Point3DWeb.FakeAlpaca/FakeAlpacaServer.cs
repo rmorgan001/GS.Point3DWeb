@@ -24,6 +24,10 @@ public enum DeviceStateMode
     Http400,
     /// <summary>HTTP 404.</summary>
     Http404,
+    /// <summary>HTTP 405 Method Not Allowed.</summary>
+    Http405,
+    /// <summary>HTTP 501 Not Implemented.</summary>
+    Http501,
     /// <summary>Answers, but with a single value instead of a list.</summary>
     NoArray,
     /// <summary>Alpaca error 0x500 with a message.</summary>
@@ -63,6 +67,9 @@ public sealed class FakeMount(int number)
     /// <summary>HTTP 404 for alignmentmode / sitelatitude (servers that don't use Alpaca's error).</summary>
     public bool MountInfoHttp404;
 
+    /// <summary>HTTP 500 for alignmentmode / sitelatitude (a server error, every time).</summary>
+    public bool MountInfoHttp500;
+
     /// <summary>A position property (RA, Dec, LST) answered with an error, for the one-at-a-time read.</summary>
     public bool PositionError;
 
@@ -71,6 +78,9 @@ public sealed class FakeMount(int number)
 
     /// <summary>Extra time before an answer to the connected PUT only.</summary>
     public int ConnectLatencyMs;
+
+    /// <summary>Extra time before an answer to a disconnect (PUT connected=false) only.</summary>
+    public int DisconnectLatencyMs;
 
     /// <summary>Every request is answered HTTP 503 (the server is going down).</summary>
     public volatile bool Down;
@@ -213,7 +223,9 @@ public sealed class FakeAlpacaServer : IAsyncDisposable
             context.Request.Headers.Authorization.FirstOrDefault(), form));
         while (m.Requests.Count > 5000) m.Requests.TryDequeue(out _);
 
-        var latency = m.LatencyMs + (method == "connected" && HttpMethods.IsPut(context.Request.Method) ? m.ConnectLatencyMs : 0);
+        var latency = m.LatencyMs;
+        if (method == "connected" && HttpMethods.IsPut(context.Request.Method))
+            latency += form.TryGetValue("Connected", out var c) && c == "false" ? m.DisconnectLatencyMs : m.ConnectLatencyMs;
         if (latency > 0)
         {
             try
@@ -262,11 +274,13 @@ public sealed class FakeAlpacaServer : IAsyncDisposable
                 return;
             case "alignmentmode":
                 if (m.MountInfoHttp404) { context.Response.StatusCode = 404; return; }
+                if (m.MountInfoHttp500) { context.Response.StatusCode = 500; return; }
                 if (m.AlignmentModeNotImplemented) { await ErrorAsync(context, transaction, 0x400, "AlignmentMode is not implemented"); return; }
                 await AnswerAsync(context, transaction, m.AlignmentMode);
                 return;
             case "sitelatitude":
                 if (m.MountInfoHttp404) { context.Response.StatusCode = 404; return; }
+                if (m.MountInfoHttp500) { context.Response.StatusCode = 500; return; }
                 if (m.LatitudeNotImplemented) { await ErrorAsync(context, transaction, 0x400, "SiteLatitude is not implemented"); return; }
                 await AnswerAsync(context, transaction, m.Latitude);
                 return;
@@ -361,6 +375,12 @@ public sealed class FakeAlpacaServer : IAsyncDisposable
                 return;
             case DeviceStateMode.Http404:
                 context.Response.StatusCode = 404;
+                return;
+            case DeviceStateMode.Http405:
+                context.Response.StatusCode = 405;
+                return;
+            case DeviceStateMode.Http501:
+                context.Response.StatusCode = 501;
                 return;
             case DeviceStateMode.NoArray:
                 await AnswerAsync(context, transaction, "not a list");

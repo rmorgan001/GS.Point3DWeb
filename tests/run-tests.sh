@@ -24,7 +24,6 @@ sandbox="$(mktemp -d -t gsp3w-test-XXXXXX)"
 trap 'rm -rf "$sandbox"' EXIT
 
 export XDG_CONFIG_HOME="$sandbox/config"
-export HOME_FOR_TESTS="$sandbox/home"
 mkdir -p "$XDG_CONFIG_HOME"
 export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 

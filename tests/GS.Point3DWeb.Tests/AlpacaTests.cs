@@ -309,6 +309,21 @@ public class AlpacaConnectorTests : FakeServerTest
     }
 
     [Fact]
+    public async Task Releasing_the_old_device_doesnt_hold_up_the_server_at_its_new_address()
+    {
+        Mount.ConnectLatencyMs = 500;
+        Mount.DisconnectLatencyMs = 3000;
+        var server = NewServer();
+        var connect = AlpacaConnector.ConnectAsync(server);
+        await Task.Delay(100);
+        server.Url = Fake.MountUrl(1);
+        await Wait.UntilAsync(() => !server.IsConnecting, TimeSpan.FromSeconds(2), "IsConnecting cleared");
+        Assert.False(connect.IsCompleted); // still releasing the old device
+        Assert.False(await connect);
+        Assert.False(Mount.Connected);
+    }
+
+    [Fact]
     public async Task A_connect_for_an_old_address_releases_the_old_device()
     {
         Mount.ConnectLatencyMs = 500;

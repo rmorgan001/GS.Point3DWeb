@@ -103,6 +103,8 @@ public class Model3DViewModelTests : FakeServerTest
     [InlineData(DeviceStateMode.NotImplemented)]
     [InlineData(DeviceStateMode.Http400)]
     [InlineData(DeviceStateMode.Http404)]
+    [InlineData(DeviceStateMode.Http405)]
+    [InlineData(DeviceStateMode.Http501)]
     [InlineData(DeviceStateMode.NoArray)]
     public async Task A_server_without_devicestate_is_read_one_property_at_a_time(DeviceStateMode mode)
     {
@@ -311,7 +313,59 @@ public class Model3DViewModelTests : FakeServerTest
         var first = await AlpacaConnector.ReadStateAsync(server, TimeSpan.FromSeconds(10));
         server.Url = Fake.MountUrl(1);
         var second = await AlpacaConnector.ReadStateAsync(server, TimeSpan.FromSeconds(10));
-        Assert.Equal((10.5, 3.0), (first!.RightAscension, second!.RightAscension));
+        Assert.Equal((10.5, 3.0), (first.State!.RightAscension, second.State!.RightAscension));
+    }
+
+    [Fact]
+    public async Task A_view_is_never_handed_a_read_it_already_had()
+    {
+        var server = NewServer();
+        await AlpacaConnector.ConnectAsync(server);
+        var first = await AlpacaConnector.ReadStateAsync(server, TimeSpan.FromSeconds(10));
+        var shared = await AlpacaConnector.ReadStateAsync(server, TimeSpan.FromSeconds(10));
+        Assert.Equal(first.Generation, shared.Generation); // another view: shares it
+        var next = await AlpacaConnector.ReadStateAsync(server, TimeSpan.FromSeconds(10), first.Generation);
+        Assert.NotEqual(first.Generation, next.Generation); // the same view: a new read
+        Assert.Equal(2, Mount.CallsTo("devicestate"));
+    }
+
+    [Fact]
+    public async Task A_single_view_gets_a_new_reading_every_update()
+    {
+        var (_, view) = await ConnectedViewAsync(poll: 0.5);
+        await Wait.UntilAsync(() => view.TimerCounter >= 1, TimeSpan.FromSeconds(4), "first update");
+        Mount.ResetStats();
+        var before = view.TimerCounter;
+        await Task.Delay(6000); // includes a connected check, which starts that cycle's read late
+        Assert.InRange(view.TimerCounter - before - Mount.CallsTo("devicestate"), -1, 1);
+    }
+
+    [Fact]
+    public async Task A_disconnect_drops_a_read_under_way()
+    {
+        var server = NewServer();
+        await AlpacaConnector.ConnectAsync(server);
+        Mount.LatencyMs = 5000;
+        var read = AlpacaConnector.ReadStateAsync(server, TimeSpan.FromSeconds(10));
+        await Task.Delay(200);
+        Mount.LatencyMs = 0;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        await AlpacaConnector.DisconnectAsync(server);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => read);
+        Assert.True(sw.ElapsedMilliseconds < 2000, $"{sw.ElapsedMilliseconds} ms");
+        // Reconnected: a new read, not the dropped one.
+        await AlpacaConnector.ConnectAsync(server);
+        Assert.Equal(10.5, (await AlpacaConnector.ReadStateAsync(server, TimeSpan.FromSeconds(10))).State!.RightAscension);
+    }
+
+    [Fact]
+    public async Task Mount_info_that_always_fails_is_tried_a_few_times_then_left()
+    {
+        Mount.MountInfoHttp500 = true;
+        var (_, view) = await ConnectedViewAsync(poll: 0.5);
+        await Task.Delay(13000);
+        Assert.Equal(5, Mount.CallsTo("alignmentmode"));
+        Assert.True(view.TimerCounter >= 15); // the position kept updating meanwhile
     }
 
     [Fact]
@@ -325,15 +379,18 @@ public class Model3DViewModelTests : FakeServerTest
         view.StartTimerUpdates();
         await Wait.UntilAsync(() => view.TimerCounter >= 1, TimeSpan.FromSeconds(4), "first update");
 
+        Assert.True(view.IsRunningClockOn);
         await circuit.OnConnectionDownAsync(null!, default);
         await Task.Delay(700);
         Mount.ResetStats();
         await Task.Delay(2000);
         Assert.Equal(0, Mount.TotalRequests);
+        Assert.False(view.IsRunningClockOn); // the clock pauses with the updates
 
         await circuit.OnConnectionUpAsync(null!, default);
         var counter = view.TimerCounter;
         await Wait.UntilAsync(() => view.TimerCounter > counter, TimeSpan.FromSeconds(3), "updates again");
+        Assert.True(view.IsRunningClockOn);
     }
 
     [Fact]
@@ -391,5 +448,34 @@ public class DialogServiceTests
         dialog.Confirmed = false;
         await service.ShowDialog(dialog).WaitAsync(TimeSpan.FromSeconds(1));
         Assert.True(dialog.Confirmed);
+    }
+}
+
+/// <summary>Changes AlpacaConnector.DeviceStateRetry, so it runs on its own (see SerialCollection).</summary>
+[Collection("Serial")]
+public class DeviceStateRetryTests : FakeServerTest
+{
+    [Fact]
+    public async Task Devicestate_is_tried_again_after_a_while()
+    {
+        var retry = AlpacaConnector.DeviceStateRetry;
+        AlpacaConnector.DeviceStateRetry = TimeSpan.FromSeconds(2);
+        try
+        {
+            var server = NewServer();
+            await AlpacaConnector.ConnectAsync(server);
+            var view = new Model3DViewModel(DiskFreeSettings.Create(), new DialogService(), NullLogger<Model3DViewModel>.Instance) { Server = server };
+            Mount.DeviceState = DeviceStateMode.Http404; // one odd answer (a proxy, a server restarting)
+            view.StartTimerUpdates();
+            await Wait.UntilAsync(() => view.TimerCounter >= 1, TimeSpan.FromSeconds(4), "first update");
+            Assert.Null(view.Status); // read one property at a time meanwhile
+            Mount.DeviceState = DeviceStateMode.Normal;
+            await Wait.UntilAsync(() => view.Status is not null, TimeSpan.FromSeconds(6), "back on devicestate");
+            view.Dispose();
+        }
+        finally
+        {
+            AlpacaConnector.DeviceStateRetry = retry;
+        }
     }
 }

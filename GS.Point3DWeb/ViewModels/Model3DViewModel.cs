@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GS.Alpaca.Shared;
@@ -35,6 +34,15 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     private Stopwatch? _timer;
     private double _lastRaHours;
     private bool _mountInfoRead;
+    // Mount-info reads that got no answer (a server error) this connection, and when to try again: a server that
+    // always answers them with an error is asked a few times, spaced out, not twice on every poll for ever.
+    private int _mountInfoTries;
+    private TimeSpan _nextMountInfoTry;
+    private const int MountInfoTries = 5;
+    private static readonly TimeSpan MountInfoRetryInterval = TimeSpan.FromSeconds(2);
+
+    // The shared read this view last had (AlpacaConnector.ReadStateAsync), so it isn't handed the same one again.
+    private long _lastRead;
 
     // How often to read the server's "connected" property: while connected, to notice another program
     // disconnecting it (devicestate keeps answering on some servers); while not, to notice it reconnecting.
@@ -166,12 +174,15 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         if (Server?.IsConnected != true) Status = null;
     }
 
-    /// <summary>Runs the clock while the view is updating and the server is connected; pauses it otherwise.</summary>
+    /// <summary>
+    /// Runs the clock while the view is updating, the server is connected and the browser can be reached; pauses
+    /// it otherwise.
+    /// </summary>
     public void SyncRunningClock()
     {
         lock (_runningClockLock)
         {
-            if (_cts is not null && Server?.IsConnected == true)
+            if (_cts is not null && Server?.IsConnected == true && _circuit?.IsConnected != false)
             {
                 if (!_runningClock.IsRunning) _runningClock.Start();
             }
@@ -221,12 +232,13 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 await Task.Delay(wait < interval / 4 ? interval / 4 : wait > interval ? interval : wait, token);
                 cycleStarted = timer.Elapsed;
 
+                // Backstop for connection changes the view didn't see (a different server shown, etc.); also pauses
+                // the clock while the browser is gone.
+                SyncRunningClock();
+
                 // The browser has gone (closed without a goodbye, asleep, or the network dropped): Blazor keeps the
                 // page a few minutes in case it comes back, but nobody sees it, so don't ask the mount meanwhile.
                 if (_circuit is { IsConnected: false }) continue;
-
-                // Backstop for connection changes the view didn't see (a different server shown, etc.).
-                SyncRunningClock();
                 var server = Server;
                 if (server is null)
                 {
@@ -239,6 +251,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 if (!server.IsConnected)
                 {
                     _mountInfoRead = false; // read it again after reconnecting
+                    _mountInfoTries = 0;
+                    _nextMountInfoTry = TimeSpan.Zero;
                     _pollFailures = 0; // a new connection starts a new run
                     AlpacaConnector.ResetStateReads(server);
                     Status = null; // not current any more
@@ -262,11 +276,19 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
                 try
                 {
-                    // Alignment mode and latitude pick the model and tilt; read them once per connection.
-                    if (!_mountInfoRead)
+                    // Alignment mode and latitude pick the model and tilt; read them once per connection. A server
+                    // that answers them with an error (it isn't working right now) is asked again a few times.
+                    if (!_mountInfoRead && timer.Elapsed >= _nextMountInfoTry)
                     {
+                        _nextMountInfoTry = timer.Elapsed + MountInfoRetryInterval;
                         _mountInfoRead = await AlpacaConnector.ReadMountInfoAsync(server, token);
                         if (token.IsCancellationRequested) break;
+                        if (!_mountInfoRead && ++_mountInfoTries >= MountInfoTries)
+                        {
+                            _mountInfoRead = true; // keep what it reported; reconnecting asks again
+                            _logger.LogWarning("{Server}: the alignment mode and latitude couldn't be read after {Tries} tries; using {Mode}",
+                                server.ServerName, MountInfoTries, server.AlignmentMode);
+                        }
                     }
 
                     if (!IsConnectionBusy && timer.Elapsed - _lastConnectedCheck >= ConnectedCheckInterval)
@@ -287,8 +309,18 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     // Shared with the other views of this server (here and in other tabs) when one of them read it
                     // moments ago. A COM driver's failure throws, and is handled below like a failed request.
                     var pollStarted = timer.Elapsed;
-                    var deviceState = await AlpacaConnector.ReadStateAsync(server, interval * 0.8, token);
+                    AlpacaConnector.SharedRead read;
+                    try
+                    {
+                        read = await AlpacaConnector.ReadStateAsync(server, interval * 0.8, _lastRead, token);
+                    }
+                    catch (OperationCanceledException) when (!token.IsCancellationRequested)
+                    {
+                        continue; // the read was dropped: the server was disconnected or reconnected meanwhile
+                    }
                     if (token.IsCancellationRequested) break;
+                    _lastRead = read.Generation;
+                    var deviceState = read.State;
 
                     if (deviceState?.AlpacaResponse?.ErrorNumber > 0)
                     {

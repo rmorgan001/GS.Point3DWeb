@@ -17,14 +17,6 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     ContentRootPath = IsDevelopment() ? null : AppContext.BaseDirectory
 });
 
-// Whether any address the app listens on is https: from Urls (appsettings.json, --urls, ASPNETCORE_URLS) or a
-// Kestrel endpoint in the configuration.
-static bool ListensOnHttps(IConfiguration configuration)
-    => (configuration["urls"] ?? configuration["ASPNETCORE_URLS"] ?? "").Contains("https://", StringComparison.OrdinalIgnoreCase)
-       || configuration.GetSection("Kestrel:Endpoints").GetChildren()
-           .Any(e => (e["Url"] ?? "").StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-       || !string.IsNullOrEmpty(configuration["HTTPS_PORTS"] ?? configuration["ASPNETCORE_HTTPS_PORTS"]);
-
 static bool IsDevelopment()
     => string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
                      ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"),
@@ -112,9 +104,9 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-// Only when the app listens on https too: with just http:// addresses (the default) there is nothing to redirect
-// to, and the middleware would log "Failed to determine the https port" on every start.
-if (ListensOnHttps(builder.Configuration)) app.UseHttpsRedirection();
+// With only http:// addresses (the default) there is nothing to redirect to, and the middleware says so with a
+// warning on every start; the "Microsoft.AspNetCore.HttpsPolicy" override in appsettings.json keeps it out of the log.
+app.UseHttpsRedirection();
 
 // UI language: the culture cookie (set by /culture/set from the header language menu), else the browser's
 // Accept-Language, else English. Only the UI culture changes; number and date formats stay the

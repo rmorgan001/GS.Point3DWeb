@@ -35,7 +35,7 @@ mkdir -p "$XDG_CONFIG_HOME/GS.Point3DWeb"
 servers=""
 quadrants=""
 for ((n = 0; n < mounts; n++)); do
-  id="00000000-0000-0000-0000-00000000000$n"
+  id="00000000-0000-0000-0000-$(printf '%012d' "$n")"
   [[ -n "$servers" ]] && servers+=","
   servers+="{\"IdGuid\":\"$id\",\"ServerName\":\"Fake mount $n\",\"Url\":\"http://127.0.0.1:$fake_port/api/v1/telescope/$n/\",\"UserName\":null,\"Password\":null,\"PollSeconds\":0.5}"
   if (( n < 4 )); then

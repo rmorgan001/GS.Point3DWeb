@@ -296,7 +296,7 @@
             : count == 1 ? L.T("Show 1 3D view") : L.T("Show {0} 3D views", count);
 
     private static string LockedTooltip(AlpacaServer server)
-        => $"{server.Url}\n{L.T("Needs a feature key (free version: {0} servers)", FeatureKeyService.FreeMaxServers)}";
+        => $"{server.ServerName}\n{server.Url}\n{L.T("Needs a feature key (free version: {0} servers)", FeatureKeyService.FreeMaxServers)}";
 
     /// <summary>
     /// This page's path and query, escaped for the redirect. It includes the app's base path, so the

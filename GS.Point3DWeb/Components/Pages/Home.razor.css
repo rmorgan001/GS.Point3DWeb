@@ -605,7 +605,6 @@ html[data-sidebar="collapsed"] .count,
 html[data-sidebar="collapsed"] .toolbar,
 html[data-sidebar="collapsed"] .sidebar-hint,
 html[data-sidebar="collapsed"] .server-text,
-html[data-sidebar="collapsed"] .lock,
 html[data-sidebar="collapsed"] .sidebar-toggle.collapse {
     display: none;
 }
@@ -623,6 +622,11 @@ html[data-sidebar="collapsed"] .server-item {
 
 html[data-sidebar="collapsed"] .server-nav {
     overflow-x: hidden;
+}
+
+/* A server that needs a feature key keeps its lock in the strip, under its logo. */
+html[data-sidebar="collapsed"] .lock {
+    margin-left: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

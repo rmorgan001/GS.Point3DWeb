@@ -41,7 +41,7 @@
                     <select value="@Invariant(Server.RaOffset)" @onchange="e => OnOffsetChanged(e, isRa: true)">
                         @foreach (var value in OffsetChoices(Server.RaOffset))
                         {
-                            <option value="@Invariant(value)">@value</option>
+                            <option @key="value" value="@Invariant(value)" selected="@(value == Model3D.ClampOffset(Server.RaOffset))">@value</option>
                         }
                     </select>
                 </label>
@@ -50,7 +50,7 @@
                     <select value="@Invariant(Server.DecOffset)" @onchange="e => OnOffsetChanged(e, isRa: false)">
                         @foreach (var value in OffsetChoices(Server.DecOffset))
                         {
-                            <option value="@Invariant(value)">@value</option>
+                            <option @key="value" value="@Invariant(value)" selected="@(value == Model3D.ClampOffset(Server.DecOffset))">@value</option>
                         }
                     </select>
                 </label>
@@ -194,7 +194,11 @@
     /// </summary>
     [Parameter] public bool Showing { get; set; } = true;
 
-    /// <summary>The whole-degree choices for an offset list; just the current one while the panel is hidden.</summary>
+    /// <summary>
+    /// The whole-degree choices for an offset list; just the current one while the panel is hidden. Each option is
+    /// keyed by its value and the current one marked selected: when the list fills in, the option already there
+    /// stays the same element (and selected), rather than being reused for -90 with the browser left showing that.
+    /// </summary>
     private IReadOnlyList<int> OffsetChoices(double current) => Showing ? Model3D.OffsetValues : [(int)Model3D.ClampOffset(current)];
 
     /// <summary>Raised after a setting changes, so the owner can save.</summary>

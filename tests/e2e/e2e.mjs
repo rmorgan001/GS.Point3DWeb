@@ -196,17 +196,36 @@ await step('The page is small: the hidden settings lists hold only their current
     const html = await (await fetch(app)).text();
     const options = (html.match(/<option/g) ?? []).length;
     assert(options < 100, `${options} <option> elements in the page`);
-    await quadrant(page, 0).locator('button[title="View settings"]').click();
-    const ra = quadrant(page, 0).locator('.settings select').nth(2);
-    await page.waitForFunction(() => document.querySelectorAll('.quadrant')[0].querySelectorAll('.settings select')[2].options.length === 181, null, { timeout: 3000 });
-    await ra.selectOption('5');
-    await quadrant(page, 0).locator('.settings button.done').click();
-    await sleep(300);
-    assert(await quadrant(page, 0).locator('.settings select').nth(2).inputValue() === '5', 'the RA offset did not stay at 5 once hidden');
-    await quadrant(page, 0).locator('button[title="View settings"]').click();
-    await quadrant(page, 0).locator('.settings select').nth(2).selectOption('0');
-    await quadrant(page, 0).locator('.settings button.done').click();
     timings.homeHtmlBytes = html.length;
+});
+
+await step('The settings show the saved RA / Dec adjustments every time they open', async () => {
+    const q = quadrant(page, 0);
+    const lists = () => q.locator('.settings select');
+    const open = async () => {
+        await q.locator('button[title="View settings"]').click();
+        await page.waitForFunction(() => document.querySelectorAll('.quadrant')[0].querySelectorAll('.settings select')[2].options.length === 181, null, { timeout: 3000 });
+    };
+    const shown = async () => [await lists().nth(2).inputValue(), await lists().nth(3).inputValue()].join(',');
+    await open();
+    assert(await shown() === '0,0', `first open shows ${await shown()} (saved 0,0)`);
+    await lists().nth(2).selectOption('5');
+    await lists().nth(3).selectOption('-7');
+    await q.locator('.settings button.done').click();
+    await sleep(300);
+    await open();
+    assert(await shown() === '5,-7', `second open shows ${await shown()} (saved 5,-7)`);
+    await page.reload();
+    await waitInteractive(page);
+    await open();
+    assert(await shown() === '5,-7', `after a reload it shows ${await shown()} (saved 5,-7)`);
+    await lists().nth(2).selectOption('0');
+    await lists().nth(3).selectOption('0');
+    await q.locator('.settings button.done').click();
+    await sleep(300);
+    await open();
+    assert(await shown() === '0,0', `back at 0,0 it shows ${await shown()}`);
+    await q.locator('.settings button.done').click();
 });
 
 await step('Views 1-4 buttons change the layout', async () => {

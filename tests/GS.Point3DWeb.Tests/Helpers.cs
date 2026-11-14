@@ -93,6 +93,10 @@ public sealed class IsolatedFactAttribute : FactAttribute
 [CollectionDefinition("Settings", DisableParallelization = true)]
 public sealed class SettingsCollection;
 
+/// <summary>Tests that change a shared (static) timing, so they run on their own.</summary>
+[CollectionDefinition("Serial", DisableParallelization = true)]
+public sealed class SerialCollection;
+
 /// <summary>
 /// A SettingsService that never touches the disk, for view models that only read a setting or two from it
 /// (Model3DViewModel reads ModelSecondaryColor). Its constructor isn't run, so it doesn't load the real file.

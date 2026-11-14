@@ -1,4 +1,4 @@
-// Does the 3D view stop drawing when nothing moves? Counts WebGL draw calls and frames with the mounts slewing,
+// Does the 3D view stop drawing when nothing moves? Counts WebGL draw calls with the mounts slewing,
 // still, and tracking (tiny moves), with one tab of four connected views. Uses the stack from start-stack.sh.
 import { chromium } from 'playwright';
 
@@ -36,20 +36,25 @@ await setAll('Moving=true');
 await measure('mounts slewing (large moves every poll)');
 await setAll('Moving=false');
 await measure('mounts still');
-// Tracking: RA fixed, LST advances, so the hour angle grows ~0.002° per 0.5 s poll.
-await setAll('Moving=false&SiderealTime=12.00001');
-for (let i = 0; i < 12; i++) { await setAll(`SiderealTime=${(12 + i * 0.5 / 3600 * 1.0027).toFixed(7)}`); await sleep(500); }
+// Tracking: RA fixed, LST advancing, so the hour angle grows ~0.002° per 0.5 s poll. LST keeps advancing
+// while it is measured.
+await setAll('Moving=false');
+let tracking = true;
+const track = (async () => {
+    for (let i = 0; tracking; i++) {
+        await setAll(`SiderealTime=${(12 + i * 0.5 / 3600 * 1.0027).toFixed(7)}`);
+        await sleep(500);
+    }
+})();
 await measure('mounts tracking (moves too small to see)');
+tracking = false;
+await track;
 await page.locator('.quadrant').first().locator('canvas').hover();
 await page.mouse.down();
 await page.mouse.move(900, 400, { steps: 20 });
 await page.mouse.up();
 await measure('3 s after dragging the camera');
-const hidden = await browser.newPage();
-await hidden.goto('about:blank');
-await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-await setAll('Moving=true');
-await measure('slewing, tab in the background');
+// (A tab in the background isn't measured: headless Chrome never hides a page, so it can't be tested here.)
 
 await setAll('Moving=false');
 await browser.close();

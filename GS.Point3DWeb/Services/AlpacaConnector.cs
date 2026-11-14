@@ -42,7 +42,10 @@ public static class AlpacaConnector
         Log.LogInformation("Connecting to {Server}", name);
         try
         {
-            var (connected, discarded) = await ConnectCoreAsync(server, token);
+            var (connected, discarded, release) = await ConnectCoreAsync(server, token);
+            // The connect is over (IsConnecting is clear) before an old device is released, which can take as
+            // long as the request limit: the server, at its new address, isn't held up by the old one.
+            if (release is not null) await ReleaseAsync(release.Value.Client, release.Value.Url);
             if (discarded)
                 Log.LogInformation("Connect to {Server} finished after the server was deleted or its address changed; " +
                                    "its result was not used", name);
@@ -62,9 +65,28 @@ public static class AlpacaConnector
         }
     }
 
-    /// <returns>Whether the server is now connected (false when the result was not used), and whether the
-    /// result was not used: the server was deleted or its address changed meanwhile.</returns>
-    private static async Task<(bool Connected, bool Discarded)> ConnectCoreAsync(AlpacaServer server, CancellationToken token)
+    /// <summary>
+    /// Disconnects a device that a connect connected for a server that was deleted or moved meanwhile: nothing
+    /// else will (the delete or the address change found no connection to end, as this one was under way).
+    /// </summary>
+    private static async Task ReleaseAsync(AlpacaClient client, string url)
+    {
+        try
+        {
+            await client.DisconnectAsync();
+            Log.LogInformation("Released {Url}: it was connected for a server that was deleted or moved meanwhile", url);
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Could not release {Url} after its server was deleted or moved: {Error}", url, ex.Message);
+        }
+    }
+
+    /// <returns>Whether the server is now connected (false when the result was not used); whether the result was
+    /// not used (the server was deleted or its address changed meanwhile); and, if so, a device this connect
+    /// connected that must be released.</returns>
+    private static async Task<(bool Connected, bool Discarded, (AlpacaClient Client, string Url)? Release)> ConnectCoreAsync(
+        AlpacaServer server, CancellationToken token)
     {
         var url = server.Url; // the result is for this address (see SetConnected)
         server.IsConnecting = true;
@@ -81,9 +103,9 @@ public static class AlpacaConnector
                 if (server.Removed || !SetConnected(server, url, comConnected))
                 {
                     if (comConnected) await ComTelescopes.ReleaseAndLogAsync(AlpacaServer.GetProgId(url)!, server.IdGuid);
-                    return (false, true);
+                    return (false, true, null);
                 }
-                return (comConnected, false);
+                return (comConnected, false, null);
             }
 
             var client = CreateClient(server);
@@ -110,22 +132,9 @@ public static class AlpacaConnector
 
             // Deleted meanwhile, or now pointing at a different device: this result isn't for it.
             var used = !server.Removed && SetConnected(server, url, isConnected);
-            if (!used && connectedHere)
-            {
-                // Nothing will disconnect it now (the delete or the address change found no connection to end,
-                // as this one was still under way), so release the device this connect connected, as for a COM
-                // driver. A device that was already connected (another program's) is left alone.
-                try
-                {
-                    await client.DisconnectAsync();
-                    Log.LogInformation("Released {Url}: it was connected for a server that was deleted or moved meanwhile", url);
-                }
-                catch (Exception ex)
-                {
-                    Log.LogWarning(ex, "Could not release {Url} after its server was deleted or moved: {Error}", url, ex.Message);
-                }
-            }
-            return (used && isConnected, !used);
+            // Not used, but this connect connected the device: release it (ConnectAsync, once IsConnecting is clear),
+            // as for a COM driver. A device that was already connected (another program's) is left alone.
+            return (used && isConnected, !used, !used && connectedHere ? (client, url) : null);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -157,6 +166,7 @@ public static class AlpacaConnector
     private static bool SetConnected(AlpacaServer server, string url, bool connected)
     {
         if (!AlpacaServer.SameUrl(server.Url, url)) return false;
+        ResetStateReads(server);
         server.ConnectRequested = connected;
         server.IsConnected = connected;
         return true;
@@ -188,6 +198,7 @@ public static class AlpacaConnector
 
     private static async Task<bool> DisconnectCoreAsync(AlpacaServer server)
     {
+        ResetStateReads(server); // a read under way stops asking the device being disconnected
         if (server.IsCom)
         {
             // Releasing the driver always ends this app's connection; other programs have their own instances.
@@ -343,14 +354,22 @@ public static class AlpacaConnector
     /// 503: the server isn't working right now) is no answer (null), so it is asked again; that isn't a property
     /// the mount lacks. No answer at all (a network error) still throws.
     /// </summary>
+    /// <summary>
+    /// An HTTP error that says the server has no such method (some servers answer an unknown one with 400, 404,
+    /// 405 or 501 instead of Alpaca's NotImplemented), as opposed to a server that isn't working right now (500,
+    /// 503) or refuses the login (401, 403).
+    /// </summary>
+    internal static bool IsMissingMethod(HttpRequestException ex)
+        => ex.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound
+            or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented;
+
     private static async Task<AlpacaResponse?> GetOptionalPropertyAsync(AlpacaClient client, string method, CancellationToken token)
     {
         try
         {
             return await client.GetPropertyAsync(method, token);
         }
-        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound
-                                                  or HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented)
+        catch (HttpRequestException ex) when (IsMissingMethod(ex))
         {
             return new AlpacaResponse { Value = JValue.CreateNull(), ErrorNumber = AlpacaClient.NotImplementedError, ErrorMessage = ex.Message };
         }
@@ -363,17 +382,22 @@ public static class AlpacaConnector
     /// The mount's state, read once for every view polling the server. Each view (in every tab) asks every
     /// half second or so; a read already under way, or one started less than <paramref name="maxAge"/> ago, is
     /// shared instead of sending another request, so the mount gets about one request per interval however many
-    /// views show it. Throws as the read does (every view sharing it gets the same answer or error).
-    /// <paramref name="token"/> only stops this caller waiting: the read itself carries on for the others.
+    /// views show it. A view is never handed a read it has already had (<paramref name="seen"/>, the
+    /// <see cref="SharedRead.Generation"/> of its last one). Throws as the read does: every view sharing it gets
+    /// the same answer or error, and OperationCanceledException if the read was dropped (the server was
+    /// disconnected or reconnected meanwhile). <paramref name="token"/> only stops this caller waiting: the read
+    /// itself carries on for the others.
     /// </summary>
-    public static Task<TelescopeDeviceState?> ReadStateAsync(AlpacaServer server, TimeSpan maxAge, CancellationToken token = default)
+    public static async Task<SharedRead> ReadStateAsync(AlpacaServer server, TimeSpan maxAge, long seen = 0,
+        CancellationToken token = default)
     {
         var poll = SharedPolls.GetValue(server, _ => new SharedPoll());
         Task<TelescopeDeviceState?> read;
+        long generation;
         lock (poll.Lock)
         {
             var url = server.Url;
-            if (poll.Read is { } current && poll.Url == url
+            if (poll.Read is { } current && poll.Url == url && poll.Generation != seen
                 && (!current.IsCompleted || Stopwatch.GetElapsedTime(poll.StartedAt) < maxAge))
             {
                 read = current;
@@ -382,16 +406,42 @@ public static class AlpacaConnector
             {
                 poll.Url = url;
                 poll.StartedAt = Stopwatch.GetTimestamp();
-                read = poll.Read = server.IsCom ? ReadComStateCoreAsync(server) : ReadAlpacaStateAsync(server, poll);
+                poll.Generation++;
+                poll.Cancel ??= new CancellationTokenSource();
+                var cancel = poll.Cancel.Token;
+                // On the thread pool, not on the calling tab's renderer: every tab's views wait on this read.
+                read = poll.Read = server.IsCom
+                    ? Task.Run(async () => (TelescopeDeviceState?)await ReadComStateAsync(server).WaitAsync(cancel), cancel)
+                    : Task.Run(() => ReadAlpacaStateAsync(server, poll, cancel), cancel);
             }
+            generation = poll.Generation;
         }
-        return read.WaitAsync(token);
+        return new SharedRead(await read.WaitAsync(token), generation);
     }
 
-    /// <summary>After a reconnect, try devicestate again (the server may have been updated meanwhile).</summary>
+    /// <summary>A shared read's result, and which read it was (see <see cref="ReadStateAsync"/>).</summary>
+    public readonly record struct SharedRead(TelescopeDeviceState? State, long Generation);
+
+    /// <summary>
+    /// Drops the server's shared read: one under way is cancelled (it stops asking the device), and the next
+    /// view to ask starts a new one; devicestate is tried again. On a connect, a disconnect, and when a view
+    /// finds the server disconnected.
+    /// </summary>
     public static void ResetStateReads(AlpacaServer server)
     {
-        if (SharedPolls.TryGetValue(server, out var poll)) poll.UseDeviceState = true;
+        if (!SharedPolls.TryGetValue(server, out var poll)) return;
+        CancellationTokenSource? cancel;
+        lock (poll.Lock)
+        {
+            cancel = poll.Cancel;
+            poll.Cancel = null;
+            poll.Read = null;
+            poll.UseDeviceState = true;
+            poll.DeviceStateRetryAt = 0;
+        }
+        if (cancel is null) return;
+        cancel.Cancel();
+        cancel.Dispose();
     }
 
     /// <summary>The read in progress (or the last one) for a server, shared by the views polling it.</summary>
@@ -401,43 +451,46 @@ public static class AlpacaConnector
         public Task<TelescopeDeviceState?>? Read;
         public string? Url;
         public long StartedAt;
+        public long Generation;
+        public CancellationTokenSource? Cancel;
 
         // Whether to try devicestate (one request); cleared for servers without it, which are then read one
-        // property at a time. Tried again after a reconnect (ResetStateReads).
+        // property at a time. Tried again after DeviceStateRetry (one odd answer, from a proxy or a server
+        // restarting, mustn't leave every view on the slower reads for the rest of the run) and after a
+        // reconnect (ResetStateReads).
         public volatile bool UseDeviceState = true;
+        public long DeviceStateRetryAt;
     }
+
+    /// <summary>How long a server that didn't take devicestate is read one property at a time before trying it again.</summary>
+    internal static TimeSpan DeviceStateRetry { get; set; } = TimeSpan.FromSeconds(60);
 
     private static readonly ConditionalWeakTable<AlpacaServer, SharedPoll> SharedPolls = [];
 
-    private static async Task<TelescopeDeviceState?> ReadComStateCoreAsync(AlpacaServer server)
-    {
-        await Task.Yield(); // not under the caller's lock
-        return await ReadComStateAsync(server);
-    }
-
     /// <summary>
     /// The mount's position: devicestate if the server has it, otherwise each property on its own (servers
-    /// from before ASCOM Platform 7 answer devicestate with NotImplemented, or HTTP 400 / 404).
+    /// from before ASCOM Platform 7 answer devicestate with NotImplemented, or HTTP 400, 404, 405 or 501).
     /// </summary>
-    private static async Task<TelescopeDeviceState?> ReadAlpacaStateAsync(AlpacaServer server, SharedPoll poll)
+    private static async Task<TelescopeDeviceState?> ReadAlpacaStateAsync(AlpacaServer server, SharedPoll poll, CancellationToken token)
     {
-        await Task.Yield(); // not under the caller's lock
         var client = CreateClient(server);
         try
         {
+            if (!poll.UseDeviceState && Stopwatch.GetTimestamp() >= poll.DeviceStateRetryAt) poll.UseDeviceState = true;
             if (poll.UseDeviceState)
             {
                 try
                 {
-                    var state = await client.GetDeviceStateAsync();
+                    var state = await client.GetDeviceStateAsync(token).ConfigureAwait(false);
                     if (state?.AlpacaResponse?.ErrorNumber != AlpacaClient.NotImplementedError) return state;
                 }
-                catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
+                catch (HttpRequestException ex) when (IsMissingMethod(ex))
                 {
                 }
                 poll.UseDeviceState = false;
+                poll.DeviceStateRetryAt = Stopwatch.GetTimestamp() + (long)(DeviceStateRetry.TotalSeconds * Stopwatch.Frequency);
             }
-            return await client.GetDeviceStateFromPropertiesAsync();
+            return await client.GetDeviceStateFromPropertiesAsync(token).ConfigureAwait(false);
         }
         finally
         {
@@ -448,10 +501,10 @@ public static class AlpacaConnector
     /// <summary>
     /// The mount's position from a COM driver. Throws if the driver fails or doesn't answer.
     /// </summary>
-    public static Task<TelescopeDeviceState> ReadComStateAsync(AlpacaServer server, CancellationToken token = default)
+    private static Task<TelescopeDeviceState> ReadComStateAsync(AlpacaServer server)
     {
         if (!ComTelescopes.IsSupported) return Task.FromException<TelescopeDeviceState>(ComNotSupported());
-        return ComTelescopes.ReadStateAsync(server.ProgId!).WaitAsync(token);
+        return ComTelescopes.ReadStateAsync(server.ProgId!);
     }
 
     /// <summary>Asks before disconnecting: what disconnecting may do to other programs using the mount.</summary>

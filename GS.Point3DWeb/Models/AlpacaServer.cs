@@ -24,35 +24,28 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     [ObservableProperty]
     public partial bool IsConnecting { get; private set; }
 
+    // The connects under way. The count and IsConnecting change together under the lock, so it always matches
+    // the count. Its change handlers (every tab's) run inside the lock; they only queue a redraw.
     private int _connects;
+    private readonly Lock _connectsLock = new();
 
     /// <summary>A connect starts (AlpacaConnector): <see cref="IsConnecting"/> is set.</summary>
     public void BeginConnect()
     {
-        Interlocked.Increment(ref _connects);
-        SyncIsConnecting();
+        lock (_connectsLock)
+        {
+            _connects++;
+            IsConnecting = true;
+        }
     }
 
     /// <summary>A connect has finished: <see cref="IsConnecting"/> clears once no other is under way.</summary>
     public void EndConnect()
     {
-        Interlocked.Decrement(ref _connects);
-        SyncIsConnecting();
-    }
-
-    /// <summary>
-    /// Sets <see cref="IsConnecting"/> from the count without holding a lock, so the change handlers (every tab's)
-    /// don't run inside one. A connect starting or ending meanwhile can make this write out of date; looking at
-    /// the count again after writing puts it right, so whichever writes last leaves the right value.
-    /// </summary>
-    private void SyncIsConnecting()
-    {
-        bool value;
-        do
+        lock (_connectsLock)
         {
-            value = Volatile.Read(ref _connects) > 0;
-            IsConnecting = value;
-        } while (Volatile.Read(ref _connects) > 0 != value);
+            if (--_connects == 0) IsConnecting = false;
+        }
     }
 
     /// <summary>

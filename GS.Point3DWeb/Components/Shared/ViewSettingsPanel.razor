@@ -38,7 +38,7 @@
                 </label>
                 <label class="field">
                     <span class="field-label">@L.T("RA adjust (°)")</span>
-                    <select value="@Invariant(Server.RaOffset)" @onchange="e => OnOffsetChanged(e, isRa: true)">
+                    <select value="@Invariant(Model3D.ClampOffset(Server.RaOffset))" @onchange="e => OnOffsetChanged(e, isRa: true)">
                         @foreach (var value in OffsetChoices(Server.RaOffset))
                         {
                             <option @key="value" value="@Invariant(value)" selected="@(value == Model3D.ClampOffset(Server.RaOffset))">@value</option>
@@ -47,7 +47,7 @@
                 </label>
                 <label class="field">
                     <span class="field-label">@L.T("Dec adjust (°)")</span>
-                    <select value="@Invariant(Server.DecOffset)" @onchange="e => OnOffsetChanged(e, isRa: false)">
+                    <select value="@Invariant(Model3D.ClampOffset(Server.DecOffset))" @onchange="e => OnOffsetChanged(e, isRa: false)">
                         @foreach (var value in OffsetChoices(Server.DecOffset))
                         {
                             <option @key="value" value="@Invariant(value)" selected="@(value == Model3D.ClampOffset(Server.DecOffset))">@value</option>

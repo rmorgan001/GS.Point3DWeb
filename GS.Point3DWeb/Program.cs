@@ -2,6 +2,8 @@ using System.Globalization;
 using GS.Point3DWeb.Components;
 using GS.Point3DWeb.Localization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Localization;
 using GS.Point3DWeb.Services;
 using GS.Point3DWeb.Support;
@@ -104,9 +106,16 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-// With only http:// addresses (the default) there is nothing to redirect to, and the middleware says so with a
-// warning on every start; the "Microsoft.AspNetCore.HttpsPolicy" override in appsettings.json keeps it out of the log.
-app.UseHttpsRedirection();
+// Redirect to https only when there is somewhere to go: an https address the server is actually listening on
+// (known once it has started, so looked at on the first request rather than guessed from the configuration) or
+// an https port set for a reverse proxy that ends TLS. With only http:// addresses (the default) the middleware
+// has nowhere to redirect and would warn on every start; any warning it gives otherwise is a real problem and
+// stays in the log.
+var hasHttpsTarget = new Lazy<bool>(() =>
+    !string.IsNullOrEmpty(app.Configuration["HTTPS_PORT"] ?? app.Configuration["ANCM_HTTPS_PORT"] ?? app.Configuration["HTTPS_PORTS"])
+    || (app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()?.Addresses
+            .Any(a => a.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) ?? false));
+app.UseWhen(_ => hasHttpsTarget.Value, https => https.UseHttpsRedirection());
 
 // UI language: the culture cookie (set by /culture/set from the header language menu), else the browser's
 // Accept-Language, else English. Only the UI culture changes; number and date formats stay the

@@ -201,8 +201,9 @@
     private bool _overlayIsError;
     private bool _modelLoaded;
     private int _rotationPending;
-    // The pose last sent to the browser, so an unchanged one isn't sent again on every poll.
-    private (double X, double Y, double Z, double YCentre)? _sentPose;
+    // The pose last sent to the browser, so an unchanged one isn't sent again on every poll. Written on the
+    // renderer and read on the poll thread, so it is boxed: a reference is read whole, four doubles might not be.
+    private volatile System.Runtime.CompilerServices.StrongBox<(double X, double Y, double Z, double YCentre)>? _sentPose;
     private AlpacaServer? _watchedServer;
     private string? _loadedModelKey;
     private bool? _northCompass;
@@ -433,7 +434,7 @@
             return;
         }
         // The same pose as the browser already has (a parked or still mount, every poll): nothing to send.
-        if (_sentPose == ViewModel.CurrentPose) return;
+        if (_sentPose?.Value == ViewModel.CurrentPose) return;
         // Drop updates while one is still in flight to the browser (like the desktop TimerLock).
         if (Interlocked.Exchange(ref _rotationPending, 1) == 1) return;
         _ = InvokeAsync(async () =>
@@ -452,7 +453,7 @@
             var pose = ViewModel.CurrentPose;
             var (x, y, z, yCentre) = pose;
             await _module.InvokeVoidAsync("setPose", _viewer, x, y, z, yCentre);
-            _sentPose = pose;
+            _sentPose = new(pose);
         }
         catch (JSDisconnectedException)
         {

@@ -41,8 +41,10 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     private const int MountInfoTries = 5;
     private static readonly TimeSpan MountInfoRetryInterval = TimeSpan.FromSeconds(2);
 
-    // The shared read this view last had (AlpacaConnector.ReadStateAsync), so it isn't handed the same one again.
+    // The shared read this view last had (AlpacaConnector.ReadStateAsync), so it isn't handed the same one again,
+    // and the server it was for: the number counts that server's reads, so it means nothing for another one.
     private long _lastRead;
+    private AlpacaServer? _lastReadServer;
 
     // How often to read the server's "connected" property: while connected, to notice another program
     // disconnecting it (devicestate keeps answering on some servers); while not, to notice it reconnecting.
@@ -250,9 +252,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                 DeviceName = server.ServerName;
                 if (!server.IsConnected)
                 {
-                    _mountInfoRead = false; // read it again after reconnecting
-                    _mountInfoTries = 0;
-                    _nextMountInfoTry = TimeSpan.Zero;
+                    ResetMountInfo(); // read it again after reconnecting
                     _pollFailures = 0; // a new connection starts a new run
                     AlpacaConnector.ResetStateReads(server);
                     Status = null; // not current any more
@@ -312,7 +312,9 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     AlpacaConnector.SharedRead read;
                     try
                     {
-                        read = await AlpacaConnector.ReadStateAsync(server, interval * 0.8, _lastRead, token);
+                        // 0 is never a read's number (they start at 1), so another server's read is always taken.
+                        var seen = ReferenceEquals(_lastReadServer, server) ? _lastRead : 0;
+                        read = await AlpacaConnector.ReadStateAsync(server, interval * 0.8, seen, token);
                     }
                     catch (OperationCanceledException) when (!token.IsCancellationRequested)
                     {
@@ -320,6 +322,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                     }
                     if (token.IsCancellationRequested) break;
                     _lastRead = read.Generation;
+                    _lastReadServer = server;
                     var deviceState = read.State;
 
                     if (deviceState?.AlpacaResponse?.ErrorNumber > 0)
@@ -371,6 +374,14 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
         {
             timer.Stop();
         }
+    }
+
+    /// <summary>A new connection reads the alignment mode and latitude again, with all its tries.</summary>
+    private void ResetMountInfo()
+    {
+        _mountInfoRead = false;
+        _mountInfoTries = 0;
+        _nextMountInfoTry = TimeSpan.Zero;
     }
 
     /// <summary>Alpaca's NotConnected error (0x407): the device isn't connected.</summary>
@@ -474,7 +485,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
             {
                 StatusText = L.T("Connecting to {0}…", server.ServerName);
                 var connected = await AlpacaConnector.ConnectAsync(server);
-                _mountInfoRead = false; // read the mount type and latitude again
+                ResetMountInfo(); // read the mount type and latitude again, with a fresh set of tries
                 _connectionMessage = connected ? null : L.T("Could not connect");
                 StatusText = connected ? L.T("Connected") : L.T("Could not connect");
             }

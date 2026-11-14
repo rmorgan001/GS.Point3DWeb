@@ -181,6 +181,14 @@ errors also go to the Windows Event Log.
 | `tools/babylon-bundle/` | Rebuilds the trimmed Babylon.js bundle. Only needed when changing it (see its README). |
 | `tools/GS.Point3DWeb.KeyGen/` | Issues feature keys. Its private signing key is kept outside the repository and must never be shipped with the app. |
 
+## License
+
+GS Point3D Web is free software: you can redistribute it and/or modify it under the terms of the
+[GNU General Public License](LICENSE) as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version. It is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the [license](LICENSE) for details. A copy of it comes with every download.
+
 ## Credits
 
 - The telescope models and the mount transform are ported from Green Swamp's GSServer.

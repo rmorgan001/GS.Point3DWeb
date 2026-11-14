@@ -15,6 +15,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The GPL's text goes with every copy of the app: the release downloads are the publish folder. -->
+    <None Include="..\LICENSE" Link="LICENSE" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ASCOM.Alpaca.Components" Version="3.1.0" />
     <PackageReference Include="ASCOM.Com.Components" Version="3.1.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />

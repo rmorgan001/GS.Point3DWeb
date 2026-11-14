@@ -12,6 +12,9 @@
     <!-- Keep the commit hash out of the displayed version (the SDK would append "+<hash>"). -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>GS Point3D Web</Product>
+    <Copyright>Copyright (C) Rob Morgan</Copyright>
+    <!-- GNU GPL version 3 or later (LICENSE), as the source headers say. -->
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
   </PropertyGroup>
 
 </Project>

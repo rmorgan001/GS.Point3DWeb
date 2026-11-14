@@ -21,6 +21,14 @@
     border-bottom: 1px solid var(--line);
 }
 
+/* The server's kind: the Alpaca or ASCOM logo, as in the server list. */
+.kind {
+    flex: none;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 3px;
+}
+
 .titles {
     display: flex;
     align-items: baseline;

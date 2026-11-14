@@ -167,8 +167,8 @@
                             <span class="status @(server.IsConnected ? "connected" : null)"
                                   title="@(server.IsConnected ? L.T("Connected") : L.T("Not connected"))"></span>
                             @* Alpaca server or ASCOM COM driver: the project's logo. *@
-                            <img class="kind" src="@(server.IsCom ? "img/com.svg" : "img/alpaca.png")"
-                                 alt="@KindText(server)" title="@KindText(server)" draggable="false" />
+                            <img class="kind" src="@ServerKind.Image(server)"
+                                 alt="@ServerKind.Text(server)" title="@ServerKind.Text(server)" draggable="false" />
                             <span class="server-text">
                                 <span class="name">@server.ServerName</span>
                                 <span class="address">@ServerAddress(server)</span>
@@ -316,8 +316,6 @@
         => $"culture/set?culture={Uri.EscapeDataString(language.Code)}&redirectUri={returnPath}";
 
     private int ConnectedCount => ViewModel.AlpacaServers.Count(s => s.IsConnected);
-
-    private static string KindText(AlpacaServer server) => server.IsCom ? L.T("ASCOM driver") : L.T("Alpaca server");
 
     // The name leads: the collapsed server strip shows only the icons.
     private static string ServerTooltip(AlpacaServer server) => $"{server.ServerName}\n{server.Url}\n{L.T("Double-click (or F2) to edit")}";

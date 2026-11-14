@@ -6,6 +6,12 @@
     <header class="model3d-header">
         <span class="conn @(Server?.IsConnected == true ? "connected" : null)"
               title="@(Server?.IsConnected == true ? L.T("Connected") : L.T("Not connected"))"></span>
+        @if (Server is not null)
+        {
+            @* Alpaca server or ASCOM COM driver: the same logo as in the server list. *@
+            <img class="kind" src="@ServerKind.Image(Server)" alt="@ServerKind.Text(Server)" title="@ServerKind.Text(Server)"
+                 draggable="false" />
+        }
         <div class="titles">
             <h2 title="@Server?.Url">@ViewModel.DeviceName</h2>
             @if (Server is not null)
@@ -262,6 +268,10 @@
                 break;
             case nameof(AlpacaServer.RaInDegrees):
                 ViewModel.RefreshRa();
+                break;
+            case nameof(AlpacaServer.Url):
+                // The logo (Alpaca or ASCOM) and the name's tooltip follow an edited address.
+                _ = InvokeAsync(StateHasChanged);
                 break;
             case nameof(AlpacaServer.ServerName):
                 ViewModel.DeviceName = Server?.ServerName ?? ViewModel.DeviceName;

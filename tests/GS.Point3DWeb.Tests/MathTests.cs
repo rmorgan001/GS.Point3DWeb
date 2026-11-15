@@ -250,6 +250,45 @@ public class AxesTests
         => Assert.Equal([30.0, -45.0], Axes.RaDecToAxesXy(AlignmentModes.algGermanPolar, [10.0, 45.0], 12.0, true, 0));
 
     [Fact]
+    public void Southern_hemisphere_west_side_flips_the_mirrored_declination()
+        => Assert.Equal([210.0, 225.0], Axes.RaDecToAxesXy(AlignmentModes.algGermanPolar, [10.0, 45.0], 12.0, true, 1));
+
+    // SideOfPier is the pointing state, not the physical side of the pier (Peter Simpson, "Pointing state and
+    // physical side of pier for German mounts", the convention Conform tests). The paper's four points, seen
+    // from latitude 50°N at declination 60°, with the side a conformant driver reports (its figure 4):
+    //   A  HA -3  pierWest  normal state, scope on the west side above the counterweight
+    //   B  HA +9  pierEast  from A through the pole, the RA axis not moving
+    //   C  HA +3  pierEast  normal state, scope on the east side above the counterweight
+    //   D  HA -9  pierWest  from C through the pole, the RA axis not moving
+    // The counterweight is below the scope for an RA axis angle between 0° and 180°.
+    [Theory]
+    [InlineData("A", -3.0, 1, 135.0, 120.0)]
+    [InlineData("B", +9.0, 0, 135.0, 60.0)]
+    [InlineData("C", +3.0, 0, 45.0, 60.0)]
+    [InlineData("D", -9.0, 1, 45.0, 120.0)]
+    public void Pointing_state_puts_the_scope_above_the_counterweight(string point, double hourAngle, int sideOfPier,
+        double primary, double secondary)
+    {
+        const double lst = 12.0;
+        var axes = Axes.RaDecToAxesXy(AlignmentModes.algGermanPolar, [lst - hourAngle, 60.0], lst, false, sideOfPier);
+        Assert.True(Math.Abs(axes[0] - primary) < 1e-9 && Math.Abs(axes[1] - secondary) < 1e-9,
+            $"point {point}: expected [{primary}, {secondary}], got [{axes[0]}, {axes[1]}]");
+        Assert.InRange(axes[0], 0.0, 180.0);
+    }
+
+    [Fact]
+    public void Going_through_the_pole_moves_only_the_declination_axis()
+    {
+        // A to B and C to D in the paper: the pointing state changes, the RA axis stays where it is.
+        double[] At(double hourAngle, int side)
+            => Axes.RaDecToAxesXy(AlignmentModes.algGermanPolar, [12.0 - hourAngle, 60.0], 12.0, false, side);
+
+        Assert.Equal(At(-3, 1)[0], At(+9, 0)[0], 9);
+        Assert.Equal(At(+3, 0)[0], At(-9, 1)[0], 9);
+        Assert.NotEqual(At(-3, 1)[1], At(+9, 0)[1]);
+    }
+
+    [Fact]
     public void Results_are_finite_rotations()
     {
         // The German polar branch returns before RangeAxesXy, so the east side gives (LST - RA) * 15 as it is

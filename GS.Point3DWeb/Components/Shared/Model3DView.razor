@@ -56,76 +56,119 @@
     <div class="viewport">
         <canvas @ref="_canvas" class="render-canvas"></canvas>
 
-        @* Coordinates float over the top of the scene; which ones show is chosen on the back of the card. *@
-        <div class="coords" aria-label="@L.T("Mount coordinates")">
-            @if (Server?.ShowRa != false)
-            {
-                <span class="coord ra" title="@L.T("Double-click to switch between hours and degrees")"
-                      @ondblclick="ToggleRaUnitsAsync">
-                    <span class="label">Ra</span><span class="value">@ViewModel.Ra</span>
-                </span>
-            }
-            @if (Server?.ShowDec != false)
-            {
-                <span class="coord"><span class="label">Dec</span><span class="value">@ViewModel.Dec</span></span>
-            }
-            @if (Server?.ShowAz != false)
-            {
-                <span class="coord"><span class="label">Az</span><span class="value">@ViewModel.Az</span></span>
-            }
-            @if (Server?.ShowAlt != false)
-            {
-                <span class="coord"><span class="label">Alt</span><span class="value">@ViewModel.Alt</span></span>
-            }
-            @if (Server?.ShowLha != false)
-            {
-                <span class="coord"><span class="label">Lha</span><span class="value">@ViewModel.Lha</span></span>
-            }
-            @if (Server?.ShowLst != false)
-            {
-                <span class="coord" title="@L.T("Local sidereal time")"><span class="label">Lst</span><span class="value">@ViewModel.Lst</span></span>
-            }
+        @if (IsGrid)
+        {
+            @* Grid layout: every coordinate, and the mount state once connected, in one panel on the chosen edge of
+               the scene (down the left or right, across the top or bottom). The model is shifted into the space
+               beside it (setInset), so the panel never covers it. *@
+            var connected = Server?.IsConnected == true;
+            <aside class="coord-panel pos-@GridSide @(IsHorizontalGrid ? "horizontal" : null)" @ref="_gridPanel"
+                   aria-label="@L.T("Mount coordinates")">
+                <header class="cp-head">
+                    <span class="cp-live @(connected ? "on" : null)">
+                        <span class="dot" aria-hidden="true"></span>@(connected ? L.T("Live") : L.T("Offline"))
+                    </span>
+                    @if (Server is not null)
+                    {
+                        @ConnectButton(Server, iconOnly: true)
+                    }
+                </header>
+
+                @if (ShownCoordinates().Any())
+                {
+                    <dl class="cp-rows">
+                        @foreach (var item in ShownCoordinates())
+                        {
+                            <div class="cp-row @(item.IsRa ? "ra" : null)" title="@item.Title" @ondblclick="() => OnCoordinateDoubleClick(item)">
+                                <dt>@item.Label</dt><dd>@item.Value</dd>
+                            </div>
+                        }
+                    </dl>
+                }
+
+                @* The rest of what devicestate reports; only while connected (Status is null otherwise). *@
+                @if (Server?.ShowMountState != false && ViewModel.Status is { } gridStatus)
+                {
+                    <div class="cp-section" role="group" aria-label="@L.T("Mount state")">
+                        <div class="cp-flags">
+                            @StateFlags(gridStatus)
+                        </div>
+                        @if (gridStatus.SideOfPier is not null || gridStatus.UtcDate is not null || gridStatus.TimeStamp is not null)
+                        {
+                            <dl class="cp-rows cp-meta">
+                                @if (gridStatus.SideOfPier is { } gridSide)
+                                {
+                                    <div class="cp-row"><dt>@L.T("Pier")</dt><dd>@PierText(gridSide)</dd></div>
+                                }
+                                @if (gridStatus.UtcDate is { } gridUtc)
+                                {
+                                    <div class="cp-row" title="@L.T("The mount's UTC date and time")">
+                                        <dt>UTC</dt>
+                                        <dd class="cp-stack">
+                                            <span>@gridUtc.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)</span>
+                                            <small>@gridUtc.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)</small>
+                                        </dd>
+                                    </div>
+                                }
+                                @if (gridStatus.TimeStamp is { } stamp)
+                                {
+                                    <div class="cp-row" title="@L.T("When the server read the mount's state")">
+                                        <dt>@L.T("Read at")</dt><dd>@StampText(stamp)</dd>
+                                    </div>
+                                }
+                            </dl>
+                        }
+                    </div>
+                }
+            </aside>
+        }
+        else if (IsNone)
+        {
+            @* Nothing but Connect / Disconnect, in the top-left corner. *@
             @if (Server is not null)
             {
-                var connected = Server.IsConnected;
-                <button type="button" class="connect-btn @(connected ? "connected" : null)"
-                        disabled="@ViewModel.IsConnectionBusy"
-                        title="@(connected ? L.T("Disconnect from {0}", Server.ServerName) : L.T("Connect to {0}", Server.ServerName))"
-                        @onclick="ViewModel.ToggleConnectionAsync">
-                    <Icon Kind="Connection" Size="14" />
-                    <span>
-                        @(ViewModel.IsConnectionBusy
-                            ? (connected ? L.T("Disconnecting…") : L.T("Connecting…"))
-                            : (connected ? L.T("Disconnect") : L.T("Connect")))
-                    </span>
-                </button>
+                <div class="coords">
+                    @ConnectButton(Server)
+                </div>
             }
-        </div>
-
-        @* The rest of what devicestate reports, along the bottom of the scene: a readout only, so mouse and
-           touch go through it to the model. A flag that is on has a filled dot, one that is off a hollow one. *@
-        @if (Server?.ShowMountState != false && ViewModel.Status is { } status)
+        }
+        else
         {
-            <div class="mount-state" role="group" aria-label="@L.T("Mount state")">
-                @StateFlag(status.Tracking, L.T("Tracking"), "on")
-                @StateFlag(status.Slewing, L.T("Slewing"), "busy")
-                @StateFlag(status.AtPark, L.T("Parked"), "busy")
-                @StateFlag(status.AtHome, L.T("At home"), "on")
-                @StateFlag(status.IsPulseGuiding, L.T("Guiding"), "on")
-                @if (status.SideOfPier is { } side)
+            @* Coordinates float over the top of the scene; which ones show is chosen on the back of the card. *@
+            <div class="coords" aria-label="@L.T("Mount coordinates")">
+                @foreach (var item in ShownCoordinates())
                 {
-                    <span class="chip pier">
-                        <span class="label">@L.T("Pier")</span>
-                        <span class="value">@(side switch { 0 => L.T("East"), 1 => L.T("West"), _ => L.T("Unknown") })</span>
+                    <span class="coord @(item.IsRa ? "ra" : null)" title="@item.Title" @ondblclick="() => OnCoordinateDoubleClick(item)">
+                        <span class="label">@item.Label</span><span class="value">@item.Value</span>
                     </span>
                 }
-                @if (status.UtcDate is { } utc)
+                @if (Server is not null)
                 {
-                    <span class="chip utc">
-                        <span class="label">UTC</span><span class="value">@utc.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)</span>
-                    </span>
+                    @ConnectButton(Server)
                 }
             </div>
+
+            @* The rest of what devicestate reports, along the bottom of the scene: a readout only, so mouse and
+               touch go through it to the model. A flag that is on has a filled dot, one that is off a hollow one. *@
+            @if (Server?.ShowMountState != false && ViewModel.Status is { } status)
+            {
+                <div class="mount-state" role="group" aria-label="@L.T("Mount state")">
+                    @StateFlags(status)
+                    @if (status.SideOfPier is { } side)
+                    {
+                        <span class="chip pier">
+                            <span class="label">@L.T("Pier")</span>
+                            <span class="value">@PierText(side)</span>
+                        </span>
+                    }
+                    @if (status.UtcDate is { } utc)
+                    {
+                        <span class="chip utc">
+                            <span class="label">UTC</span><span class="value">@utc.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)</span>
+                        </span>
+                    }
+                </div>
+            }
         }
 
         @if (_overlay is not null)
@@ -178,6 +221,100 @@
             </span>
         }
     </text>;
+
+    private bool IsGrid => Server?.CoordinatesLayout == CoordinatesLayout.Grid;
+
+    /// <summary>No coordinates or mount state on the front: only the connection button.</summary>
+    private bool IsNone => Server?.CoordinatesLayout == CoordinatesLayout.None;
+
+    /// <summary>The grid's edge as the CSS class and the viewer know it: left, right, top or bottom.</summary>
+    private string GridSide => (Server?.GridPosition ?? GridPosition.Left).ToString().ToLowerInvariant();
+
+    /// <summary>A grid across the top or bottom: its items run in a row rather than down a column.</summary>
+    private bool IsHorizontalGrid => Server?.GridPosition is GridPosition.Top or GridPosition.Bottom;
+
+    /// <summary>One coordinate on the front: the same list for the chips and the grid.</summary>
+    private sealed record CoordinateItem(string Label, string Value, string? Title = null, bool IsRa = false);
+
+    /// <summary>The coordinates chosen on the back of the card, in order.</summary>
+    private IEnumerable<CoordinateItem> ShownCoordinates()
+    {
+        var server = Server;
+        if (server?.ShowRa != false)
+            yield return new("Ra", ViewModel.Ra, L.T("Double-click to switch between hours and degrees"), IsRa: true);
+        if (server?.ShowDec != false) yield return new("Dec", ViewModel.Dec);
+        if (server?.ShowAz != false) yield return new("Az", ViewModel.Az);
+        if (server?.ShowAlt != false) yield return new("Alt", ViewModel.Alt);
+        if (server?.ShowLha != false) yield return new("Lha", ViewModel.Lha);
+        if (server?.ShowLst != false) yield return new("Lst", ViewModel.Lst, L.T("Local sidereal time"));
+    }
+
+    /// <summary>Double-clicking Ra switches it between hours and degrees.</summary>
+    private Task OnCoordinateDoubleClick(CoordinateItem item) => item.IsRa ? ToggleRaUnitsAsync() : Task.CompletedTask;
+
+    /// <summary>The five on / off items of the mount state, for the chip strip and the grid alike.</summary>
+    private RenderFragment StateFlags(Model3DViewModel.MountStatus status) => @<text>
+        @StateFlag(status.Tracking, L.T("Tracking"), "on")
+        @StateFlag(status.Slewing, L.T("Slewing"), "busy")
+        @StateFlag(status.AtPark, L.T("Parked"), "busy")
+        @StateFlag(status.AtHome, L.T("At home"), "on")
+        @StateFlag(status.IsPulseGuiding, L.T("Guiding"), "on")
+    </text>;
+
+    private static string PierText(int side) => side switch { 0 => L.T("East"), 1 => L.T("West"), _ => L.T("Unknown") };
+
+    /// <summary>The server's read time (UTC, see MountStatus.From) in this computer's time.</summary>
+    private static string StampText(DateTime stampUtc)
+        => stampUtc.ToLocalTime().ToString("HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Connect / Disconnect for the server: with its wording at the end of the coordinate chips, just the icon
+    /// next to the grid's Live pill (the tooltip and screen readers still say what it does).
+    /// </summary>
+    private RenderFragment ConnectButton(AlpacaServer server, bool iconOnly = false) => __builder =>
+    {
+        var connected = server.IsConnected;
+        var text = ViewModel.IsConnectionBusy
+            ? (connected ? L.T("Disconnecting…") : L.T("Connecting…"))
+            : (connected ? L.T("Disconnect") : L.T("Connect"));
+        <button type="button" class="connect-btn @(connected ? "connected" : null) @(iconOnly ? "icon-only" : null)"
+                disabled="@ViewModel.IsConnectionBusy"
+                title="@(connected ? L.T("Disconnect from {0}", server.ServerName) : L.T("Connect to {0}", server.ServerName))"
+                aria-label="@(iconOnly ? text : null)"
+                @onclick="ViewModel.ToggleConnectionAsync">
+            <Icon Kind="Connection" Size="14" />
+            @if (!iconOnly)
+            {
+                <span>@text</span>
+            }
+        </button>
+    };
+
+    private ElementReference _gridPanel;
+
+    // The panel the viewer last kept the model clear of: its edge, "" for none, null = not told yet.
+    private string? _sentGridInset;
+
+    /// <summary>Tells the viewer about the grid panel (its edge, or its going), so the model moves beside it.</summary>
+    private async Task SyncInsetAsync()
+    {
+        if (_disposed || _module is null || _viewer is null) return;
+        var side = IsGrid ? GridSide : "";
+        if (_sentGridInset == side) return;
+        try
+        {
+            await _module.InvokeVoidAsync("setInset", _viewer, IsGrid ? _gridPanel : null, side);
+            _sentGridInset = side; // only once the viewer has it; a failed call is tried again on the next render
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (Exception ex) when (ex is JSException or ObjectDisposedException or InvalidOperationException)
+        {
+            // The viewer being torn down, or a browser-side error: the model just stays where it is.
+            _sentGridInset = null;
+        }
+    }
 
     private Task ToggleRaUnitsAsync()
     {
@@ -307,7 +444,8 @@
             case nameof(AlpacaServer.ShowRa) or nameof(AlpacaServer.ShowDec)
                 or nameof(AlpacaServer.ShowAz) or nameof(AlpacaServer.ShowAlt)
                 or nameof(AlpacaServer.ShowLha) or nameof(AlpacaServer.ShowLst)
-                or nameof(AlpacaServer.ShowMountState):
+                or nameof(AlpacaServer.ShowMountState) or nameof(AlpacaServer.CoordinatesLayout)
+                or nameof(AlpacaServer.GridPosition):
                 _ = InvokeAsync(StateHasChanged);
                 break;
         }
@@ -396,7 +534,12 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if (!firstRender)
+        {
+            // The grid panel comes and goes with the layout setting: the model follows it.
+            await SyncInsetAsync();
+            return;
+        }
 
         try
         {
@@ -429,6 +572,8 @@
                 await TearDownViewerAsync();
                 return;
             }
+
+            await SyncInsetAsync();
 
             ViewModel.RotationChanged += OnRotationChanged;
             ViewModel.ConnectionChanged += OnVmConnectionChanged;

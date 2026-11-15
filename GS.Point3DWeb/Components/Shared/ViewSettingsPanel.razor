@@ -134,6 +134,57 @@
 
         <fieldset class="show-items">
             <legend>@L.T("Coordinates on the front")</legend>
+            @* One choice: each coordinate on its own (chips along the top), or all of them in one grid panel on an
+               edge of the scene. Picking an edge is what turns the grid on. *@
+            <div class="layout-choice">
+                <span class="field-label" id="layout-label-@Server.IdGuid">@L.T("Show as")</span>
+                <div class="positions" role="radiogroup" aria-labelledby="layout-label-@Server.IdGuid">
+                    @{
+                        var individual = Server.CoordinatesLayout == CoordinatesLayout.Individual;
+                        var none = Server.CoordinatesLayout == CoordinatesLayout.None;
+                    }
+                    <button type="button" class="layout @(individual ? "selected" : null)" role="radio" aria-checked="@individual"
+                            title="@L.T("Each coordinate on its own along the top of the scene")"
+                            @onclick="() => SetLayout(CoordinatesLayout.Individual)">
+                        <span class="layout-thumb chips" aria-hidden="true">
+                            <span class="lt-chips"><i></i><i></i><i></i><i></i></span>
+                            <span class="lt-model"></span>
+                        </span>
+                        <span class="layout-name">@L.T("Individual")</span>
+                    </button>
+                    @foreach (var position in Enum.GetValues<GridPosition>())
+                    {
+                        var selected = Server.CoordinatesLayout == CoordinatesLayout.Grid && Server.GridPosition == position;
+                        var side = position.ToString().ToLowerInvariant();
+                        <button type="button" class="layout position @(selected ? "selected" : null)" role="radio"
+                                aria-checked="@selected" title="@L.T("Every coordinate and the mount state in one panel on an edge of the scene")"
+                                @onclick="() => SetGridPosition(position)">
+                            @* The scene in miniature: the panel on that edge, the model in the space left over. *@
+                            <span class="layout-thumb pos-thumb pos-@side" aria-hidden="true">
+                                <span class="lt-panel"><i></i><i></i><i></i></span>
+                                <span class="lt-model"></span>
+                            </span>
+                            <span class="layout-name">@L.T(position.ToString())</span>
+                        </button>
+                    }
+                    <button type="button" class="layout @(none ? "selected" : null)" role="radio" aria-checked="@none"
+                            title="@L.T("No coordinates or mount state, only the Connect / Disconnect button")"
+                            @onclick="() => SetLayout(CoordinatesLayout.None)">
+                        @* Just the button in the corner, and the model. *@
+                        <span class="layout-thumb button-only" aria-hidden="true">
+                            <span class="lt-button"></span>
+                            <span class="lt-model"></span>
+                        </span>
+                        <span class="layout-name">@L.T("Button only")</span>
+                    </button>
+                </div>
+            </div>
+            @if (none)
+            {
+                <p class="hint">@L.T("Only the Connect / Disconnect button shows on the front.")</p>
+            }
+            else
+            {
             <div class="checks">
                 @foreach (var item in Items)
                 {
@@ -156,6 +207,7 @@
                 </div>
                 <span class="hint">@L.T("Lst is always in hours.")</span>
             </div>
+            }
         </fieldset>
 
         <fieldset class="show-items camera">
@@ -295,6 +347,23 @@
     private Task SetShowMountState(ChangeEventArgs e)
     {
         Server.ShowMountState = IsChecked(e);
+        return OnChanged.InvokeAsync();
+    }
+
+    /// <summary>Individual chips, or only the connection button (the grid is picked by its edge).</summary>
+    private Task SetLayout(CoordinatesLayout layout)
+    {
+        if (Server.CoordinatesLayout == layout) return Task.CompletedTask;
+        Server.CoordinatesLayout = layout;
+        return OnChanged.InvokeAsync();
+    }
+
+    /// <summary>The grid, on that edge of the scene.</summary>
+    private Task SetGridPosition(GridPosition position)
+    {
+        if (Server.CoordinatesLayout == CoordinatesLayout.Grid && Server.GridPosition == position) return Task.CompletedTask;
+        Server.GridPosition = position;
+        Server.CoordinatesLayout = CoordinatesLayout.Grid;
         return OnChanged.InvokeAsync();
     }
 

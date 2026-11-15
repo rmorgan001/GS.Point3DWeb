@@ -391,3 +391,349 @@
         text-align: left;
     }
 }
+
+/* ===== Grid layout: one panel on an edge of the scene ===== */
+/* Every coordinate and, once connected, the mount state. The viewer moves the model into the space beside
+   it (setInset in model3d.js), so the panel sits over the background, not the model. */
+.coord-panel {
+    position: absolute;
+    top: .6rem;
+    left: .6rem;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    width: clamp(10.5rem, 24cqw, 13rem);
+    max-height: calc(100% - 1.2rem);
+    overflow: hidden auto;
+    scrollbar-width: thin;
+    border: 1px solid rgba(82, 183, 136, .28);
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, rgba(16, 24, 28, .88) 0%, rgba(7, 11, 14, .84) 100%);
+    -webkit-backdrop-filter: blur(10px) saturate(1.2);
+    backdrop-filter: blur(10px) saturate(1.2);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .05);
+    animation: cp-in .28s ease-out;
+}
+
+    /* A thin green-to-yellow accent along the top edge. */
+    .coord-panel::before {
+        content: "";
+        position: sticky;
+        top: 0;
+        display: block;
+        flex: none;
+        height: 2px;
+        background: linear-gradient(90deg, var(--green), var(--yellow) 70%, transparent);
+        opacity: .85;
+    }
+
+@keyframes cp-in {
+    from {
+        opacity: 0;
+        transform: translate(var(--cp-from-x, -.6rem), var(--cp-from-y, 0));
+    }
+}
+
+/* ----- Edges: down the right, across the top or bottom ----- */
+.coord-panel.pos-right {
+    left: auto;
+    right: .6rem;
+    --cp-from-x: .6rem;
+}
+
+.coord-panel.horizontal {
+    right: .6rem;
+    width: auto;
+    max-height: 48%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+    --cp-from-x: 0;
+    --cp-from-y: -.6rem;
+}
+
+.coord-panel.pos-bottom {
+    top: auto;
+    bottom: .6rem;
+    --cp-from-y: .6rem;
+}
+
+    /* Across the top or bottom the accent line sits over the panel, not in its row of items. */
+    .coord-panel.horizontal::before {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+    }
+
+    /* Header: the Live pill, with a rule after it. */
+    .coord-panel.horizontal .cp-head {
+        padding: .45rem .8rem;
+        border-right: 1px solid rgba(52, 71, 79, .7);
+    }
+
+    /* Each coordinate a cell: label over value, a faint rule between cells. */
+    .coord-panel.horizontal .cp-rows {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        padding: .3rem .3rem;
+    }
+
+    .coord-panel.horizontal .cp-row {
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: .15rem;
+        padding: .25rem .65rem;
+    }
+
+        .coord-panel.horizontal .cp-row + .cp-row {
+            box-shadow: -1px 0 0 rgba(52, 71, 79, .45);
+        }
+
+        .coord-panel.horizontal .cp-row dd {
+            text-align: left;
+        }
+
+    .coord-panel.horizontal .cp-stack {
+        flex-direction: row;
+        align-items: baseline;
+        gap: .4rem;
+    }
+
+    /* Mount state: the flags and the pier / times in a row. */
+    .coord-panel.horizontal .cp-section {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .3rem .5rem;
+        margin: 0;
+        padding: .45rem .6rem;
+        border-top: 0;
+        border-left: 1px solid rgba(52, 71, 79, .7);
+    }
+
+    .coord-panel.horizontal .cp-flags {
+        display: flex;
+        flex-wrap: wrap;
+        padding: 0;
+    }
+
+        .coord-panel.horizontal .cp-flags .chip {
+            white-space: nowrap;
+        }
+
+    .coord-panel.horizontal .cp-meta {
+        padding: 0;
+    }
+
+/* Live pill and Connect / Disconnect side by side. */
+.cp-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .55rem .75rem .45rem;
+}
+
+    .cp-head .connect-btn {
+        flex: none;
+        padding: .14rem .55rem;
+        font-size: .72rem;
+    }
+
+    /* Just the icon: a small round button the height of the Live pill. */
+    .connect-btn.icon-only {
+        justify-content: center;
+        width: 1.6rem;
+        height: 1.6rem;
+        padding: 0;
+        border-radius: 50%;
+    }
+
+/* Live / Offline: a pill with a dot that breathes while connected. */
+.cp-live {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .1rem .5rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-size: .66rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--mare);
+}
+
+    .cp-live .dot {
+        width: .42rem;
+        height: .42rem;
+        border-radius: 50%;
+        background: var(--line-strong);
+    }
+
+    .cp-live.on {
+        border-color: rgba(82, 183, 136, .45);
+        background: var(--green-soft);
+        color: var(--green);
+    }
+
+        .cp-live.on .dot {
+            background: var(--green);
+            animation: cp-breathe 2s ease-in-out infinite;
+        }
+
+@keyframes cp-breathe {
+    50% {
+        box-shadow: 0 0 0 4px rgba(82, 183, 136, 0);
+    }
+
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(82, 183, 136, .55);
+    }
+}
+
+/* Label on the left, value on the right; a faint rule between rows. */
+.cp-rows {
+    margin: 0;
+    padding: 0 .4rem;
+}
+
+.cp-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .3rem .3rem;
+    border-radius: var(--radius-sm);
+    transition: background .15s;
+}
+
+    .cp-row + .cp-row {
+        box-shadow: 0 -1px 0 rgba(52, 71, 79, .45);
+    }
+
+    .cp-row:hover {
+        background: rgba(255, 255, 255, .035);
+    }
+
+    .cp-row dt {
+        flex: none;
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--yellow);
+    }
+
+    .cp-row dd {
+        min-width: 0;
+        margin: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-family: var(--font-code);
+        font-size: .8rem;
+        color: var(--moon);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+    }
+
+    .cp-row.ra {
+        cursor: pointer;
+        user-select: none;
+    }
+
+/* Mount state: a heading with a rule, the flags as tiles two to a row, then pier side and times. */
+.cp-section {
+    margin-top: .35rem;
+    padding: .5rem .4rem 0;
+    border-top: 1px solid rgba(52, 71, 79, .7);
+}
+
+.cp-flags {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .25rem;
+    padding: 0 .35rem .35rem;
+}
+
+    .cp-flags .chip {
+        justify-content: flex-start;
+        min-width: 0;
+        padding: .24rem .35rem;
+        font-size: .66rem;
+        line-height: 1.2;
+        white-space: normal;
+        border-color: rgba(52, 71, 79, .6);
+        background: rgba(255, 255, 255, .025);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        transition: background .2s, border-color .2s;
+    }
+
+    .cp-flags .flag.on {
+        border-color: rgba(82, 183, 136, .4);
+        background: var(--green-soft);
+    }
+
+    .cp-flags .flag.busy {
+        border-color: rgba(242, 200, 75, .4);
+        background: var(--yellow-soft);
+    }
+
+.cp-meta .cp-row dt {
+    color: var(--mare);
+}
+
+.cp-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.2;
+}
+
+    .cp-stack small {
+        font-size: .68rem;
+        color: var(--mare);
+    }
+
+/* Small views: a narrower, tighter panel. */
+@container model-viewport (max-width: 480px) {
+    .coord-panel.pos-left,
+    .coord-panel.pos-right {
+        width: 9.75rem;
+        top: .4rem;
+        max-height: calc(100% - .8rem);
+    }
+
+    .coord-panel.pos-left {
+        left: .4rem;
+    }
+
+    .coord-panel.pos-right {
+        right: .4rem;
+    }
+
+    .cp-row dd {
+        font-size: .72rem;
+    }
+
+    .coord-panel:not(.horizontal) .cp-flags {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* Across the top or bottom of a small view: just the button in the header, so the coordinates get the room. */
+    .coord-panel.horizontal .cp-live {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .coord-panel,
+    .cp-live.on .dot {
+        animation: none;
+    }
+}

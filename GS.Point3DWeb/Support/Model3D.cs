@@ -26,6 +26,28 @@ public enum PolarMode
     Right
 }
 
+/// <summary>How the coordinates show on the front of a 3D model card.</summary>
+public enum CoordinatesLayout
+{
+    /// <summary>One chip per coordinate along the top of the scene, the mount state along the bottom.</summary>
+    Individual,
+
+    /// <summary>One panel on an edge of the scene with every coordinate and, when connected, the mount state.</summary>
+    Grid,
+
+    /// <summary>No coordinates or mount state: only the Connect / Disconnect button, so the scene is left clear.</summary>
+    None
+}
+
+/// <summary>Which edge of the scene the coordinates grid sits on; the model moves into the space left over.</summary>
+public enum GridPosition
+{
+    Left,
+    Right,
+    Top,
+    Bottom
+}
+
 /// <summary>
 /// Telescope model files and model offsets. Ported from GSServer (GS.Shared/Model3D.cs and
 /// GS.Server/Model3D/Model3DVM.cs): the model file is the model type plus a suffix for the

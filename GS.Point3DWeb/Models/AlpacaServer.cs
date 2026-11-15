@@ -218,6 +218,12 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     /// <summary>Show the rest of the mount's state (tracking, slewing, parked…) along the bottom of the front.</summary>
     [ObservableProperty] public partial bool ShowMountState { get; set; } = true;
 
+    /// <summary>Coordinates on the front as individual chips, or as one grid panel down the left of the scene.</summary>
+    [ObservableProperty] public partial CoordinatesLayout CoordinatesLayout { get; set; } = CoordinatesLayout.Individual;
+
+    /// <summary>Which edge of the scene the coordinates grid sits on (grid layout only).</summary>
+    [ObservableProperty] public partial GridPosition GridPosition { get; set; } = GridPosition.Left;
+
     /// <summary>Show Ra on the front in degrees instead of hours.</summary>
     [ObservableProperty] public partial bool RaInDegrees { get; set; }
 

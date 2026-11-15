@@ -260,7 +260,9 @@ public class SettingsService
                     ModelColor = ModelAppearance.NormalizeColor(s.ModelColor),
                     Background = ModelAppearance.GetBackground(s.Background).Key,
                     ShowGrid = s.ShowGrid ?? true,
-                    ShowMountState = s.ShowMountState ?? true
+                    ShowMountState = s.ShowMountState ?? true,
+                    CoordinatesLayout = Enum.TryParse<CoordinatesLayout>(s.CoordinatesLayout, out var layout) && Enum.IsDefined(layout) ? layout : CoordinatesLayout.Individual,
+                    GridPosition = Enum.TryParse<GridPosition>(s.GridPosition, out var gridPosition) && Enum.IsDefined(gridPosition) ? gridPosition : GridPosition.Left
                 }).ToList();
             _servers.AddRange(servers);
             SelectedAlpacaServer = _servers.FirstOrDefault(s => s.IdGuid == stored.SelectedId);
@@ -406,7 +408,8 @@ public class SettingsService
                     s.ModelType.ToString(), s.RaOffset, s.DecOffset,
                     s.ShowRa, s.ShowDec, s.ShowAz, s.ShowAlt, s.ShowLha,
                     s.PolarMode.ToString(), s.AlignmentMode.ToString(), s.Latitude, s.Camera,
-                    s.PollSeconds, s.ShowLst, s.RaInDegrees, s.ModelColor, s.Background, s.ShowGrid, s.ShowMountState))],
+                    s.PollSeconds, s.ShowLst, s.RaInDegrees, s.ModelColor, s.Background, s.ShowGrid, s.ShowMountState,
+                    s.CoordinatesLayout.ToString(), s.GridPosition.ToString()))],
                 [.. quadrants.Select(id => servers.Any(s => s.IdGuid == id) ? id : null)],
                 ViewCount,
                 CurrentVersion,
@@ -495,5 +498,6 @@ public class SettingsService
         bool? ShowRa = null, bool? ShowDec = null, bool? ShowAz = null, bool? ShowAlt = null, bool? ShowLha = null,
         string? PolarMode = null, string? AlignmentMode = null, double? Latitude = null,
         CameraView? Camera = null, double? PollSeconds = null, bool? ShowLst = null, bool? RaInDegrees = null,
-        string? ModelColor = null, string? Background = null, bool? ShowGrid = null, bool? ShowMountState = null);
+        string? ModelColor = null, string? Background = null, bool? ShowGrid = null, bool? ShowMountState = null,
+        string? CoordinatesLayout = null, string? GridPosition = null);
 }

@@ -586,8 +586,13 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     /// report it.
     /// </summary>
     public sealed record MountStatus(bool? Tracking, bool? Slewing, bool? AtPark, bool? AtHome,
-        bool? IsPulseGuiding, int? SideOfPier, DateTime? UtcDate)
+        bool? IsPulseGuiding, int? SideOfPier, DateTime? UtcDate, DateTime? TimeStamp = null)
     {
+        /// <summary>A time without a zone is taken as UTC, as ASCOM specifies; a local one is converted.</summary>
+        private static DateTime? ToUtc(DateTime? time) => time is { } t
+            ? t.Kind == DateTimeKind.Local ? t.ToUniversalTime() : DateTime.SpecifyKind(t, DateTimeKind.Utc)
+            : null;
+
         /// <summary>
         /// The state items of a poll, or null if it has none: a server read one property at a time reports
         /// only the position and the side of pier, which alone don't make a strip.
@@ -597,12 +602,8 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
             if (state is { Tracking: null, Slewing: null, AtPark: null, AtHome: null, IsPulseGuiding: null, UTCDate: null })
                 return null;
 
-            // A time without a zone is taken as UTC, as ASCOM specifies.
-            DateTime? utc = state.UTCDate is { } date
-                ? date.Kind == DateTimeKind.Local ? date.ToUniversalTime() : DateTime.SpecifyKind(date, DateTimeKind.Utc)
-                : null;
             return new MountStatus(state.Tracking, state.Slewing, state.AtPark, state.AtHome,
-                state.IsPulseGuiding, state.SideOfPier, utc);
+                state.IsPulseGuiding, state.SideOfPier, ToUtc(state.UTCDate), ToUtc(state.TimeStamp));
         }
     }
 

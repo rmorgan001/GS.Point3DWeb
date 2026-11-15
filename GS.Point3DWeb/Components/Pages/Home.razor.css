@@ -20,6 +20,9 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    /* The visible height: on phones and tablets 100vh includes the browser's address bar, so the
+       bottom of the views would sit off screen. */
+    height: 100dvh;
     min-height: 0;
 }
 
@@ -189,6 +192,100 @@
             border-color: var(--green);
             background: var(--green-soft);
         }
+
+/* Stay on top: a pill like Log with a custom tick box; green while the window is kept on top. */
+.pin-toggle {
+    position: relative;
+    color: var(--moon);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition: border-color .15s, background .15s, color .15s;
+}
+
+    .pin-toggle input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: 0;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .pin-toggle:hover {
+        border-color: var(--green);
+        background: var(--green-soft);
+    }
+
+    .pin-toggle:has(input:focus-visible) {
+        outline: 2px solid var(--yellow);
+        outline-offset: 2px;
+    }
+
+.pin-box {
+    display: inline-grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: .95rem;
+    height: .95rem;
+    border: 1.5px solid var(--mare);
+    border-radius: 3px;
+    transition: background .15s, border-color .15s;
+}
+
+    /* The tick: a rotated L drawn with borders. */
+    .pin-box::after {
+        content: "";
+        width: .28rem;
+        height: .5rem;
+        margin-top: -.1rem;
+        border: solid var(--green-ink);
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg) scale(0);
+        transition: transform .15s;
+    }
+
+.pin-toggle.on {
+    border-color: rgba(82, 183, 136, .55);
+    background: var(--green-soft);
+    color: var(--green);
+}
+
+    .pin-toggle.on .pin-box {
+        border-color: var(--green);
+        background: var(--green);
+    }
+
+        .pin-toggle.on .pin-box::after {
+            transform: rotate(45deg) scale(1);
+        }
+
+    .pin-toggle.on .icon {
+        transform: rotate(-30deg);
+    }
+
+.pin-toggle .icon {
+    transition: transform .2s;
+}
+
+.pin-toggle.busy {
+    cursor: progress;
+    opacity: .7;
+}
+
+/* It didn't work (browser on another computer): a small red badge; the tooltip says why. */
+.pin-warn {
+    display: inline-grid;
+    place-items: center;
+    width: .95rem;
+    height: .95rem;
+    border-radius: 50%;
+    background: var(--red);
+    color: #fff;
+    font-size: .68rem;
+    font-weight: 700;
+    line-height: 1;
+}
 
 /* "Log": styled like the key button, in the plain text color. */
 .log-button {
@@ -687,6 +784,78 @@ html[data-sidebar="collapsed"] .lock {
     }
 }
 
+/* ===== Collapsible top menu ===== */
+/* Wide windows: the menu button never shows. Narrow ones: the menu folds away behind it, and opens onto a
+   second row of the header. */
+.menu-toggle {
+    display: none;
+}
+
+@media (max-width: 1000px) {
+    .app-header {
+        flex-wrap: wrap;
+        row-gap: 0;
+    }
+
+    .brand {
+        flex: 1 1 auto;
+    }
+
+    .menu-toggle {
+        display: inline-flex;
+        flex: none;
+    }
+
+        .menu-toggle ::deep svg {
+            transition: transform .2s ease;
+        }
+
+        .menu-toggle.open {
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+            .menu-toggle.open ::deep svg {
+                transform: rotate(90deg);
+            }
+
+    .header-tools {
+        display: none;
+    }
+
+        .header-tools.open {
+            display: flex;
+            flex: 1 1 100%;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            gap: .5rem .9rem;
+            min-width: 0;
+            padding: .5rem 0 .65rem;
+            border-top: 1px solid var(--line);
+            animation: menu-in .18s ease-out;
+        }
+
+    /* Keep the language menu and help at the right, so the language list (anchored right) stays on screen. */
+    .header-tools.open .lang-menu {
+        margin-left: auto;
+    }
+}
+
+@keyframes menu-in {
+    from {
+        opacity: 0;
+        transform: translateY(-.35rem);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .header-tools.open,
+    .menu-toggle ::deep svg {
+        animation: none;
+        transition: none;
+    }
+}
+
 /* ===== Narrow screens ===== */
 @media (max-width: 900px) {
     .brand-sub {
@@ -695,8 +864,10 @@ html[data-sidebar="collapsed"] .lock {
 }
 
 @media (max-width: 640px) {
+    /* Still the window's height, so the views reach the bottom edge; if the header and server list leave
+       too little room, the page scrolls rather than squashing the views. */
     .home {
-        height: auto;
+        overflow-y: auto;
     }
 
     .app-header {
@@ -752,7 +923,9 @@ html[data-sidebar="collapsed"] .lock {
         display: block;
     }
 
-    html[data-sidebar="collapsed"] .server-nav {
+    /* The donate link folds away with the list, rather than sitting under the header row. */
+    html[data-sidebar="collapsed"] .server-nav,
+    html[data-sidebar="collapsed"] .donate {
         display: none;
     }
 
@@ -761,10 +934,14 @@ html[data-sidebar="collapsed"] .lock {
         transform: rotate(90deg);
     }
 
+    /* The views stack and share the height left under the server list, down to the bottom of the window.
+       Each keeps at least 18rem; with more views than fit, the views scroll inside this area. */
     .model-panel {
         grid-template-columns: minmax(0, 1fr) !important;
         grid-template-rows: none !important;
-        grid-auto-rows: 60vh;
+        grid-auto-rows: minmax(18rem, 1fr);
+        min-height: 18rem;
+        overflow-y: auto;
         padding: .75rem 16px;
     }
 }

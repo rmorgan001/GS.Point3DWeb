@@ -119,6 +119,16 @@ class TelescopeViewer {
         this.glide = null;
         this.lastPoseAt = 0;
 
+        // A panel over one edge of the scene (the coordinates grid): the model is moved away from it, into
+        // the space beside it, by shifting the camera's picture (not the camera), so a saved view is unchanged.
+        this.insetElement = null;
+        this.insetSide = 'left';
+        this.insetObserver = null;
+        this.insetPx = 0;              // how far the panel reaches into the canvas, in CSS pixels
+        this.screenShift = { x: 0, y: 0 };       // the shift on screen now (px, right / down)
+        this.screenShiftTarget = { x: 0, y: 0 }; // where it eases to; set only when the panel or canvas changes
+        this.reducedMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+
         // Drawing on demand: a frame is drawn only when something changed (a new pose, a camera move,
         // a texture or model arriving, a resize), not 60 times a second for a scene at rest.
         this.needsRender = true;
@@ -166,12 +176,14 @@ class TelescopeViewer {
         if (!this.scene || this.scene.isDisposed) return;
         const now = performance.now();
         const gliding = this.stepGlide(now);
+        const shifting = this.stepScreenShift();
         const c = this.camera;
         const cameraMoving = c.inertialAlphaOffset || c.inertialBetaOffset || c.inertialRadiusOffset
             || c.inertialPanningX || c.inertialPanningY;
-        if (!this.needsRender && !gliding && !cameraMoving && now >= this.interactUntil) return;
+        if (!this.needsRender && !gliding && !shifting && !cameraMoving && now >= this.interactUntil) return;
 
         this.needsRender = false;
+        this.applyScreenShift();
         this.scene.render();
         // Materials compile in the background: until everything is ready, some meshes are skipped,
         // so keep drawing until they appear.
@@ -183,7 +195,100 @@ class TelescopeViewer {
         const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
         this.engine.setHardwareScalingLevel(1 / ratio);
         this.engine.resize();
+        this.measureInset();
         this.requestRender();
+    }
+
+    /**
+     * Keeps the model clear of a panel over one edge of the scene (side: 'left', 'right', 'top' or 'bottom'),
+     * or of nothing for a null element: the picture is shifted away from that edge by half the panel's reach,
+     * so the model sits in the middle of the space that's left.
+     */
+    setInset(element, side) {
+        if (this.insetObserver) this.insetObserver.disconnect();
+        this.insetObserver = null;
+        this.insetElement = element || null;
+        this.insetSide = side || 'left';
+        if (this.insetElement) {
+            this.insetObserver = new ResizeObserver(() => {
+                this.measureInset();
+                this.requestRender();
+            });
+            this.insetObserver.observe(this.insetElement);
+        }
+        this.measureInset();
+        this.requestRender();
+    }
+
+    /**
+     * How far the panel reaches into the canvas. Layout sizes (offsetLeft / offsetWidth), not on-screen boxes:
+     * the card turning over is a 3D transform, which would skew a bounding box but not these. Capped, so a
+     * panel filling a narrow view can't push the model off the other side.
+     */
+    measureInset() {
+        const el = this.insetElement;
+        const width = this.canvas.clientWidth || 0;
+        const height = this.canvas.clientHeight || 0;
+        if (!el || !el.isConnected) {
+            this.insetPx = 0;
+            this.updateScreenShiftTarget();
+            return;
+        }
+        let reach, size;
+        switch (this.insetSide) {
+            case 'right': reach = width - el.offsetLeft; size = width; break;
+            case 'top': reach = el.offsetTop + el.offsetHeight; size = height; break;
+            case 'bottom': reach = height - el.offsetTop; size = height; break;
+            default: reach = el.offsetLeft + el.offsetWidth; size = width; break;
+        }
+        this.insetPx = Math.max(0, Math.min(reach, size * 0.55));
+        this.updateScreenShiftTarget();
+    }
+
+    /** The shift the panel asks for, in screen pixels (x right, y down): away from its edge by half its reach. */
+    updateScreenShiftTarget() {
+        const half = this.insetPx / 2;
+        const t = this.screenShiftTarget;
+        switch (this.insetSide) {
+            case 'right': t.x = -half; t.y = 0; break;
+            case 'top': t.x = 0; t.y = half; break;
+            case 'bottom': t.x = 0; t.y = -half; break;
+            default: t.x = half; t.y = 0; break;
+        }
+    }
+
+    /**
+     * Eases the shift on screen towards the panel's (true while it is still moving). Runs every frame, so a
+     * scene at rest costs two comparisons and nothing more.
+     */
+    stepScreenShift() {
+        const target = this.screenShiftTarget;
+        const s = this.screenShift;
+        if (s.x === target.x && s.y === target.y) return false;
+        const dx = target.x - s.x, dy = target.y - s.y;
+        const reduced = this.reducedMotion !== null && this.reducedMotion.matches;
+        if (reduced || Math.hypot(dx, dy) < 0.5) {
+            s.x = target.x;
+            s.y = target.y;
+        } else {
+            s.x += dx * 0.18;
+            s.y += dy * 0.18;
+        }
+        return true;
+    }
+
+    /**
+     * Turns the shift in pixels into the camera's targetScreenOffset (view-space units at the target's
+     * distance, y up), so it stays the same on screen however far the camera is zoomed out.
+     */
+    applyScreenShift() {
+        const c = this.camera;
+        const height = this.canvas.clientHeight || 1;
+        const perPx = 2 * c.radius * Math.tan(c.fov / 2) / height;
+        const x = this.screenShift.x * perPx;
+        const y = -this.screenShift.y * perPx;
+        if (c.targetScreenOffset.x !== x) c.targetScreenOffset.x = x;
+        if (c.targetScreenOffset.y !== y) c.targetScreenOffset.y = y;
     }
 
     /** Applies a saved camera ({ alpha, beta (degrees), radius, targetX/Y/Z }), or the default. */
@@ -605,6 +710,7 @@ class TelescopeViewer {
 
     dispose() {
         this.resizeObserver.disconnect();
+        if (this.insetObserver) this.insetObserver.disconnect();
         window.removeEventListener('resize', this.onWindowResize);
         for (const type of ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'keydown']) {
             this.canvas.removeEventListener(type, this.onInteract);
@@ -649,6 +755,11 @@ export function setBackground(viewer, url) {
 
 export function setGrid(viewer, visible) {
     viewer.setGrid(visible);
+}
+
+/** element: a panel over one edge of the scene to keep the model clear of, or null for none; side: left, right, top or bottom. */
+export function setInset(viewer, element, side) {
+    viewer.setInset(element, side);
 }
 
 export function setHemisphere(viewer, isNorthern) {

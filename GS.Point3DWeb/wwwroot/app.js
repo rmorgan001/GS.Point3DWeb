@@ -62,3 +62,23 @@ document.addEventListener('keydown', e => {
     open.open = false;
     open.querySelector('summary')?.focus();
 });
+
+// Small helpers the app calls from C#. Stay on top: the tab's title is swapped for a unique one while the
+// app finds this browser window, then put back; the choice is remembered for the tab in sessionStorage.
+window.gsPoint3d = {
+    /** Sets the page title and returns the previous one. */
+    setTitle(title) {
+        const previous = document.title;
+        document.title = title;
+        return previous;
+    },
+    sessionGet(key) {
+        try { return sessionStorage.getItem(key); } catch { return null; }
+    },
+    sessionSet(key, value) {
+        try {
+            if (value === null || value === undefined) sessionStorage.removeItem(key);
+            else sessionStorage.setItem(key, value);
+        } catch { /* storage blocked: just not remembered */ }
+    }
+};

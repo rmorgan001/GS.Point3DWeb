@@ -17,6 +17,7 @@
 @page "/"
 @inherits MvvmComponentBase<HomeViewModel>
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>GS Point3D Web</PageTitle>
 
@@ -29,11 +30,39 @@
             <span class="brand-sub">@L.T("Alpaca mount viewer")</span>
         </div>
 
-        <div class="header-tools">
+        @* In a narrow window the menu folds away behind this button (Home.razor.css); wide windows never show it. *@
+        <button type="button" class="icon-btn menu-toggle @(_menuOpen ? "open" : null)" aria-controls="header-tools"
+                aria-expanded="@(_menuOpen ? "true" : "false")"
+                title="@(_menuOpen ? L.T("Hide the menu") : L.T("Show the menu"))"
+                aria-label="@(_menuOpen ? L.T("Hide the menu") : L.T("Show the menu"))"
+                @onclick="() => _menuOpen = !_menuOpen">
+            <Icon Kind="@(_menuOpen ? "Close" : "Menu")" Size="20" />
+        </button>
+
+        <div class="header-tools @(_menuOpen ? "open" : null)" id="header-tools">
             <span class="connected-count" title="@L.T("Servers connected")">
                 <span class="dot @(ConnectedCount > 0 ? "on" : null)"></span>
                 @L.T("{0} of {1} connected", ConnectedCount, ViewModel.Count)
             </span>
+
+            @* Stay on top: keeps this browser window above all other windows. Done by the app with Win32 (a page
+               can't), so it's offered only when the app runs on Windows, and works only when the browser is on
+               the same computer; if it isn't, the box clears itself and its tooltip says why. *@
+            @if (WindowPin.IsSupported)
+            {
+                <label class="key-button pin-toggle @(_onTop ? "on" : null) @(_onTopBusy ? "busy" : null)"
+                       title="@(_onTopMessage ?? L.T("Keep this browser window on top of all other windows"))">
+                    <input type="checkbox" checked="@_onTop" disabled="@_onTopBusy"
+                           @onchange="e => SetOnTopAsync(e.Value is true || (e.Value is string s && bool.TryParse(s, out var b) && b))" />
+                    <span class="pin-box" aria-hidden="true"></span>
+                    <Icon Kind="Pin" Size="15" />
+                    <span>@L.T("On top")</span>
+                    @if (_onTopMessage is not null)
+                    {
+                        <span class="pin-warn" aria-hidden="true">!</span>
+                    }
+                </label>
+            }
 
             @* Opens the log viewer (/log) in its own window; a plain link (new tab) if pop-ups are blocked. *@
             <a class="key-button log-button" href="log" target="gs-point3dweb-log"
@@ -279,6 +308,105 @@
     {
         // After the first interactive render (never during prerendering), so the dialog reaches the page.
         if (firstRender) _ = ViewModel.ShowStartupNoticeAsync();
+    }
+
+    /// <summary>Whether the top menu is unfolded in a narrow window (wide windows always show it).</summary>
+    private bool _menuOpen;
+
+    // ===== Stay on top =====
+
+    private bool _onTop;
+    private bool _onTopBusy;
+
+    /// <summary>Why the last try didn't work (the box's tooltip), or null.</summary>
+    private string? _onTopMessage;
+
+    /// <summary>Remembered per tab, so a reload (or a reconnect) keeps the window on top and the box ticked.</summary>
+    private const string OnTopKey = "gs-point3dweb-ontop";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !WindowPin.IsSupported) return;
+        try
+        {
+            if (await JS.InvokeAsync<string?>("gsPoint3d.sessionGet", OnTopKey) == "1") await SetOnTopAsync(true, restoring: true);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    /// <summary>
+    /// Puts this browser window on top of all others, or back to normal. The tab's title is briefly set to a
+    /// unique text so the app can find its window among the desktop's (see <see cref="WindowPin"/>).
+    /// </summary>
+    /// <param name="restoring">
+    /// Putting the remembered choice back after a reload. If the window can't be found then (e.g. the tab
+    /// reloaded in the background), the choice is kept for the next try and no warning shows: the window may
+    /// well still be on top, as Windows keeps that across a reload.
+    /// </param>
+    private async Task SetOnTopAsync(bool on, bool restoring = false)
+    {
+        if (_onTopBusy) return;
+        var previous = _onTop;
+        // Shown straight away; put back below if it didn't work (the box then visibly changes back).
+        _onTop = on;
+        _onTopBusy = true;
+        _onTopMessage = null;
+        StateHasChanged();
+
+        var token = "GS Point3D Web " + Guid.NewGuid().ToString("N")[..12];
+        string? title = null;
+        var done = false;
+        try
+        {
+            title = await JS.InvokeAsync<string>("gsPoint3d.setTitle", token);
+            done = await WindowPin.SetTopMostAsync(token, on);
+        }
+        catch (JSDisconnectedException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            AppLog.For(nameof(Home)).LogWarning(ex, "Stay on top failed: {Error}", ex.Message);
+        }
+        finally
+        {
+            if (title is not null)
+            {
+                try { await JS.InvokeVoidAsync("gsPoint3d.setTitle", title); }
+                catch (JSDisconnectedException) { }
+                catch (JSException ex) { AppLog.For(nameof(Home)).LogWarning(ex, "Couldn't put the page title back: {Error}", ex.Message); }
+            }
+            _onTopBusy = false;
+        }
+
+        if (!done)
+        {
+            // The window is as it was: show that, not a guess.
+            _onTop = previous;
+            if (restoring)
+            {
+                StateHasChanged();
+                return; // keep the remembered choice; no warning (see above)
+            }
+            _onTopMessage = on
+                ? L.T("Couldn't keep the window on top: this only works in a browser on the computer running GS Point3D Web.")
+                : L.T("Couldn't change the window: this only works in a browser on the computer running GS Point3D Web.");
+        }
+        try
+        {
+            await JS.InvokeVoidAsync("gsPoint3d.sessionSet", OnTopKey, _onTop ? "1" : null);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException ex)
+        {
+            AppLog.For(nameof(Home)).LogWarning(ex, "Couldn't remember the on-top choice: {Error}", ex.Message);
+        }
+        StateHasChanged();
     }
 
     /// <summary>The 3D view in each quadrant, to read or set its camera.</summary>

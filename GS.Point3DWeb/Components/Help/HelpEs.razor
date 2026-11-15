@@ -151,7 +151,15 @@
             <em>Reflector · Montura alemana</em>). El tipo de montura se lee de la montura al conectarse.
         </p>
         <h3>Coordenadas</h3>
-        <p>En la parte superior del modelo:</p>
+        <p>
+            Aparecen sobre el modelo, con la disposición elegida en <strong>Mostrar como</strong> en la
+            configuración de la vista: cada una por separado en la parte superior (<strong>Individual</strong>),
+            juntas en un panel a la <strong>Izquierda</strong>, a la <strong>Derecha</strong>,
+            <strong>Arriba</strong> o <strong>Abajo</strong> del modelo, o ninguna (<strong>Solo botón</strong>,
+            que deja solo el botón Conectar / Desconectar). El modelo se aparta para que el panel nunca lo
+            tape. El panel tiene además un indicador <strong>En vivo</strong> / <strong>Sin conexión</strong> y
+            el botón del enchufe que conecta o desconecta.
+        </p>
         <ul>
             <li><strong>Ra</strong> y <strong>Dec</strong>: hacia dónde apunta el telescopio en el cielo. Haga
                 doble clic en Ra para cambiar entre horas y grados.</li>
@@ -168,6 +176,10 @@
             posición inicial</strong> y <strong>Guiado</strong> (un punto relleno si está activo, uno hueco si
             no), el lado del pilar y la hora UTC de la propia montura. En una vista estrecha se omiten algunos
             para ganar espacio.
+        </p>
+        <p>
+            Con un panel, estos datos aparecen en él debajo de las coordenadas cuando la montura está
+            conectada, junto con <strong>Leído a las</strong>: la hora a la que el servidor los leyó.
         </p>
         <h3>Barra de estado</h3>
         <ul>
@@ -208,9 +220,15 @@
             <li><strong>Restablecer apariencia</strong> devuelve estos valores a los predeterminados.</li>
         </ul>
         <h3>Coordenadas en el anverso</h3>
+        <p><strong>Mostrar como</strong>: cómo aparecen las coordenadas en el anverso.</p>
+        <ul>
+            <li><strong>Individual</strong>: cada una por separado en la parte superior del modelo, con la franja del estado de la montura abajo.</li>
+            <li><strong>Izquierda</strong>, <strong>Derecha</strong>, <strong>Arriba</strong> o <strong>Abajo</strong>: todo en un panel en ese borde del modelo; una columna a la izquierda o a la derecha, una fila arriba o abajo.</li>
+            <li><strong>Solo botón</strong>: sin coordenadas ni estado de la montura, solo el botón Conectar / Desconectar.</li>
+        </ul>
         <p>
-            Elija qué coordenadas aparecen sobre el modelo, si se muestra la franja del <strong>estado de la
-            montura</strong> y si Ra se muestra en horas o en grados.
+            Debajo, elija qué coordenadas aparecen, si se muestra el <strong>estado de la montura</strong> y
+            si Ra se muestra en horas o en grados. Con Solo botón no se aplican y se ocultan.
         </p>
         <h3>Cámara</h3>
         <ul>
@@ -234,7 +252,15 @@
             <li><strong>Vistas</strong>: cuántas vistas mostrar (de 1 a 4).</li>
             <li><strong>Idioma</strong> (globo): English, Deutsch, Español, Français, Italiano o 中文. El
                 navegador recuerda la elección.</li>
+            <li><strong>Encima</strong> (chincheta): mantiene esta ventana del navegador encima de todas las
+                demás. Solo funciona si el navegador está en el mismo equipo Windows que la aplicación; si no,
+                la casilla se desmarca y un <strong>!</strong> rojo explica por qué. La elección se guarda para
+                la pestaña hasta que se cierra.</li>
         </ul>
+        <p>
+            En una ventana estrecha, el menú se pliega tras el botón de menú (☰) a la derecha de la barra
+            superior; púlselo para mostrar u ocultar el menú.
+        </p>
     </section>
 
     <section id="network">

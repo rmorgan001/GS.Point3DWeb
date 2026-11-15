@@ -157,7 +157,15 @@
             connexion.
         </p>
         <h3>Coordonnées</h3>
-        <p>En haut du modèle :</p>
+        <p>
+            Elles s'affichent sur le modèle, selon la disposition choisie sous <strong>Afficher en</strong> dans
+            les paramètres de la vue : chacune séparément en haut (<strong>Individuel</strong>), ensemble dans
+            un panneau à <strong>Gauche</strong>, à <strong>Droite</strong>, en <strong>Haut</strong> ou en
+            <strong>Bas</strong> du modèle, ou pas du tout (<strong>Bouton seul</strong>, qui ne laisse que le
+            bouton Connecter / Déconnecter). Le modèle se décale pour qu'un panneau ne le cache jamais. Le
+            panneau a aussi un voyant <strong>En direct</strong> / <strong>Hors ligne</strong> et le bouton
+            prise qui connecte ou déconnecte.
+        </p>
         <ul>
             <li><strong>Ra</strong> et <strong>Dec</strong> : la direction du ciel visée par le télescope.
                 Double-cliquez sur Ra pour passer des heures aux degrés.</li>
@@ -173,6 +181,10 @@
             mouvement</strong>, <strong>Parquée</strong>, <strong>En position d'origine</strong> et
             <strong>Guidage</strong> (un point plein si actif, un point creux sinon), le côté du pilier et
             l'heure UTC de la monture. Dans une vue étroite, certains sont omis pour gagner de la place.
+        </p>
+        <p>
+            Avec un panneau, ces informations s'y affichent sous les coordonnées une fois la monture
+            connectée, avec <strong>Lu à</strong> : l'heure à laquelle le serveur les a lues.
         </p>
         <h3>Barre d'état</h3>
         <ul>
@@ -215,9 +227,16 @@
             <li><strong>Réinitialiser l'apparence</strong> rétablit ces réglages par défaut.</li>
         </ul>
         <h3>Coordonnées au recto</h3>
+        <p><strong>Afficher en</strong> : comment les coordonnées s'affichent au recto.</p>
+        <ul>
+            <li><strong>Individuel</strong> : chacune séparément en haut du modèle, avec le bandeau de l'état de la monture en bas.</li>
+            <li><strong>Gauche</strong>, <strong>Droite</strong>, <strong>Haut</strong> ou <strong>Bas</strong> : tout dans un panneau sur ce bord du modèle ; une colonne à gauche ou à droite, une ligne en haut ou en bas.</li>
+            <li><strong>Bouton seul</strong> : ni coordonnées ni état de la monture, seulement le bouton Connecter / Déconnecter.</li>
+        </ul>
         <p>
-            Choisissez les coordonnées affichées sur le modèle, si le bandeau de l'<strong>état de la
-            monture</strong> est affiché, et si Ra est affichée en heures ou en degrés.
+            En dessous, choisissez les coordonnées affichées, si l'<strong>état de la monture</strong> est
+            affiché, et si Ra est affichée en heures ou en degrés. Ces réglages ne s'appliquent pas à Bouton
+            seul et sont alors masqués.
         </p>
         <h3>Caméra</h3>
         <ul>
@@ -242,7 +261,15 @@
             <li><strong>Vues</strong> : le nombre de vues à afficher (1 à 4).</li>
             <li><strong>Langue</strong> (globe) : English, Deutsch, Español, Français, Italiano ou 中文. Le
                 navigateur retient ce choix.</li>
+            <li><strong>Premier plan</strong> (punaise) : garde cette fenêtre du navigateur au-dessus de toutes
+                les autres. Cela ne fonctionne que si le navigateur tourne sur le même ordinateur Windows que
+                l'application ; sinon la case se décoche et un <strong>!</strong> rouge explique pourquoi. Le
+                choix est gardé pour l'onglet jusqu'à sa fermeture.</li>
         </ul>
+        <p>
+            Dans une fenêtre étroite, le menu se replie derrière le bouton de menu (☰) à droite de la barre du
+            haut ; appuyez dessus pour afficher ou masquer le menu.
+        </p>
     </section>
 
     <section id="network">

@@ -159,7 +159,15 @@
             Montierung gelesen.
         </p>
         <h3>Koordinaten</h3>
-        <p>Am oberen Rand des Modells:</p>
+        <p>
+            Sie erscheinen über dem Modell, in der Anordnung, die in den Ansichtseinstellungen unter
+            <strong>Anzeigen als</strong> gewählt ist: jede einzeln am oberen Rand (<strong>Einzeln</strong>),
+            zusammen in einem Feld <strong>Links</strong>, <strong>Rechts</strong>, <strong>Oben</strong> oder
+            <strong>Unten</strong> am Modell, oder gar nicht (<strong>Nur Schaltfläche</strong>: dann bleibt nur
+            die Schaltfläche Verbinden / Trennen). Das Modell rückt zur Seite, damit ein Feld es nie verdeckt.
+            Das Feld hat außerdem eine Anzeige <strong>Live</strong> / <strong>Offline</strong> und die
+            Stecker-Schaltfläche zum Verbinden und Trennen.
+        </p>
         <ul>
             <li><strong>Ra</strong> und <strong>Dec</strong>: wohin das Teleskop am Himmel zeigt. Doppelklicken
                 Sie auf Ra, um zwischen Stunden und Grad zu wechseln.</li>
@@ -176,6 +184,11 @@
             <strong>Guiding</strong> (ein gefüllter Punkt für an, ein leerer für aus), die Pierseite und die
             UTC-Zeit der Montierung. In einer schmalen Ansicht werden einige davon weggelassen, um Platz zu
             sparen.
+        </p>
+        <p>
+            Mit einem Feld erscheinen diese Angaben darin unter den Koordinaten, sobald die Montierung
+            verbunden ist, zusammen mit <strong>Gelesen um</strong>: der Zeit, zu der der Server sie gelesen
+            hat.
         </p>
         <h3>Statusleiste</h3>
         <ul>
@@ -216,10 +229,16 @@
             <li><strong>Darstellung zurücksetzen</strong> stellt diese Werte wieder her.</li>
         </ul>
         <h3>Koordinaten auf der Vorderseite</h3>
+        <p><strong>Anzeigen als</strong>: wie die Koordinaten auf der Vorderseite erscheinen.</p>
+        <ul>
+            <li><strong>Einzeln</strong>: jede für sich am oberen Rand des Modells, die Leiste mit dem Montierungsstatus am unteren Rand.</li>
+            <li><strong>Links</strong>, <strong>Rechts</strong>, <strong>Oben</strong> oder <strong>Unten</strong>: alles in einem Feld an diesem Rand des Modells; links oder rechts als Spalte, oben oder unten als Zeile.</li>
+            <li><strong>Nur Schaltfläche</strong>: keine Koordinaten und kein Montierungsstatus, nur die Schaltfläche Verbinden / Trennen.</li>
+        </ul>
         <p>
-            Wählen Sie, welche Koordinaten über dem Modell erscheinen, ob die Leiste mit dem
-            <strong>Montierungsstatus</strong> angezeigt wird und ob Ra in Stunden oder Grad angezeigt
-            wird.
+            Darunter wählen Sie, welche Koordinaten erscheinen, ob der <strong>Montierungsstatus</strong>
+            angezeigt wird und ob Ra in Stunden oder Grad angezeigt wird. Bei „Nur Schaltfläche“ gelten sie
+            nicht und werden ausgeblendet.
         </p>
         <h3>Kamera</h3>
         <ul>
@@ -244,7 +263,15 @@
             <li><strong>Ansichten</strong>: wie viele Ansichten angezeigt werden (1 bis 4).</li>
             <li><strong>Sprache</strong> (Globus): English, Deutsch, Español, Français, Italiano oder 中文.
                 Der Browser merkt sich die Wahl.</li>
+            <li><strong>Im Vordergrund</strong> (Stecknadel): hält dieses Browserfenster vor allen anderen
+                Fenstern. Das funktioniert nur, wenn der Browser auf demselben Windows-Computer wie die App
+                läuft; sonst wird das Kästchen wieder geleert, und ein rotes <strong>!</strong> erklärt,
+                warum. Die Wahl gilt für den Tab, bis er geschlossen wird.</li>
         </ul>
+        <p>
+            In einem schmalen Fenster wird das Menü hinter der Menü-Schaltfläche (☰) rechts in der oberen
+            Leiste eingeklappt; drücken Sie darauf, um das Menü ein- oder auszublenden.
+        </p>
     </section>
 
     <section id="network">

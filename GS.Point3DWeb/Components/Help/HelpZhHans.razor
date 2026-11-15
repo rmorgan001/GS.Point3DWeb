@@ -129,7 +129,9 @@
             支架的名称，旁边是模型和支架类型（例如<em>反射式 · 德式赤道仪</em>）。支架类型在连接时从支架读取。
         </p>
         <h3>坐标</h3>
-        <p>显示在模型上方：</p>
+        <p>
+            显示在模型上，布局在视图设置的<strong>显示方式</strong>中选择：每个坐标单独显示在顶部（<strong>单独</strong>），全部集中在模型<strong>左侧</strong>、<strong>右侧</strong>、<strong>顶部</strong>或<strong>底部</strong>的一个面板中，或者都不显示（<strong>仅按钮</strong>，只保留连接 / 断开按钮）。模型会移到一旁，面板不会遮住它。面板中还有<strong>实时</strong> / <strong>离线</strong>指示灯和用于连接或断开的插头按钮。
+        </p>
         <ul>
             <li><strong>Ra</strong> 和 <strong>Dec</strong>：望远镜在天空中指向的位置。双击 Ra 可在小时和度之间切换。</li>
             <li><strong>Az</strong> 和 <strong>Alt</strong>：以方位角和高度角表示的同一位置。</li>
@@ -141,6 +143,9 @@
         <p>
             对于在一次应答中报告状态的服务器（<code>devicestate</code>：ASCOM Platform 7 和 ITelescopeV4 驱动），模型底部的状态条会显示<strong>跟踪</strong>、<strong>转动中</strong>、<strong>已停放</strong>、<strong>在原位</strong>和<strong>导星</strong>（开启时为实心圆点，关闭时为空心圆点）、镜筒朝向，以及支架自身的
             UTC 时间。视图较窄时，部分项目会被省略以节省空间。
+        </p>
+        <p>
+            使用面板时，赤道仪连接后这些信息会显示在面板中的坐标下方，并附有<strong>读取时间</strong>：服务器读取这些信息的时间。
         </p>
         <h3>状态栏</h3>
         <ul>
@@ -170,8 +175,14 @@
             <li><strong>重置外观</strong>将这些设置恢复为默认值。</li>
         </ul>
         <h3>正面显示的坐标</h3>
+        <p><strong>显示方式</strong>：坐标在正面的显示方式。</p>
+        <ul>
+            <li><strong>单独</strong>：每个坐标单独显示在模型顶部，赤道仪状态条显示在底部。</li>
+            <li><strong>左侧</strong>、<strong>右侧</strong>、<strong>顶部</strong>或<strong>底部</strong>：所有内容集中在模型该边缘的一个面板中；左右两侧为一列，顶部或底部为一行。</li>
+            <li><strong>仅按钮</strong>：不显示坐标和赤道仪状态，只显示连接 / 断开按钮。</li>
+        </ul>
         <p>
-            选择在模型上显示哪些坐标、是否显示<strong>赤道仪状态</strong>条，以及 Ra 以小时还是度显示。
+            在下方选择显示哪些坐标、是否显示<strong>赤道仪状态</strong>，以及 Ra 以小时还是度显示。选择“仅按钮”时这些设置不适用，因此会被隐藏。
         </p>
         <h3>相机</h3>
         <ul>
@@ -190,7 +201,11 @@
             <li><strong>帮助</strong>（?）：打开本指南。</li>
             <li><strong>视图</strong>：显示的视图数量（1 到 4）。</li>
             <li><strong>语言</strong>（地球图标）：English、Deutsch、Español、Français、Italiano 或中文。浏览器会记住您的选择。</li>
+            <li><strong>置顶</strong>（图钉）：使此浏览器窗口始终位于其他所有窗口之上。仅当浏览器与本应用在同一台 Windows 计算机上运行时有效；否则复选框会自动取消，并显示红色 <strong>!</strong> 说明原因。该选择在标签页关闭前一直保留。</li>
         </ul>
+        <p>
+            窗口较窄时，菜单会收起到顶部栏右侧的菜单按钮（☰）后面；点击它即可显示或隐藏菜单。
+        </p>
     </section>
 
     <section id="network">

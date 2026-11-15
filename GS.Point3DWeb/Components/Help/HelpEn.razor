@@ -151,7 +151,15 @@
             <em>Reflector · German polar</em>). The mount type is read from the mount when it connects.
         </p>
         <h3>Coordinates</h3>
-        <p>Along the top of the model:</p>
+        <p>
+            Shown over the model, in the layout chosen under <strong>Show as</strong> in the view settings: each
+            on its own along the top (<strong>Individual</strong>), together in one panel on the
+            <strong>Left</strong>, <strong>Right</strong>, <strong>Top</strong> or <strong>Bottom</strong> of the
+            model, or not at all (<strong>Button only</strong>, which leaves just the Connect / Disconnect
+            button). The model moves aside so a panel never covers it. The panel also has a
+            <strong>Live</strong> / <strong>Offline</strong> light and the plug button that connects or
+            disconnects.
+        </p>
         <ul>
             <li><strong>Ra</strong> and <strong>Dec</strong>: where the telescope points on the sky.
                 Double-click Ra to switch between hours and degrees.</li>
@@ -167,6 +175,10 @@
             <strong>Slewing</strong>, <strong>Parked</strong>, <strong>At home</strong> and
             <strong>Guiding</strong> (a filled dot when on, a hollow one when off), the side of the pier, and
             the mount's own UTC time. In a narrow view some of these are left out to make room.
+        </p>
+        <p>
+            With a panel, these show in it under the coordinates once the mount is connected, together with
+            <strong>Read at</strong>: the time the server read them.
         </p>
         <h3>Status bar</h3>
         <ul>
@@ -201,9 +213,15 @@
             <li><strong>Reset appearance</strong> sets these back to their defaults.</li>
         </ul>
         <h3>Coordinates on the front</h3>
+        <p><strong>Show as</strong>: how the coordinates show on the front.</p>
+        <ul>
+            <li><strong>Individual</strong>: each one on its own along the top of the model, with the mount state strip along the bottom.</li>
+            <li><strong>Left</strong>, <strong>Right</strong>, <strong>Top</strong> or <strong>Bottom</strong>: everything in one panel on that edge of the model; a column down the left or right, a row across the top or bottom.</li>
+            <li><strong>Button only</strong>: no coordinates or mount state, only the Connect / Disconnect button.</li>
+        </ul>
         <p>
-            Choose which coordinates show over the model, whether the <strong>mount state</strong> strip
-            shows, and whether Ra is shown in hours or degrees.
+            Below that, choose which coordinates show, whether the <strong>mount state</strong> shows, and
+            whether Ra is shown in hours or degrees. These don't apply to Button only, so they are hidden then.
         </p>
         <h3>Camera</h3>
         <ul>
@@ -226,7 +244,14 @@
             <li><strong>Views</strong>: how many views to show (1 to 4).</li>
             <li><strong>Language</strong> (globe): English, Deutsch, Español, Français, Italiano or 中文.
                 The choice is remembered by the browser.</li>
+            <li><strong>On top</strong> (pin): keeps this browser window above all other windows. It only works
+                when the browser runs on the same Windows computer as the app; otherwise the box clears itself
+                and a red <strong>!</strong> explains why. The choice is kept for the tab until it is closed.</li>
         </ul>
+        <p>
+            In a narrow window the menu folds away behind the menu button (☰) at the right of the top bar;
+            press it to show or hide the menu.
+        </p>
     </section>
 
     <section id="network">

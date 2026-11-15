@@ -265,7 +265,7 @@
 
     /// <summary>The server's read time (UTC, see MountStatus.From) in this computer's time.</summary>
     private static string StampText(DateTime stampUtc)
-        => stampUtc.ToLocalTime().ToString("HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
+        => stampUtc.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Connect / Disconnect for the server: with its wording at the end of the coordinate chips, just the icon

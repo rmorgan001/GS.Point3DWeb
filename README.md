@@ -19,10 +19,19 @@ pointing from any browser.
 - **Up to four views at once:** each view can show a different mount. Up to five servers can be
   added without a feature key.
 - **Coordinates over the model:** RA, Dec, Az, Alt, LHA and LST, each one optional. RA can be
-  shown in hours or degrees.
+  shown in hours or degrees. Each view chooses how they show:
+  - **Individual:** each coordinate on its own along the top of the model.
+  - **A panel on the left, right, top or bottom:** every coordinate and the mount state in one
+    panel, with a live / offline light and a connect button. The model moves aside so the
+    panel never covers it.
+  - **Button only:** no coordinates or mount state, just the Connect / Disconnect button.
 - **Mount state:** for servers that support `devicestate` (ASCOM Platform 7 / ITelescopeV4),
-  a strip shows tracking, slewing, parked, at home, guiding, side of pier and the mount's UTC
-  time. Older servers are read one property at a time.
+  the view shows tracking, slewing, parked, at home, guiding, side of pier, the mount's UTC
+  time and, in the panel, when the server read them. Older servers are read one property at a time.
+- **On top:** a checkbox in the top bar keeps the browser window above all other windows (when
+  the browser runs on the same Windows computer as the app).
+- **Fits small windows:** in a narrow window the top bar folds behind a menu button, the server
+  list collapses, and the views fill the window down to the bottom edge.
 - **Two ways to connect:**
   - Alpaca servers, found automatically with Alpaca discovery (UDP port 32227) or added by
     address.
@@ -124,7 +133,8 @@ On its first run the app adds a connection to the
 1. Add it with **+** (by address), the discovery button (Alpaca servers on the network) or the
    ASCOM drivers button (COM drivers).
 2. Drag it onto a view. Dragging connects it.
-3. Use the cog on a view to choose the model, colours, background, coordinates and camera.
+3. Use the cog on a view to choose the model, colours, background, how the coordinates show
+   and the camera.
 
 ### Building
 

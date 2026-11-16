@@ -595,6 +595,54 @@ public class AlpacaConnectorTests : FakeServerTest
     }
 
     [Fact]
+    public async Task Latitude_refresh_picks_up_a_new_site()
+    {
+        var server = NewServer();
+        Assert.True(await AlpacaConnector.ReadMountInfoAsync(server));
+        Assert.Equal(51.5, server.Latitude);
+
+        Mount.Latitude = -33.9; // the site changed in the driver to the southern hemisphere
+        await AlpacaConnector.RefreshLatitudeAsync(server);
+        Assert.Equal(-33.9, server.Latitude);
+        Assert.Equal(1, Mount.CallsTo("alignmentmode")); // only the latitude is read again
+    }
+
+    [Fact]
+    public async Task Latitude_refresh_with_the_same_value_changes_nothing()
+    {
+        var server = NewServer();
+        await AlpacaConnector.ReadMountInfoAsync(server);
+        var changes = 0;
+        server.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(AlpacaServer.Latitude)) changes++; };
+        await AlpacaConnector.RefreshLatitudeAsync(server);
+        Assert.Equal(0, changes);
+    }
+
+    [Fact]
+    public async Task Latitude_refresh_answered_with_an_error_keeps_the_latitude()
+    {
+        var server = NewServer();
+        await AlpacaConnector.ReadMountInfoAsync(server);
+
+        Mount.LatitudeNotImplemented = true;
+        await AlpacaConnector.RefreshLatitudeAsync(server);
+        Assert.Equal(51.5, server.Latitude);
+
+        Mount.LatitudeNotImplemented = false;
+        Mount.MountInfoHttp500 = true;
+        await AlpacaConnector.RefreshLatitudeAsync(server);
+        Assert.Equal(51.5, server.Latitude);
+    }
+
+    [Fact]
+    public async Task Latitude_refresh_from_a_server_that_doesnt_answer_throws_and_keeps_the_latitude()
+    {
+        var server = new AlpacaServer("http://127.0.0.1:1/api/v1/telescope/0/", "Nobody") { Latitude = 51.5 };
+        await Assert.ThrowsAsync<HttpRequestException>(() => AlpacaConnector.RefreshLatitudeAsync(server));
+        Assert.Equal(51.5, server.Latitude);
+    }
+
+    [Fact]
     public void Disconnect_question_names_the_server()
     {
         Assert.Contains("Fake 0", AlpacaConnector.DisconnectQuestion(NewServer()));

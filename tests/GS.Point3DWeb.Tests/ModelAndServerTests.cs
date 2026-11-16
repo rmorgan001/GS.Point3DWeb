@@ -235,6 +235,8 @@ public class AlpacaServerTests
         Assert.Equal(AlignmentModes.algGermanPolar, server.AlignmentMode);
         Assert.Equal(0.5, server.PollSeconds);
         Assert.True(server.ShowRa && server.ShowDec && server.ShowAz && server.ShowAlt && server.ShowLha && server.ShowLst && server.ShowMountState && server.ShowGrid);
+        Assert.False(server.ShowHeading || server.ShowCardinals); // the compass extras are opt-in
+        Assert.Equal(CardinalSize.Large, server.CardinalSize);
         Assert.False(server.IsConnected || server.ConnectRequested || server.IsConnecting);
     }
 }

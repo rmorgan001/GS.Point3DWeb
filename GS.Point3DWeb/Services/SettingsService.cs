@@ -260,6 +260,9 @@ public class SettingsService
                     ModelColor = ModelAppearance.NormalizeColor(s.ModelColor),
                     Background = ModelAppearance.GetBackground(s.Background).Key,
                     ShowGrid = s.ShowGrid ?? true,
+                    ShowHeading = s.ShowHeading ?? false,
+                    ShowCardinals = s.ShowCardinals ?? false,
+                    CardinalSize = Enum.TryParse<CardinalSize>(s.CardinalSize, out var cardinalSize) && Enum.IsDefined(cardinalSize) ? cardinalSize : CardinalSize.Large,
                     ShowMountState = s.ShowMountState ?? true,
                     CoordinatesLayout = Enum.TryParse<CoordinatesLayout>(s.CoordinatesLayout, out var layout) && Enum.IsDefined(layout) ? layout : CoordinatesLayout.Individual,
                     GridPosition = Enum.TryParse<GridPosition>(s.GridPosition, out var gridPosition) && Enum.IsDefined(gridPosition) ? gridPosition : GridPosition.Left
@@ -409,7 +412,8 @@ public class SettingsService
                     s.ShowRa, s.ShowDec, s.ShowAz, s.ShowAlt, s.ShowLha,
                     s.PolarMode.ToString(), s.AlignmentMode.ToString(), s.Latitude, s.Camera,
                     s.PollSeconds, s.ShowLst, s.RaInDegrees, s.ModelColor, s.Background, s.ShowGrid, s.ShowMountState,
-                    s.CoordinatesLayout.ToString(), s.GridPosition.ToString()))],
+                    s.CoordinatesLayout.ToString(), s.GridPosition.ToString(), s.ShowHeading, s.ShowCardinals,
+                    s.CardinalSize.ToString()))],
                 [.. quadrants.Select(id => servers.Any(s => s.IdGuid == id) ? id : null)],
                 ViewCount,
                 CurrentVersion,
@@ -499,5 +503,6 @@ public class SettingsService
         string? PolarMode = null, string? AlignmentMode = null, double? Latitude = null,
         CameraView? Camera = null, double? PollSeconds = null, bool? ShowLst = null, bool? RaInDegrees = null,
         string? ModelColor = null, string? Background = null, bool? ShowGrid = null, bool? ShowMountState = null,
-        string? CoordinatesLayout = null, string? GridPosition = null);
+        string? CoordinatesLayout = null, string? GridPosition = null, bool? ShowHeading = null,
+        bool? ShowCardinals = null, string? CardinalSize = null);
 }

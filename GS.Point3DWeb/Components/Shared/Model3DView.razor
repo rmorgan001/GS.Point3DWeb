@@ -152,7 +152,7 @@
                touch go through it to the model. A flag that is on has a filled dot, one that is off a hollow one. *@
             @if (Server?.ShowMountState != false && ViewModel.Status is { } status)
             {
-                <div class="mount-state" role="group" aria-label="@L.T("Mount state")">
+                <div class="mount-state @(ShowHeading ? "beside-heading" : null)" role="group" aria-label="@L.T("Mount state")">
                     @StateFlags(status)
                     @if (status.SideOfPier is { } side)
                     {
@@ -169,6 +169,19 @@
                     }
                 </div>
             }
+        }
+
+        @if (ShowHeading)
+        {
+            @* Which way the camera faces: the viewer (model3d.js) turns the needle and writes the bearing as the
+               camera moves, so nothing here re-renders with it. The red tip points north. Clicking it turns the
+               view to face north; the viewer handles the click too, so it answers without a trip to the server. *@
+            <button type="button" class="heading at-@HeadingCorner" @ref="_heading"
+                    title="@L.T("Which way the camera is facing (compass bearing); the red tip points north. Click to turn the view to face north.")"
+                    aria-label="@L.T("Which way the camera is facing (compass bearing); the red tip points north. Click to turn the view to face north.")">
+                <span class="heading-dial" aria-hidden="true"><span class="heading-needle"></span></span>
+                <span class="heading-value"></span>
+            </button>
         }
 
         @if (_overlay is not null)
@@ -290,6 +303,41 @@
         </button>
     };
 
+    private bool ShowHeading => Server?.ShowHeading == true;
+
+    /// <summary>The letter size as model3d.js knows it: small, medium, large or xlarge.</summary>
+    private string CardinalSizeKey => (Server?.CardinalSize ?? CardinalSize.Large).ToString().ToLowerInvariant();
+
+    /// <summary>The compass readout's corner: bottom right, unless the grid panel is on that edge.</summary>
+    private string HeadingCorner => IsGrid
+        ? Server?.GridPosition switch { GridPosition.Right => "bottom-left", GridPosition.Bottom => "top-right", _ => "bottom-right" }
+        : "bottom-right";
+
+    private ElementReference _heading;
+
+    // Whether the viewer has the compass readout: null = not told yet.
+    private bool? _sentHeading;
+
+    /// <summary>Hands the compass readout to the viewer (or takes it away), so it follows the camera.</summary>
+    private async Task SyncHeadingAsync()
+    {
+        if (_disposed || _module is null || _viewer is null) return;
+        var show = ShowHeading;
+        if (_sentHeading == show) return;
+        try
+        {
+            await _module.InvokeVoidAsync("setHeadingElement", _viewer, show ? _heading : null);
+            _sentHeading = show;
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (Exception ex) when (ex is JSException or ObjectDisposedException or InvalidOperationException)
+        {
+            _sentHeading = null; // tried again on the next render
+        }
+    }
+
     private ElementReference _gridPanel;
 
     // The panel the viewer last kept the model clear of: its edge, "" for none, null = not told yet.
@@ -382,6 +430,8 @@
             if (_watchedServer is not null) _watchedServer.PropertyChanged -= OnServerPropertyChanged;
             _watchedServer = Server;
             if (_watchedServer is not null) _watchedServer.PropertyChanged += OnServerPropertyChanged;
+            // A view moved to another server turns north with that server's other views from now on.
+            _ = CallViewerAsync("setServerKey", Server?.IdGuid);
         }
     }
 
@@ -419,6 +469,12 @@
             case nameof(AlpacaServer.ShowGrid):
                 _ = InvokeAsync(() => CallViewerAsync("setGrid", Server?.ShowGrid != false));
                 break;
+            case nameof(AlpacaServer.ShowCardinals):
+                _ = InvokeAsync(() => CallViewerAsync("setCardinals", Server?.ShowCardinals == true));
+                break;
+            case nameof(AlpacaServer.CardinalSize):
+                _ = InvokeAsync(() => CallViewerAsync("setCardinalSize", CardinalSizeKey));
+                break;
             case nameof(AlpacaServer.RaInDegrees):
                 ViewModel.RefreshRa();
                 break;
@@ -445,7 +501,7 @@
                 or nameof(AlpacaServer.ShowAz) or nameof(AlpacaServer.ShowAlt)
                 or nameof(AlpacaServer.ShowLha) or nameof(AlpacaServer.ShowLst)
                 or nameof(AlpacaServer.ShowMountState) or nameof(AlpacaServer.CoordinatesLayout)
-                or nameof(AlpacaServer.GridPosition):
+                or nameof(AlpacaServer.GridPosition) or nameof(AlpacaServer.ShowHeading):
                 _ = InvokeAsync(StateHasChanged);
                 break;
         }
@@ -538,6 +594,7 @@
         {
             // The grid panel comes and goes with the layout setting: the model follows it.
             await SyncInsetAsync();
+            await SyncHeadingAsync();
             return;
         }
 
@@ -555,6 +612,9 @@
                 primaryColor = ViewModel.ModelColor,
                 background = ViewModel.BackgroundUrl,
                 grid = Server?.ShowGrid != false,
+                cardinals = Server?.ShowCardinals == true,
+                cardinalSize = CardinalSizeKey,
+                serverKey = Server?.IdGuid,
                 secondaryColor = ViewModel.SecondaryColor,
                 northern = ViewModel.UseNorthCompass,
                 camera = Server?.Camera
@@ -574,6 +634,7 @@
             }
 
             await SyncInsetAsync();
+            await SyncHeadingAsync();
 
             ViewModel.RotationChanged += OnRotationChanged;
             ViewModel.ConnectionChanged += OnVmConnectionChanged;

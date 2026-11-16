@@ -30,6 +30,24 @@
 const base = new URL('./', import.meta.url).href;
 let babylonReady = null;
 
+// Every viewer on this page, so a face-north click turns all the views of the same server (setServerKey).
+const viewers = new Set();
+// The same for the views in other tabs of this app: a click is passed on to them too.
+const faceNorthChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('gs-point3d-web-face-north') : null;
+
+/** Turns this page's views of the server (by its id) to face north. */
+function faceNorthHere(serverKey) {
+    for (const viewer of viewers) {
+        if (viewer.serverKey === serverKey) viewer.faceNorth();
+    }
+}
+
+if (faceNorthChannel) {
+    faceNorthChannel.onmessage = e => {
+        if (typeof e.data?.faceNorth === 'string') faceNorthHere(e.data.faceNorth);
+    };
+}
+
 // GSServer defaults (Server.settings): ModelPierHeight, ModelBeamWidth, ModelPierPivot.
 const PIER_HEIGHT = 500;
 const BEAM_WIDTH = 50;
@@ -73,8 +91,39 @@ function ensureBabylon() {
 const rad = deg => deg * Math.PI / 180;
 const deg = r => r * 180 / Math.PI;
 
-// Default camera: looking at the mount head from the south-west, a little above.
+// Default camera: a little above the mount head, from the east-north-east (looking west-south-west) with the
+// north compass, from the west-south-west with the south one (see Compass directions below).
 const DEFAULT_CAMERA = { alpha: 150, beta: 60, radius: 40, targetX: 0, targetY: 6, targetZ: 0 };
+
+// Compass directions in the scene. The top of the compass image (compassN.png: N, compassS.png: S; the pole the
+// mount's polar axis points to) lies along scene +Z, and the image is mirrored onto the disc so east and west
+// come out right: with the north compass N = +Z, E = -X, S = -Z, W = +X; with the south one each is turned 180°.
+// The bearing (0 = north, 90 = east) of a level direction (x, z) in the scene:
+const bearingOf = (x, z, northern) => {
+    const b = northern ? deg(Math.atan2(-x, z)) : deg(Math.atan2(x, -z));
+    return ((b % 360) + 360) % 360;
+};
+// The level direction (x, z) of a bearing, the inverse of bearingOf.
+const directionOf = (bearing, northern) => {
+    const s = Math.sin(rad(bearing)), c = Math.cos(rad(bearing));
+    return northern ? { x: -s, z: c } : { x: s, z: -c };
+};
+
+// How long the camera takes to swing round to north when the compass readout is clicked.
+const FACE_NORTH_MS = 700;
+
+// Distant N E S W letters: standing on the ground this far out (scene units; the compass disc is 15 across).
+const CARDINAL_DISTANCE = 50;
+const CARDINAL_SIZE = 14; // the letters are built this tall, then scaled to the chosen size
+const CARDINAL_SIZES = { small: 8, medium: 11, large: 14, xlarge: 20 };
+// See-through, so the letters sit back as landmarks rather than compete with the mount.
+const CARDINAL_ALPHA = 0.45;
+const CARDINALS = [
+    { letter: 'N', bearing: 0, color: '#ef6461' }, // red, like the heading needle's north tip
+    { letter: 'E', bearing: 90, color: '#e8e6df' },
+    { letter: 'S', bearing: 180, color: '#e8e6df' },
+    { letter: 'W', bearing: 270, color: '#e8e6df' }
+];
 
 // Highest pixel density drawn at: sharp on high-DPI screens (Retina, 150% Windows scaling) without
 // paying for 3x or 4x phone screens.
@@ -151,16 +200,25 @@ class TelescopeViewer {
         // Camera input: keep drawing while the user moves the camera (and while it eases out).
         this.onInteract = e => {
             if (e.type === 'pointermove' && e.buttons === 0) return; // just hovering
+            if (e.type !== 'pointermove') this.turn = null; // the user takes the camera back from a face-north turn
             this.interactUntil = performance.now() + INTERACTION_RENDER_MS;
         };
         for (const type of ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'keydown']) {
             canvas.addEventListener(type, this.onInteract, { passive: true });
         }
 
+        // The compass readout (setHeadingElement): the element, and the bearing it shows now.
+        this.headingElement = null;
+        this.shownHeading = null;
+        this.serverKey = options.serverKey || null;
+        viewers.add(this);
+
         this.setHemisphere(options.northern !== false);
         // Background image URL (relative to the page), or null for a plain dark sky.
         this.setBackground(options.background ?? null);
         this.setGrid(options.grid !== false);
+        this.setCardinalSize(options.cardinalSize);
+        this.setCardinals(options.cardinals === true);
 
         // Camera: start from the server's saved view (saved / reset from the back of the card).
         this.setCamera(options.camera);
@@ -177,17 +235,97 @@ class TelescopeViewer {
         const now = performance.now();
         const gliding = this.stepGlide(now);
         const shifting = this.stepScreenShift();
+        const turning = this.stepTurn(now);
         const c = this.camera;
         const cameraMoving = c.inertialAlphaOffset || c.inertialBetaOffset || c.inertialRadiusOffset
             || c.inertialPanningX || c.inertialPanningY;
-        if (!this.needsRender && !gliding && !shifting && !cameraMoving && now >= this.interactUntil) return;
+        if (!this.needsRender && !gliding && !shifting && !turning && !cameraMoving && now >= this.interactUntil) return;
 
         this.needsRender = false;
         this.applyScreenShift();
         this.scene.render();
+        this.updateHeading();
         // Materials compile in the background: until everything is ready, some meshes are skipped,
         // so keep drawing until they appear.
         if (!this.scene.isReady()) this.needsRender = true;
+    }
+
+    /** The compass bearing the camera faces, 0-360 (0 = north, 90 = east). */
+    cameraBearing() {
+        // An ArcRotateCamera sits at target + (cos alpha, ., sin alpha) and looks back at the target.
+        return bearingOf(-Math.cos(this.camera.alpha), -Math.sin(this.camera.alpha), this.northern);
+    }
+
+    /**
+     * The compass readout over the scene (Model3DView.razor), or null for none: its needle points north on screen
+     * and its value says the bearing the camera faces. Updated as frames are drawn, so a still scene costs nothing.
+     */
+    setHeadingElement(element) {
+        if (this.headingElement && this.onHeadingClick) this.headingElement.removeEventListener('click', this.onHeadingClick);
+        this.headingElement = element || null;
+        this.shownHeading = null;
+        // Clicking the readout turns the view to face north (handled here, so it answers at once).
+        this.onHeadingClick ??= () => this.faceNorthWithServer();
+        if (this.headingElement) this.headingElement.addEventListener('click', this.onHeadingClick);
+        this.updateHeading();
+    }
+
+    /** The server this view shows (its id), so views of the same server turn north together; null for none. */
+    setServerKey(key) {
+        this.serverKey = key || null;
+    }
+
+    /** Turns this view, and every other view of the same server (here and in the app's other tabs), to face north. */
+    faceNorthWithServer() {
+        if (!this.serverKey) {
+            this.faceNorth();
+            return;
+        }
+        faceNorthHere(this.serverKey);
+        faceNorthChannel?.postMessage({ faceNorth: this.serverKey });
+    }
+
+    /**
+     * Turns the camera about the mount until it faces north, so north is at the top of the screen. The tilt,
+     * distance and target stay. It swings the short way round, unless the viewer prefers reduced motion.
+     */
+    faceNorth() {
+        const north = directionOf(0, this.northern);
+        // The camera faces (-cos alpha, -sin alpha); make that north.
+        const target = Math.atan2(-north.z, -north.x);
+        const from = this.camera.alpha;
+        const delta = rad(angleDelta(deg(from), deg(target)));
+        // Stop any spin the mouse left, so it doesn't carry the camera off north.
+        this.camera.inertialAlphaOffset = 0;
+        if (Math.abs(delta) < 1e-4) return;
+        const reduced = this.reducedMotion?.matches;
+        this.turn = reduced ? null : { from, delta, start: performance.now(), duration: FACE_NORTH_MS };
+        if (reduced) this.camera.alpha = from + delta;
+        this.requestRender();
+    }
+
+    /** Moves the face-north turn on. Returns whether a frame needs drawing for it. */
+    stepTurn(now) {
+        const t = this.turn;
+        if (!t) return false;
+        const p = Math.min((now - t.start) / t.duration, 1);
+        const eased = 1 - Math.pow(1 - p, 3); // ease out
+        this.camera.alpha = t.from + t.delta * eased;
+        if (p >= 1) this.turn = null;
+        return true;
+    }
+
+    updateHeading() {
+        const el = this.headingElement;
+        if (!el || !el.isConnected) return;
+        const bearing = Math.round(this.cameraBearing()) % 360;
+        if (bearing === this.shownHeading) return;
+        this.shownHeading = bearing;
+        // Up the screen is the way the camera faces, so north is `bearing` degrees anticlockwise from up.
+        const needle = el.querySelector('.heading-needle');
+        if (needle) needle.style.transform = `rotate(${-bearing}deg)`;
+        const value = el.querySelector('.heading-value');
+        if (value) value.textContent = `${String(bearing).padStart(3, '0')}°`;
     }
 
     /** Matches the canvas to its size on screen and the screen's pixel density (up to MAX_PIXEL_RATIO). */
@@ -295,10 +433,12 @@ class TelescopeViewer {
     setCamera(view) {
         const B = window.BABYLON;
         const v = view || DEFAULT_CAMERA;
+        // Target first: setTarget works alpha, beta and radius out again from where the camera is now, so set
+        // after it they would be overwritten (a saved view would keep only its target).
+        this.camera.setTarget(new B.Vector3(v.targetX, v.targetY, v.targetZ));
         this.camera.alpha = rad(v.alpha);
         this.camera.beta = rad(v.beta);
         this.camera.radius = v.radius;
-        this.camera.setTarget(new B.Vector3(v.targetX, v.targetY, v.targetZ));
         this.requestRender();
     }
 
@@ -377,6 +517,7 @@ class TelescopeViewer {
         this.compassBase.position.z = -thickness / 2;
 
         this.ground = this.createGround(scene);
+        this.cardinals = this.createCardinals(scene);
 
         this.pierMaterial = new B.StandardMaterial('Pier', scene);
         this.pierMaterial.diffuseColor = B.Color3.FromHexString('#34474f');
@@ -453,6 +594,75 @@ class TelescopeViewer {
     /** Shows or hides the ground grid. */
     setGrid(visible) {
         this.ground.setEnabled(!!visible);
+        this.requestRender();
+    }
+
+    /**
+     * The distant N E S W letters: upright on the ground well out from the compass, each turning about the
+     * vertical to face the camera, so they read from any side. Hidden until setCardinals; placed by placeCardinals.
+     */
+    createCardinals(scene) {
+        const B = window.BABYLON;
+        return CARDINALS.map(c => {
+            const px = 256;
+            const texture = new B.DynamicTexture(`Cardinal${c.letter}`, { width: px, height: px }, scene, true);
+            const ctx = texture.getContext();
+            ctx.clearRect(0, 0, px, px);
+            ctx.font = `600 ${Math.round(px * 0.8)}px Barlow, "Segoe UI", system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.lineWidth = px * 0.06;
+            ctx.strokeStyle = 'rgba(7, 11, 14, 0.85)'; // a dark edge, so a letter reads over a light background
+            ctx.strokeText(c.letter, px / 2, px * 0.54);
+            ctx.fillStyle = c.color;
+            ctx.fillText(c.letter, px / 2, px * 0.54);
+            texture.update();
+            texture.hasAlpha = true;
+
+            const material = new B.StandardMaterial(`Cardinal${c.letter}`, scene);
+            material.diffuseTexture = texture;
+            material.useAlphaFromDiffuseTexture = true;
+            material.alpha = CARDINAL_ALPHA;
+            material.disableLighting = true;
+            material.emissiveColor = new B.Color3(1, 1, 1);
+            material.specularColor = new B.Color3(0, 0, 0);
+            material.backFaceCulling = false;
+
+            // The trimmed Babylon build has no CreatePlane: a ground square stood up (baked, so the billboard
+            // turning below starts from upright) does the same.
+            const plane = B.MeshBuilder.CreateGround(`Cardinal${c.letter}`, { width: CARDINAL_SIZE, height: CARDINAL_SIZE }, scene);
+            plane.rotation.x = -Math.PI / 2;
+            plane.bakeCurrentTransformIntoVertices();
+            plane.material = material;
+            plane.billboardMode = B.TransformNode.BILLBOARDMODE_Y; // (BABYLON.Mesh isn't in the trimmed build)
+            plane.isPickable = false;
+            plane.setEnabled(false);
+            return { ...c, plane };
+        });
+    }
+
+    /** Puts each letter at its bearing for the compass shown (north and south compasses are turned 180°). */
+    placeCardinals() {
+        if (!this.cardinals) return;
+        const size = this.cardinalSize ?? CARDINAL_SIZE;
+        for (const c of this.cardinals) {
+            const d = directionOf(c.bearing, this.northern);
+            c.plane.scaling.setAll(size / CARDINAL_SIZE);
+            // Standing on the ground whatever its size.
+            c.plane.position.set(d.x * CARDINAL_DISTANCE, GRID_Y + size / 2, d.z * CARDINAL_DISTANCE);
+        }
+        this.requestRender();
+    }
+
+    /** Letter size: 'small', 'medium', 'large' (the default) or 'xlarge'. */
+    setCardinalSize(key) {
+        this.cardinalSize = CARDINAL_SIZES[key] ?? CARDINAL_SIZES.large;
+        this.placeCardinals();
+    }
+
+    /** Shows or hides the distant N E S W letters. */
+    setCardinals(visible) {
+        for (const c of this.cardinals) c.plane.setEnabled(!!visible);
         this.requestRender();
     }
 
@@ -676,6 +886,11 @@ class TelescopeViewer {
 
     setHemisphere(isNorthern) {
         const B = window.BABYLON;
+        // The letters and the heading follow the compass at once; the image follows when it has loaded.
+        this.northern = !!isNorthern;
+        this.placeCardinals();
+        this.shownHeading = null;
+        this.updateHeading();
         const url = isNorthern ? this.textures.compassN : this.textures.compassS;
         const request = ++this.compassRequest;
         const image = new Image();
@@ -709,6 +924,8 @@ class TelescopeViewer {
     }
 
     dispose() {
+        viewers.delete(this);
+        this.setHeadingElement(null);
         this.resizeObserver.disconnect();
         if (this.insetObserver) this.insetObserver.disconnect();
         window.removeEventListener('resize', this.onWindowResize);
@@ -755,6 +972,25 @@ export function setBackground(viewer, url) {
 
 export function setGrid(viewer, visible) {
     viewer.setGrid(visible);
+}
+
+export function setCardinals(viewer, visible) {
+    viewer.setCardinals(visible);
+}
+
+/** size: 'small', 'medium', 'large' or 'xlarge'. */
+export function setCardinalSize(viewer, size) {
+    viewer.setCardinalSize(size);
+}
+
+/** element: the compass readout (a .heading-needle and a .heading-value inside), or null for none. */
+export function setHeadingElement(viewer, element) {
+    viewer.setHeadingElement(element);
+}
+
+/** key: the id of the server the view shows (views of the same server turn north together), or null. */
+export function setServerKey(viewer, key) {
+    viewer.setServerKey(key);
 }
 
 /** element: a panel over one edge of the scene to keep the model clear of, or null for none; side: left, right, top or bottom. */

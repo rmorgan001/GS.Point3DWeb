@@ -500,6 +500,36 @@ public static class AlpacaConnector
         return answered;
     }
 
+    /// <summary>
+    /// Reads the site latitude again while connected, so a site changed in the driver (say from a northern to a
+    /// southern location) reaches the model without a reconnect. Only a new value is applied and logged; a mount
+    /// that doesn't report it, or answers with an error, keeps the latitude it has. No answer at all throws.
+    /// </summary>
+    public static async Task RefreshLatitudeAsync(AlpacaServer server, CancellationToken token = default)
+    {
+        double? latitude;
+        if (server.IsCom)
+        {
+            if (!ComTelescopes.IsSupported) throw ComNotSupported();
+            (_, latitude) = await ComTelescopes.ReadMountInfoAsync(server.ProgId!).WaitAsync(token);
+        }
+        else
+        {
+            var client = CreateClient(server);
+            var response = await GetOptionalPropertyAsync(client, "sitelatitude", token);
+            server.SetClientTransactionId(client.ClientTransactionId);
+            latitude = response is { ErrorNumber: 0, Value.Type: JTokenType.Integer or JTokenType.Float }
+                ? response.Value.ToObject<double>()
+                : null;
+        }
+
+        if (latitude is not { } lat || lat == server.Latitude) return;
+        var old = server.Latitude;
+        server.Latitude = lat;
+        Log.LogInformation("{Server}: latitude changed from {Old} to {Latitude:0.###}°",
+            server.ServerName, old is { } o ? $"{o:0.###}°" : "not reported", lat);
+    }
+
     private static void LogMountInfo(AlpacaServer server, bool modeRead, bool latitudeRead)
     {
         Log.LogInformation("{Server}: alignment mode {Mode}{ModeNote}, latitude {Latitude}",

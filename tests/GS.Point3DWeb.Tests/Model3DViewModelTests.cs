@@ -80,6 +80,29 @@ public class Model3DViewModelTests : FakeServerTest
     }
 
     [Fact]
+    public async Task A_latitude_changed_while_connected_is_picked_up_without_a_reconnect()
+    {
+        var server = NewServer();
+        server.PollSeconds = 0.5;
+        Assert.True(await AlpacaConnector.ConnectAsync(server));
+        var view = new Model3DViewModel(DiskFreeSettings.Create(), _dialogs, NullLogger<Model3DViewModel>.Instance)
+        {
+            Server = server,
+            LatitudeRefreshInterval = TimeSpan.FromSeconds(1)
+        };
+        _views.Add(view);
+        view.StartTimerUpdates();
+        await Wait.UntilAsync(() => server.Latitude == 51.5, TimeSpan.FromSeconds(4), "first latitude");
+        Assert.True(view.UseNorthCompass);
+
+        Mount.Latitude = -33.9;
+        await Wait.UntilAsync(() => server.Latitude == -33.9, TimeSpan.FromSeconds(5), "new latitude");
+        Assert.False(view.UseNorthCompass);
+        Assert.Equal(33.9, view.Tilt);
+        Assert.Equal(1, Mount.CallsTo("alignmentmode")); // the mount info isn't read again, only the latitude
+    }
+
+    [Fact]
     public async Task Ra_in_degrees()
     {
         var (server, view) = await ConnectedViewAsync();

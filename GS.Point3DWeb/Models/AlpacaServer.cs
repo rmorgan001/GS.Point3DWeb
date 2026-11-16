@@ -236,6 +236,15 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     /// <summary>Show the ground grid under the mount in the 3D view (on by default).</summary>
     [ObservableProperty] public partial bool ShowGrid { get; set; } = true;
 
+    /// <summary>Show a compass readout over the 3D view: which way the camera faces, with a needle to north (off by default).</summary>
+    [ObservableProperty] public partial bool ShowHeading { get; set; }
+
+    /// <summary>Show large N E S W letters on the ground far out from the mount in the 3D view (off by default).</summary>
+    [ObservableProperty] public partial bool ShowCardinals { get; set; }
+
+    /// <summary>How big the distant N E S W letters are.</summary>
+    [ObservableProperty] public partial CardinalSize CardinalSize { get; set; } = CardinalSize.Large;
+
     /// <summary>Saved 3D camera position for this server's model (null = the default view).</summary>
     [ObservableProperty] public partial CameraView? Camera { get; set; }
 

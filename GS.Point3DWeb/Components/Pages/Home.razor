@@ -371,8 +371,13 @@
     public async ValueTask DisposeAsync()
     {
         _disposed = true;
-        try { await JS.InvokeVoidAsync("gsPoint3d.clearVisibilityCallback"); }
-        catch (JSDisconnectedException) { }
+        // Only a page that became interactive gave the browser a callback. The prerendered copy is disposed too,
+        // and calling JavaScript from it throws (under the debugger, that stopped the app on every page load).
+        if (_visibilityCallback is not null)
+        {
+            try { await JS.InvokeVoidAsync("gsPoint3d.clearVisibilityCallback"); }
+            catch (JSDisconnectedException) { }
+        }
         await _pinSync.WaitAsync();
         try
         {

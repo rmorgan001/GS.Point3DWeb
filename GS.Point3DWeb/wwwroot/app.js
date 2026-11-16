@@ -65,7 +65,20 @@ document.addEventListener('keydown', e => {
 
 // Small helpers the app calls from C#. Stay on top: the tab's title is swapped for a unique one while the
 // app finds this browser window, then put back; the choice is remembered for the tab in sessionStorage.
+let visibilityCallback;
+document.addEventListener('visibilitychange', () => {
+    visibilityCallback?.invokeMethodAsync('OnVisibilityChanged', document.visibilityState === 'visible')
+        .catch(error => console.error('Could not update stay-on-top for the active tab.', error));
+});
+
 window.gsPoint3d = {
+    setVisibilityCallback(callback) {
+        visibilityCallback = callback;
+        return document.visibilityState === 'visible';
+    },
+    clearVisibilityCallback() {
+        visibilityCallback = null;
+    },
     /** Sets the page title and returns the previous one. */
     setTitle(title) {
         const previous = document.title;

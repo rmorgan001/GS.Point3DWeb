@@ -16,6 +16,7 @@
 
 @page "/"
 @inherits MvvmComponentBase<HomeViewModel>
+@implements IAsyncDisposable
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
@@ -45,9 +46,8 @@
                 @L.T("{0} of {1} connected", ConnectedCount, ViewModel.Count)
             </span>
 
-            @* Stay on top: keeps this browser window above all other windows. Done by the app with Win32 (a page
-               can't), so it's offered only when the app runs on Windows, and works only when the browser is on
-               the same computer; if it isn't, the box clears itself and its tooltip says why. *@
+            @* Stay on top: keeps this browser window above all other windows while this tab is active. Done by
+               the app with Win32 (a page can't), so it's offered only when the app runs on Windows. *@
             @if (WindowPin.IsSupported)
             {
                 <label class="key-button pin-toggle @(_onTop ? "on" : null) @(_onTopBusy ? "busy" : null)"
@@ -317,6 +317,13 @@
 
     private bool _onTop;
     private bool _onTopBusy;
+    private bool _pageVisible = true;
+    private bool _windowPinned;
+    private bool _disposed;
+    private IntPtr _pinnedWindow;
+    private readonly SemaphoreSlim _pinSync = new(1, 1);
+    private readonly string _pinTitleToken = "GS Point3D Web " + Guid.NewGuid().ToString("N")[..12];
+    private DotNetObjectReference<Home>? _visibilityCallback;
 
     /// <summary>Why the last try didn't work (the box's tooltip), or null.</summary>
     private string? _onTopMessage;
@@ -329,23 +336,58 @@
         if (!firstRender || !WindowPin.IsSupported) return;
         try
         {
-            if (await JS.InvokeAsync<string?>("gsPoint3d.sessionGet", OnTopKey) == "1") await SetOnTopAsync(true, restoring: true);
+            _visibilityCallback = DotNetObjectReference.Create(this);
+            _pageVisible = await JS.InvokeAsync<bool>("gsPoint3d.setVisibilityCallback", _visibilityCallback);
+            if (await JS.InvokeAsync<string?>("gsPoint3d.sessionGet", OnTopKey) == "1")
+            {
+                _onTop = true;
+                await ApplyWindowPinAsync();
+                StateHasChanged();
+            }
         }
         catch (JSDisconnectedException)
         {
         }
     }
 
+    [JSInvokable]
+    public async Task OnVisibilityChanged(bool visible)
+    {
+        if (_disposed) return;
+        _pageVisible = visible;
+        try
+        {
+            await ApplyWindowPinAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (Exception ex)
+        {
+            AppLog.For(nameof(Home)).LogWarning(ex, "Couldn't update stay-on-top for the active tab: {Error}", ex.Message);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        try { await JS.InvokeVoidAsync("gsPoint3d.clearVisibilityCallback"); }
+        catch (JSDisconnectedException) { }
+        await _pinSync.WaitAsync();
+        try
+        {
+            if (_windowPinned) WindowPin.SetTopMost(_pinnedWindow, false);
+            _windowPinned = false;
+        }
+        finally { _pinSync.Release(); }
+        _visibilityCallback?.Dispose();
+    }
+
     /// <summary>
-    /// Puts this browser window on top of all others, or back to normal. The tab's title is briefly set to a
-    /// unique text so the app can find its window among the desktop's (see <see cref="WindowPin"/>).
+    /// Puts this browser window on top of all others while this tab is active, or back to normal. When needed,
+    /// the tab's title is briefly set to unique text so the app can find its window on the desktop.
     /// </summary>
-    /// <param name="restoring">
-    /// Putting the remembered choice back after a reload. If the window can't be found then (e.g. the tab
-    /// reloaded in the background), the choice is kept for the next try and no warning shows: the window may
-    /// well still be on top, as Windows keeps that across a reload.
-    /// </param>
-    private async Task SetOnTopAsync(bool on, bool restoring = false)
+    private async Task SetOnTopAsync(bool on)
     {
         if (_onTopBusy) return;
         var previous = _onTop;
@@ -355,13 +397,10 @@
         _onTopMessage = null;
         StateHasChanged();
 
-        var token = "GS Point3D Web " + Guid.NewGuid().ToString("N")[..12];
-        string? title = null;
         var done = false;
         try
         {
-            title = await JS.InvokeAsync<string>("gsPoint3d.setTitle", token);
-            done = await WindowPin.SetTopMostAsync(token, on);
+            done = await ApplyWindowPinAsync();
         }
         catch (JSDisconnectedException)
         {
@@ -371,26 +410,12 @@
         {
             AppLog.For(nameof(Home)).LogWarning(ex, "Stay on top failed: {Error}", ex.Message);
         }
-        finally
-        {
-            if (title is not null)
-            {
-                try { await JS.InvokeVoidAsync("gsPoint3d.setTitle", title); }
-                catch (JSDisconnectedException) { }
-                catch (JSException ex) { AppLog.For(nameof(Home)).LogWarning(ex, "Couldn't put the page title back: {Error}", ex.Message); }
-            }
-            _onTopBusy = false;
-        }
+        finally { _onTopBusy = false; }
 
         if (!done)
         {
             // The window is as it was: show that, not a guess.
             _onTop = previous;
-            if (restoring)
-            {
-                StateHasChanged();
-                return; // keep the remembered choice; no warning (see above)
-            }
             _onTopMessage = on
                 ? L.T("Couldn't keep the window on top: this only works in a browser on the computer running GS Point3D Web.")
                 : L.T("Couldn't change the window: this only works in a browser on the computer running GS Point3D Web.");
@@ -407,6 +432,51 @@
             AppLog.For(nameof(Home)).LogWarning(ex, "Couldn't remember the on-top choice: {Error}", ex.Message);
         }
         StateHasChanged();
+    }
+
+    private async Task<bool> ApplyWindowPinAsync()
+    {
+        await _pinSync.WaitAsync();
+        try
+        {
+            if (_disposed) return true;
+            var shouldPin = _onTop && _pageVisible;
+            if (shouldPin == _windowPinned && (!shouldPin || _pinnedWindow != IntPtr.Zero)) return true;
+
+            if (_pinnedWindow != IntPtr.Zero && WindowPin.SetTopMost(_pinnedWindow, shouldPin))
+            {
+                _windowPinned = shouldPin;
+                return true;
+            }
+
+            if (_pinnedWindow != IntPtr.Zero && shouldPin) _pinnedWindow = IntPtr.Zero;
+            if (!shouldPin && !_pageVisible) return false;
+            if (!shouldPin && !_windowPinned) return true;
+
+            string? previousTitle = null;
+            try
+            {
+                previousTitle = await JS.InvokeAsync<string>("gsPoint3d.setTitle", _pinTitleToken);
+                var window = await WindowPin.FindAndSetTopMostAsync(_pinTitleToken, shouldPin);
+                if (window == IntPtr.Zero) return false;
+                _pinnedWindow = window;
+                _windowPinned = shouldPin;
+                return true;
+            }
+            finally
+            {
+                if (previousTitle is not null)
+                {
+                    try { await JS.InvokeVoidAsync("gsPoint3d.setTitle", previousTitle); }
+                    catch (JSDisconnectedException) { }
+                    catch (JSException ex) { AppLog.For(nameof(Home)).LogWarning(ex, "Couldn't put the page title back: {Error}", ex.Message); }
+                }
+            }
+        }
+        finally
+        {
+            _pinSync.Release();
+        }
     }
 
     /// <summary>The 3D view in each quadrant, to read or set its camera.</summary>

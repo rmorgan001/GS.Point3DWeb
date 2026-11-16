@@ -48,6 +48,109 @@ public class Model3DTests
         }
     }
 
+    [Theory]
+    [InlineData(AlignmentModes.algGermanPolar, true)]
+    [InlineData(AlignmentModes.algUnknown, true)]
+    [InlineData(AlignmentModes.algAltAz, false)]
+    [InlineData(AlignmentModes.algPolar, false)]
+    public void The_assembled_model_shows_only_on_a_german_equatorial_mount(AlignmentModes mode, bool shows)
+        => Assert.Equal(shows, Model3D.ShowsAssembly(mode, PolarMode.Left));
+
+    [Fact]
+    public void The_assembled_models_files_are_served()
+    {
+        Assert.True(File.Exists(Path.Combine(Repo.WebRoot, Model3D.ModelFolder, Model3D.AssemblyFile)));
+        foreach (var ota in Model3D.AssemblyOtas)
+        {
+            if (Model3D.GetObjModel(ota) is { } type)
+                Assert.Equal($"{ota}.obj", Model3D.GetModelFile(type, AlignmentModes.algGermanPolar, PolarMode.Left));
+        }
+    }
+
+    [Theory]
+    [InlineData(AssemblyOta.RitcheyChretienTruss, Model3DType.RitcheyChretienTruss)]
+    [InlineData(AssemblyOta.Newtonian, Model3DType.Reflector)]
+    [InlineData(AssemblyOta.MaksutovCassegrain, Model3DType.SchmidtCassegrain)]
+    public void An_ota_has_a_usual_model_for_other_mounts(AssemblyOta ota, Model3DType usual)
+        => Assert.Equal(usual, Model3D.GetUsualModel(ota));
+
+    [Theory]
+    [InlineData(Model3DType.Reflector, AssemblyOta.Reflector)]
+    [InlineData(Model3DType.RitcheyChretien, AssemblyOta.RitcheyChretien)]
+    [InlineData(Model3DType.Default, AssemblyOta.Refractor)]
+    [InlineData(Model3DType.DualTelescope, AssemblyOta.Refractor)]
+    public void A_saved_model_gives_the_ota_for_older_settings(Model3DType saved, AssemblyOta ota)
+        => Assert.Equal(ota, Model3D.GetOtaFor(saved));
+
+    [Theory]
+    [InlineData("LargeTripod", AssemblySupport.LargeTripod)]
+    [InlineData("SmallPier", AssemblySupport.SmallPier)]
+    [InlineData("Tripod", AssemblySupport.MediumTripod)]  // earlier names: their size
+    [InlineData("Pier", AssemblySupport.MediumPier)]      // the observatory pier, 9 inches across
+    [InlineData("Pier6", AssemblySupport.SmallPier)]
+    [InlineData("Pier10", AssemblySupport.MediumPier)]
+    [InlineData("Pier12", AssemblySupport.LargePier)]
+    [InlineData(null, AssemblySupport.MediumTripod)]
+    [InlineData("Nonsense", AssemblySupport.MediumTripod)]
+    public void A_saved_support_is_read_and_old_ones_become_the_nearest(string? saved, AssemblySupport expected)
+        => Assert.Equal(expected, Model3D.ParseAssemblySupport(saved));
+
+    [Fact]
+    public void Every_support_is_built_by_the_viewer()
+    {
+        // The viewer keys its supports by the AssemblySupport names in lower case (model3d.js ASSEMBLY_SUPPORTS).
+        var viewer = File.ReadAllText(Path.Combine(Repo.WebRoot, "model3d", "model3d.js"));
+        var supports = viewer[viewer.IndexOf("const ASSEMBLY_SUPPORTS = {", StringComparison.Ordinal)..];
+        supports = supports[..supports.IndexOf("};", StringComparison.Ordinal)];
+        foreach (var support in Enum.GetValues<AssemblySupport>())
+        {
+            Assert.Contains($"    {support.ToString().ToLowerInvariant()}: {{", supports);
+            Assert.False(string.IsNullOrWhiteSpace(Model3D.GetDisplayName(support)));
+        }
+    }
+
+    [Fact]
+    public void Every_ota_is_an_obj_tube_or_built_by_the_viewer()
+    {
+        // The viewer takes an .obj tube by name (ASSEMBLY_OTAS) or builds the OTA (ASSEMBLY_BUILT_OTAS).
+        var viewer = File.ReadAllText(Path.Combine(Repo.WebRoot, "model3d", "model3d.js"));
+        var objs = viewer[viewer.IndexOf("const ASSEMBLY_OTAS = [", StringComparison.Ordinal)..];
+        objs = objs[..objs.IndexOf("];", StringComparison.Ordinal)];
+        var built = viewer[viewer.IndexOf("const ASSEMBLY_BUILT_OTAS = {", StringComparison.Ordinal)..];
+        built = built[..built.IndexOf("};", StringComparison.Ordinal)];
+        foreach (var ota in Model3D.AssemblyOtas)
+        {
+            if (Model3D.GetObjModel(ota) is null) Assert.Contains($"    {ota}: ", built);
+            else Assert.Contains($"'{ota}'", objs);
+            Assert.False(string.IsNullOrWhiteSpace(Model3D.GetDisplayName(ota)));
+        }
+        Assert.Null(Model3D.GetObjModel(AssemblyOta.Newtonian));
+        Assert.Equal(Model3DType.SchmidtCassegrain, Model3D.GetObjModel(AssemblyOta.SchmidtCassegrain));
+    }
+
+    [Fact]
+    public void Every_assembled_mount_is_built_by_the_viewer()
+    {
+        // The viewer keys its mounts by the AssemblyMount names in lower case (model3d.js ASSEMBLY_MOUNTS).
+        var viewer = File.ReadAllText(Path.Combine(Repo.WebRoot, "model3d", "model3d.js"));
+        var mounts = viewer[viewer.IndexOf("const ASSEMBLY_MOUNTS = {", StringComparison.Ordinal)..];
+        mounts = mounts[..mounts.IndexOf("};", StringComparison.Ordinal)];
+        foreach (var mount in Enum.GetValues<AssemblyMount>())
+        {
+            Assert.Contains($"    {mount.ToString().ToLowerInvariant()}: {{", mounts);
+            Assert.False(string.IsNullOrWhiteSpace(Model3D.GetDisplayName(mount)));
+        }
+    }
+
+    [Theory]
+    [InlineData(50, 50)]
+    [InlineData(200, 200)]
+    [InlineData(0, 100)]
+    [InlineData(130, 100)]
+    [InlineData(-75, 100)]
+    public void An_ota_size_that_isnt_offered_is_the_mounts_own(int saved, int expected)
+        => Assert.Equal(expected, Model3D.GetAssemblyOtaSize(saved));
+
     [Fact]
     public void Every_listed_model_file_exists_and_every_file_is_listed()
     {
@@ -237,6 +340,9 @@ public class AlpacaServerTests
         Assert.True(server.ShowRa && server.ShowDec && server.ShowAz && server.ShowAlt && server.ShowLha && server.ShowLst && server.ShowMountState && server.ShowGrid);
         Assert.False(server.ShowHeading || server.ShowCardinals); // the compass extras are opt-in
         Assert.Equal(CardinalSize.Large, server.CardinalSize);
+        // The assembled model's defaults: a medium tripod, the EQ6-R Pro and a refractor (at 100%, below).
+        Assert.Equal((AssemblySupport.MediumTripod, AssemblyMount.Eq6rPro, AssemblyOta.Refractor), (server.AssemblySupport, server.AssemblyMount, server.AssemblyOta));
+        Assert.Equal(100, server.AssemblyOtaSize); // the mount's own size
         Assert.False(server.IsConnected || server.ConnectRequested || server.IsConnecting);
     }
 }

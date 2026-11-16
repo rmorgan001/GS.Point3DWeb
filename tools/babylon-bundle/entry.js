@@ -37,6 +37,11 @@ import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 // The OBJ loader registers itself with SceneLoader when imported.
 import { OBJFileLoader } from "@babylonjs/loaders/OBJ/objFileLoader";
 
+// The glTF (.glb) loader, for mount models built from parts with named pivots: the file loader and the
+// glTF 2.0 reader it hands the file to. No glTF extensions: the parts carry no materials of their own.
+import { GLTFFileLoader } from "@babylonjs/loaders/glTF/glTFFileLoader";
+import "@babylonjs/loaders/glTF/2.0/glTFLoader";
+
 window.BABYLON = {
     Engine,
     Scene,
@@ -55,5 +60,6 @@ window.BABYLON = {
     Texture,
     DynamicTexture,
     SceneLoader,
-    OBJFileLoader
+    OBJFileLoader,
+    GLTFFileLoader
 };

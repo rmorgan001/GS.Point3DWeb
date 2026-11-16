@@ -19,6 +19,7 @@ using GS.Point3DWeb.Dialogs;
 using GS.Point3DWeb.FakeAlpaca;
 using GS.Point3DWeb.Models;
 using GS.Point3DWeb.Services;
+using GS.Point3DWeb.Support;
 using GS.Point3DWeb.ViewModels;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -446,11 +447,34 @@ public class Model3DViewModelTests : FakeServerTest
     [Fact]
     public void Mount_info_object_and_model_name()
     {
-        var view = View(new AlpacaServer("http://h/api/v1/telescope/0/", "x") { AlignmentMode = AlignmentModes.algAltAz, Latitude = -20, ModelType = Model3DType.Reflector });
-        Assert.Equal("{ mode = 0, latitude = -20 }", view.MountInfo.ToString());
+        var view = View(new AlpacaServer("http://h/api/v1/telescope/0/", "x") { AlignmentMode = AlignmentModes.algAltAz, Latitude = -20, AssemblyOta = AssemblyOta.Reflector });
+        Assert.Equal("{ mode = 0, latitude = -20, assembly =  }", view.MountInfo.ToString());
         Assert.Equal("Reflector (Alt-Az)", view.ModelName);
         Assert.Equal("model3d/models/ReflectorAltAz.obj", view.ModelUrl);
         Assert.True(view.UseNorthCompass);
+    }
+
+    [Fact]
+    public void The_assembled_model_names_its_parts_on_a_german_equatorial_mount_only()
+    {
+        var server = new AlpacaServer("http://h/api/v1/telescope/0/", "x")
+        {
+            AlignmentMode = AlignmentModes.algGermanPolar, Latitude = 28,
+            AssemblySupport = AssemblySupport.MediumPier, AssemblyOta = AssemblyOta.SchmidtCassegrain,
+            AssemblyOtaSize = 125
+        };
+        var view = View(server);
+        Assert.True(view.ShowsAssembly);
+        Assert.Equal("model3d/models/" + Model3D.AssemblyFile, view.ModelUrl);
+        Assert.Equal("Sky-Watcher EQ6-R Pro · Schmidt-Cassegrain", view.ModelTitle);
+        Assert.Equal("{ mode = 2, latitude = 28, assembly = { support = mediumpier, mount = eq6rpro, ota = SchmidtCassegrain, otaSize = 125 } }",
+            view.MountInfo.ToString());
+
+        // An Alt-Az mount shows the chosen OTA's usual model.
+        server.AlignmentMode = AlignmentModes.algAltAz;
+        Assert.False(view.ShowsAssembly);
+        Assert.Equal("model3d/models/SchmidtCassegrainAltAz.obj", view.ModelUrl);
+        Assert.Equal("Schmidt-Cassegrain", view.ModelTitle);
     }
 }
 

@@ -33,7 +33,7 @@
             @if (Server is not null)
             {
                 <span class="mount-tag" title="@L.T("Model and mount type (read from the mount)")">
-                    @Model3D.GetDisplayName(Server.ModelType) · @Model3D.GetDisplayName(Server.AlignmentMode)
+                    @ViewModel.ModelTitle · @Model3D.GetDisplayName(Server.AlignmentMode)
                 </span>
             }
         </div>
@@ -440,7 +440,10 @@
     {
         switch (e.PropertyName)
         {
-            case nameof(AlpacaServer.ModelType) or nameof(AlpacaServer.PolarMode):
+            case nameof(AlpacaServer.ModelType) or nameof(AlpacaServer.PolarMode)
+                or nameof(AlpacaServer.AssemblySupport)
+                or nameof(AlpacaServer.AssemblyMount) or nameof(AlpacaServer.AssemblyOta)
+                or nameof(AlpacaServer.AssemblyOtaSize):
                 _ = InvokeAsync(async () =>
                 {
                     await ReloadModelIfChangedAsync();

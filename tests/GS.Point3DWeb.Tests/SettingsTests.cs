@@ -70,7 +70,9 @@ public class SettingsServiceTests
             PolarMode = PolarMode.Right, AlignmentMode = AlignmentModes.algPolar, Latitude = -33.5,
             Camera = new CameraView(1, 2, 3, 4, 5, 6), PollSeconds = 2.5, ShowRa = false, ShowDec = false, ShowAz = false,
             ShowAlt = false, ShowLha = false, ShowLst = false, RaInDegrees = true, ModelColor = "#123456", Background = "M33",
-            ShowGrid = false, ShowMountState = false, ShowHeading = true, ShowCardinals = true, CardinalSize = CardinalSize.XLarge
+            ShowGrid = false, ShowMountState = false, ShowHeading = true, ShowCardinals = true, CardinalSize = CardinalSize.XLarge,
+            AssemblySupport = AssemblySupport.LargePier, AssemblyOta = AssemblyOta.MaksutovCassegrain,
+            AssemblyOtaSize = 150
         };
         Assert.True(settings.TryAddServer(s, 10));
         settings.SetQuadrant(2, s.IdGuid);
@@ -87,6 +89,8 @@ public class SettingsServiceTests
         Assert.Equal((s.PollSeconds, s.ShowRa, s.ShowDec, s.ShowAz, s.ShowAlt, s.ShowLha, s.ShowLst, s.RaInDegrees), (l.PollSeconds, l.ShowRa, l.ShowDec, l.ShowAz, l.ShowAlt, l.ShowLha, l.ShowLst, l.RaInDegrees));
         Assert.Equal((s.ModelColor, s.Background, s.ShowGrid, s.ShowMountState), (l.ModelColor, l.Background, l.ShowGrid, l.ShowMountState));
         Assert.Equal((s.ShowHeading, s.ShowCardinals, s.CardinalSize), (l.ShowHeading, l.ShowCardinals, l.CardinalSize));
+        Assert.Equal((s.AssemblySupport, s.AssemblyMount, s.AssemblyOta, s.AssemblyOtaSize),
+            (l.AssemblySupport, l.AssemblyMount, l.AssemblyOta, l.AssemblyOtaSize));
         Assert.Equal(s.IdGuid, loaded.QuadrantServerIds[2]);
         Assert.Equal(3, loaded.ViewCount);
         Assert.Same(l, loaded.SelectedAlpacaServer);

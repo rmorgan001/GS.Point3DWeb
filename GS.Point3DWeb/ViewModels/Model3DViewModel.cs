@@ -102,11 +102,24 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
     private AlignmentModes Mode => Server?.AlignmentMode ?? AlignmentModes.algGermanPolar;
 
-    public string ModelUrl => Model3D.GetModelUrl(
-        Server?.ModelType ?? Model3DType.Default, Mode, Server?.PolarMode ?? PolarMode.Left);
+    /// <summary>EXPERIMENTAL: the model assembled from parts shows (chosen, on a German equatorial mount).</summary>
+    public bool ShowsAssembly => Model3D.ShowsAssembly(Mode, Server?.PolarMode ?? PolarMode.Left);
 
-    public string ModelName =>
-        $"{Model3D.GetDisplayName(Server?.ModelType ?? Model3DType.Default)} ({Model3D.GetDisplayName(Mode)})";
+    private AssemblyOta ChosenOta => Server?.AssemblyOta ?? AssemblyOta.Refractor;
+
+    /// <summary>The usual model for the chosen OTA: shown when the assembled model is off or can't show.</summary>
+    private Model3DType UsualModel => Model3D.GetUsualModel(ChosenOta);
+
+    public string ModelUrl => ShowsAssembly
+        ? Model3D.ModelFolder + Model3D.AssemblyFile
+        : Model3D.GetModelUrl(UsualModel, Mode, Server?.PolarMode ?? PolarMode.Left);
+
+    /// <summary>The model's name: the assembled model's mount and OTA, or the usual model's type.</summary>
+    public string ModelTitle => ShowsAssembly
+        ? $"{Model3D.GetDisplayName(Server?.AssemblyMount ?? AssemblyMount.Eq6rPro)} · {Model3D.GetDisplayName(ChosenOta)}"
+        : Model3D.GetDisplayName(UsualModel);
+
+    public string ModelName => $"{ModelTitle} ({Model3D.GetDisplayName(Mode)})";
 
     /// <summary>
     /// The site latitude for the model: until the mount reports it, 0 (the equator), which every use below
@@ -133,8 +146,24 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     /// <summary>Tilt of the primary axis (GSServer's ZAxis): latitude, or 90° for Alt-Az.</summary>
     public double Tilt => Model3D.GetZAxis(Mode, Latitude);
 
-    /// <summary>Mount data the viewer needs to build the pier.</summary>
-    public object MountInfo => new { mode = (int)Mode, latitude = Latitude };
+    /// <summary>
+    /// Mount data the viewer needs to build the pier, and for an assembled model its parts (support, mount and the
+    /// OTA's model name). Part of the model's key, so changing a part loads the model again.
+    /// </summary>
+    public object MountInfo => new
+    {
+        mode = (int)Mode,
+        latitude = Latitude,
+        assembly = ShowsAssembly
+            ? new
+            {
+                support = (Server?.AssemblySupport ?? Model3D.DefaultAssemblySupport).ToString().ToLowerInvariant(),
+                mount = (Server?.AssemblyMount ?? AssemblyMount.Eq6rPro).ToString().ToLowerInvariant(),
+                ota = ChosenOta.ToString(),
+                otaSize = Model3D.GetAssemblyOtaSize(Server?.AssemblyOtaSize ?? Model3D.DefaultAssemblyOtaSize)
+            }
+            : null
+    };
 
     /// <summary>
     /// GSServer's model transform (XAxisOffset, YAxisOffset, ZAxisOffset, YAxisCentre) for the

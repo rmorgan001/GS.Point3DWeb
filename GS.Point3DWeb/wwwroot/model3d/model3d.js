@@ -61,6 +61,64 @@ const GRID_CELL = 1;            // minor grid spacing
 const GRID_MAJOR_EVERY = 5;     // a major line every 5 cells
 const GRID_Y = -1.01;           // just under the compass base (its underside is at -1)
 
+// Assembled mount (EXPERIMENTAL; loadAssembly, models/eq6r): the tripod from TripodAndBase.glb, and an EQ6-R Pro
+// style mount base and head built here (buildEq6rBase, buildEq6rHead). Millimetres throughout.
+const ASSEMBLY_SCALE = 0.6;             // Helix units per millimetre: the tripod's feet well inside the compass
+const ASSEMBLY_COLUMN_TOP = 1248;       // top of the full-size tripod's centre column (and the piers), where a mount sits
+// The supports (the AssemblySupport names in lower case): a tripod from TripodAndBase.glb at a scale (its top scales
+// with it), or a pier of a diameter in millimetres built here (pier tops are at ASSEMBLY_COLUMN_TOP).
+const ASSEMBLY_SUPPORTS = {
+    smalltripod: { tripod: 0.82 },
+    mediumtripod: { tripod: 1 },
+    largetripod: { tripod: 1.2 },
+    smallpier: { pier: 152 },      // 6 inches
+    mediumpier: { pier: 254 },     // 10 inches
+    largepier: { pier: 305 }       // 12 inches
+};
+// The OTA: an .obj model's tube (its first object), scaled, its lowest point sat on the saddle. The .obj models
+// put their Dec axis at y = -102; each tube keeps its own place along it.
+const ASSEMBLY_OTA = { scale: 1.5, decAxisY: -102 };   // scale: unless the mount sets its own otaScale
+// The OTAs an assembled model can carry: the .obj models (German polar) whose first object is the tube.
+const ASSEMBLY_OTAS = ['Refractor', 'Reflector', 'SchmidtCassegrain', 'RitcheyChretien', 'RitcheyChretienTruss'];
+// OTAs built here from simple shapes instead (the AssemblyOta names): each one's builder.
+const ASSEMBLY_BUILT_OTAS = {
+    Newtonian: (...a) => buildNewtonian(...a),
+    MaksutovCassegrain: (...a) => buildMaksutov(...a)
+};
+// The mounts an assembled model can have: each one's builders.
+//
+// Each German equatorial mount's measurements (millimetres) and builders:
+//   hinge       the latitude hinge, on the polar axis, above the support's top (the builders get it as mount.top)
+//   decAlongRa  where the Dec axis crosses the polar axis, up the polar axis from the hinge
+//   saddleTop   the top of the saddle's jaws, up the Dec axis from the polar axis (the OTA sits on it)
+//   otaScale    how big the OTA is drawn on this mount (the .obj tube's scale), to suit the mount's size
+//   base(s, holder, m, mount)          the fixed mount base, in the holder's frame
+//   head(s, { latitude, ra, dec }, m, mount)  the parts on each joint, in that joint's frame
+// To add a mount: an entry here (its key is the AssemblyMount name in lower case), its builders, and the
+// AssemblyMount value and display name in Model3D.cs.
+// Centre-balanced mounts: how far their counterweight bar sits along the polar axis toward the pole, from the Dec
+// axis, so the bar and weight clear the pier through a full turn of RA at any latitude from 10° to 70° (about 70 mm
+// to spare for the CEM40, 90 mm for the CEM70).
+const CEM40_BAR_Y = -140;
+const CEM70_BAR_Y = -160;
+// The CQ350 Pro is laid out the same way: its bar hangs from an arm at the RA drum's north face (about 50 mm to spare).
+const CQ350_BAR_Y = -130;
+
+const ASSEMBLY_MOUNTS = {
+    eq6rpro: { hinge: 142, decAlongRa: 230, saddleTop: 222, otaScale: 1.5, base: (...a) => buildEq6rBase(...a), head: (...a) => buildEq6rHead(...a) },
+    heq5pro: { hinge: 116, decAlongRa: 176, saddleTop: 168, otaScale: 1.15, base: (...a) => buildHeq5Base(...a), head: (...a) => buildHeq5Head(...a) },
+    eq8rpro: { hinge: 212, decAlongRa: 300, saddleTop: 314, otaScale: 2.1, base: (...a) => buildEq8Base(...a), head: (...a) => buildEq8Head(...a) },
+    am5: { hinge: 96, decAlongRa: 150, saddleTop: 190, otaScale: 1.05, base: (...a) => buildAm5Base(...a), head: (...a) => buildAm5Head(...a) },
+    // Centre-balanced: the Dec axis crosses the polar axis just above the hinge, so the load sits over the pier.
+    cem70: { hinge: 172, decAlongRa: 40, saddleTop: 300, otaScale: 1.75, base: (...a) => buildCem70Base(...a), head: (...a) => buildCem70Head(...a) },
+    cem40: { hinge: 124, decAlongRa: 30, saddleTop: 216, otaScale: 1.35, base: (...a) => buildCem40Base(...a), head: (...a) => buildCem40Head(...a) },
+    cq350pro: { hinge: 180, decAlongRa: 20, saddleTop: 248, otaScale: 1.8, base: (...a) => buildCq350Base(...a), head: (...a) => buildCq350Head(...a) },
+    eqm35pro: { hinge: 100, decAlongRa: 150, saddleTop: 140, otaScale: 0.95, base: (...a) => buildEqm35Base(...a), head: (...a) => buildEqm35Head(...a) },
+    wave150ipro: { hinge: 96, decAlongRa: 150, saddleTop: 140, otaScale: 1.2, base: (...a) => buildWave150Base(...a), head: (...a) => buildWave150Head(...a) }
+};
+// The tripod file's own mount base: replaced by buildEq6rBase.
+const ASSEMBLY_HIDDEN_BASE = ['Latitude_base', 'Azimuth_post', 'Azimuth_knob_1', 'Azimuth_knob_2'];
+
 // Alignment modes (ASCOM AlignmentModes)
 const ALT_AZ = 0, POLAR = 1;
 
@@ -429,17 +487,60 @@ class TelescopeViewer {
         if (c.targetScreenOffset.y !== y) c.targetScreenOffset.y = y;
     }
 
-    /** Applies a saved camera ({ alpha, beta (degrees), radius, targetX/Y/Z }), or the default. */
+    /**
+     * Applies a saved camera ({ alpha, beta (degrees), radius, targetX/Y/Z }), or the default: the default view's
+     * angle and distance, looking at the top of the pier (centreOnMount) once a model is loaded.
+     */
     setCamera(view) {
         const B = window.BABYLON;
         const v = view || DEFAULT_CAMERA;
-        // Target first: setTarget works alpha, beta and radius out again from where the camera is now, so set
-        // after it they would be overwritten (a saved view would keep only its target).
-        this.camera.setTarget(new B.Vector3(v.targetX, v.targetY, v.targetZ));
-        this.camera.alpha = rad(v.alpha);
-        this.camera.beta = rad(v.beta);
-        this.camera.radius = v.radius;
+        this.savedCamera = !!view;
+        const target = view || !this.mountCentre
+            ? new B.Vector3(v.targetX, v.targetY, v.targetZ)
+            : this.mountCentre.clone();
+        this.aimCamera(target, rad(v.alpha), rad(v.beta), v.radius);
+    }
+
+    /**
+     * Points the camera at `target` from the given angles and distance. Target first: setTarget works alpha, beta
+     * and radius out again from where the camera is now, so set after it they would be overwritten.
+     */
+    aimCamera(target, alpha, beta, radius) {
+        this.camera.setTarget(target);
+        this.camera.alpha = alpha;
+        this.camera.beta = beta;
+        this.camera.radius = radius;
         this.requestRender();
+    }
+
+    /**
+     * The bottom of the OTA, where it sits on the saddle over the Dec axis, at the home position (the OTA along the
+     * polar axis): without a saved camera, the camera looks at it (keeping its angle and distance), so the
+     * telescope sits in the middle of the view whatever the model and its size. Worked out from the mount's
+     * latitude, not the pose on screen, so the view stays put while the mount moves.
+     *   assembled model: the saddle top (`otaBottom`, up the Dec axis from where it crosses the polar axis)
+     *   .obj model: the lowest point of its tube (`otaBottom`, above GSServer's rotation centre)
+     */
+    centreOnMount(mount, otaBottom) {
+        const B = window.BABYLON;
+        // The polar axis rises by the latitude toward the pole (-Y); "up" the Dec axis at home leans back from it.
+        const lat = rad(Math.abs(mount?.latitude ?? 0)), sin = Math.sin(lat), cos = Math.cos(lat);
+        let helix;
+        if (this.assembly) {
+            const a = this.assemblyAt, d = a.decAlongRa;
+            helix = new B.Vector3(0, -d * cos + otaBottom * sin, a.top + a.hinge + d * sin + otaBottom * cos)
+                .scale(ASSEMBLY_SCALE);
+        } else {
+            const yCentre = (mount?.mode ?? 2) === 2 ? -102 : 0, up = otaBottom - ROTATION_CENTRE_Z;
+            helix = new B.Vector3(0, yCentre + up * sin, ROTATION_CENTRE_Z + up * cos);
+        }
+        this.root.computeWorldMatrix(true);
+        const centre = B.Vector3.TransformCoordinates(helix, this.root.getWorldMatrix());
+        this.mountCentre = centre;
+        if (!this.savedCamera) {
+            const c = this.camera;
+            this.aimCamera(centre.clone(), c.alpha, c.beta, c.radius);
+        }
     }
 
     getCamera() {
@@ -722,6 +823,9 @@ class TelescopeViewer {
      * Returns 'Superseded' for a load that a newer one replaced.
      */
     async loadModel(url, mount) {
+        // A mount built from parts (tripod and base, head) rather than one .obj: see loadAssembly.
+        if (/\.glb$/i.test(url)) return this.loadAssembly(url, mount);
+
         const B = window.BABYLON;
         const load = ++this.loadCount;
 
@@ -740,7 +844,8 @@ class TelescopeViewer {
             return 'Error: model has no meshes';
         }
 
-        // Replace the previous model, its materials and the pier.
+        // Replace the previous model (or assembly), its materials and the pier.
+        this.disposeAssembly();
         this.modelMeshes.forEach(m => m.dispose());
         this.modelMeshes = [];
         this.modelMaterials.forEach(m => m.dispose());
@@ -767,7 +872,179 @@ class TelescopeViewer {
         result.meshes.filter(m => m.getTotalVertices() === 0).forEach(m => m.dispose());
 
         this.applyPose();
+        // The OTA is the first object; its lowest point (the .obj's own coordinates) is where the camera looks.
+        this.centreOnMount(mount, meshes[0].getBoundingInfo().boundingBox.minimum.z);
         return 'Model loaded successfully';
+    }
+
+    /**
+     * A German equatorial mount assembled from parts (EXPERIMENTAL), chosen on the back of the card
+     * (mount.assembly: { support, mount, ota }):
+     *   support  'tripod' (TripodAndBase.glb, this url) or 'pier' (an observatory pier, built here)
+     *   mount    'eq6rpro': an EQ6-R Pro style mount base and head built from simple shapes (ASSEMBLY_MOUNTS)
+     *   ota      an .obj model's tube (ASSEMBLY_OTAS)
+     *   otaSize  its size in percent of the mount's own OTA size (otaScale); 100 if not given
+     * The head hangs from three joints, driven by the same pose numbers as an .obj model, so it moves the same way:
+     *
+     *   latitude joint  tilts the RA body about east-west by the pose's z (GSServer's ZAxisOffset, -latitude)
+     *     RA joint      turns the head (Dec housing, counterweights) about the polar axis by y (YAxisOffset)
+     *       Dec joint   turns the puck (saddle and OTA) about the Dec axis by x (XAxisOffset)
+     *
+     * Everything is in millimetres, Z up, the pole toward -Y: the scene's Helix frame (north along -Y with the
+     * north compass), so it needs only scaling. The joints' frames are drawn at the home position: the polar axis
+     * level along -Y, the Dec axis standing along +Z (saddle up, counterweights down).
+     */
+    async loadAssembly(url, mount) {
+        const B = window.BABYLON;
+        const load = ++this.loadCount;
+        const folder = url.substring(0, url.lastIndexOf('/') + 1);
+        if (B.OBJFileLoader) B.OBJFileLoader.SKIP_MATERIALS = true;
+
+        const parts = mount?.assembly ?? {};
+        const support = ASSEMBLY_SUPPORTS[parts.support] ?? ASSEMBLY_SUPPORTS.mediumtripod;
+        const onPier = !!support.pier;
+        const build = ASSEMBLY_MOUNTS[parts.mount] ?? ASSEMBLY_MOUNTS.eq6rpro;
+        const builtOta = ASSEMBLY_BUILT_OTAS[parts.ota];
+        const otaName = builtOta ? null : ASSEMBLY_OTAS.includes(parts.ota) ? parts.ota : 'Refractor';
+
+        let tripod, ota;
+        try {
+            [tripod, ota] = await Promise.all([
+                onPier ? null : B.SceneLoader.ImportMeshAsync('', folder, url.substring(folder.length), this.scene),
+                otaName ? B.SceneLoader.ImportMeshAsync('', new URL('../', folder).href, `${otaName}.obj`, this.scene, null, '.obj') : null
+            ]);
+        } catch (error) {
+            return `Error: ${error?.message ?? error}`;
+        }
+        const results = [tripod, ota].filter(Boolean);
+        if (load !== this.loadCount || this.scene.isDisposed) {
+            results.forEach(r => {
+                r.meshes.forEach(m => m.dispose());
+                (r.transformNodes || []).forEach(n => n.dispose());
+            });
+            return 'Superseded';
+        }
+
+        // Replace the previous model (or assembly), its materials and the pier (the tripod stands in for it).
+        this.disposeAssembly();
+        this.modelMeshes.forEach(m => m.dispose());
+        this.modelMeshes = [];
+        this.modelMaterials.forEach(m => m.dispose());
+        this.pierMeshes.forEach(m => m.dispose());
+        this.pierMeshes = [];
+
+        const mat = (name, hex, specular = 0.15) => {
+            const m = new B.StandardMaterial(name, this.scene);
+            m.diffuseColor = B.Color3.FromHexString(hex);
+            m.specularColor = new B.Color3(specular, specular, specular);
+            return m;
+        };
+        const materials = {
+            tripod: mat('Tripod', '#34474f', 0.1),
+            white: mat('MountWhite', '#ecece7', 0.35),   // the EQ6-R Pro's castings, weights and saddle
+            black: mat('MountBlack', '#1b1f21', 0.25),   // star knobs and levers
+            steel: mat('MountSteel', '#b3b9bd', 0.7),    // shaft, rod, hinge caps
+            green: mat('MountGreen', '#2fbf55', 0.3),    // the RA and Dec setting circles
+            grey: mat('MountGrey', '#5f676b', 0.3),      // the control panel's caps
+            dark: mat('MountDark', '#2a2e31', 0.3),      // black castings (EQ8-R, CEM70)
+            red: mat('MountRed', '#cf2a22', 0.4),        // anodised red (AM5, CEM40)
+            brass: mat('MountBrass', '#b8913f', 0.6),    // brass fittings (CEM40's latitude screw)
+            glass: mat('MountGlass', '#13232d', 0.9),    // a built OTA's glass and open aperture
+            ota: mat('OTA', this.primaryColor, 0.3)
+        };
+        this.otaMaterial = materials.ota;
+        this.modelMaterials = Object.values(materials);
+
+        // Nodes: holder (millimetres) > tripod and base, and latitude > RA > Dec joints for the head.
+        const holder = new B.TransformNode('Assembly', this.scene);
+        holder.parent = this.root;
+        holder.scaling = new B.Vector3(ASSEMBLY_SCALE, ASSEMBLY_SCALE, ASSEMBLY_SCALE);
+        const latitude = new B.TransformNode('LatitudeJoint', this.scene);
+        latitude.parent = holder;
+        // Where the mount stands: the support's top. The builders get it with the mount's measurements.
+        const top = onPier ? ASSEMBLY_COLUMN_TOP : ASSEMBLY_COLUMN_TOP * support.tripod;
+        const at = { ...build, top };
+        this.assemblyAt = at;
+        latitude.position = new B.Vector3(0, 0, top + build.hinge);
+        const ra = new B.TransformNode('RaJoint', this.scene);
+        ra.parent = latitude;
+        ra.position = new B.Vector3(0, -build.decAlongRa, 0);
+        const dec = new B.TransformNode('DecJoint', this.scene);
+        dec.parent = ra;
+        for (const n of [latitude, ra, dec]) n.rotationQuaternion = B.Quaternion.Identity();
+        this.assembly = { holder, latitude, ra, dec };
+
+        const keep = mesh => {
+            mesh.isPickable = false;
+            this.modelMeshes.push(mesh);
+        };
+
+        // The support: the tripod, where its file puts it at its scale (the file's own simple mount base left out),
+        // or a pier.
+        const shapes = new AssemblyShapes(B, this.scene, keep);
+        if (onPier) buildPier(shapes, holder, materials, top, support.pier);
+        const tripodNode = new B.TransformNode('Tripod', this.scene);
+        tripodNode.parent = holder;
+        tripodNode.scaling = new B.Vector3(support.tripod ?? 1, support.tripod ?? 1, support.tripod ?? 1);
+        for (const mesh of tripod ? tripod.meshes.filter(m => m.getTotalVertices() > 0) : []) {
+            if (ASSEMBLY_HIDDEN_BASE.includes(mesh.name.replace(/_mesh.*$/, ''))) {
+                mesh.dispose();
+                continue;
+            }
+            const world = mesh.computeWorldMatrix(true).clone();
+            mesh.parent = tripodNode;
+            const scaling = new B.Vector3(), rotation = new B.Quaternion(), position = new B.Vector3();
+            world.decompose(scaling, rotation, position);
+            mesh.scaling = scaling;
+            mesh.rotationQuaternion = rotation;
+            mesh.position = position;
+            mesh.material = materials.tripod;
+            keep(mesh);
+        }
+
+        build.base(shapes, holder, materials, at);
+        build.head(shapes, { latitude, ra, dec }, materials, at);
+
+        // The mount's own OTA size, times the size chosen on the back of the card (percent; 100 by default).
+        const size = Number.isFinite(parts.otaSize) && parts.otaSize > 0 ? parts.otaSize / 100 : 1;
+        const o = ASSEMBLY_OTA, scale = (build.otaScale ?? o.scale) * size;
+
+        // A built OTA: in its own node standing on the saddle, at the size an .obj OTA has at this scale.
+        if (builtOta) {
+            const node = new B.TransformNode('Ota', this.scene);
+            node.parent = dec;
+            node.position = new B.Vector3(0, 0, build.saddleTop);
+            node.scaling = new B.Vector3(scale / o.scale, scale / o.scale, scale / o.scale);
+            builtOta(shapes, node, materials);
+        }
+
+        // An .obj OTA: its tube (the first object), its lowest point on the saddle, its own place along the Dec axis.
+        const tube = ota ? ota.meshes.filter(m => m.getTotalVertices() > 0) : [];
+        if (tube.length > 0) {
+            const bottom = tube[0].getBoundingInfo().boundingBox.minimum.z;
+            tube[0].parent = dec;
+            tube[0].scaling = new B.Vector3(scale, scale, scale);
+            tube[0].position = new B.Vector3(0, -o.decAxisY * scale, build.saddleTop - bottom * scale);
+            tube[0].material = materials.ota;
+            keep(tube[0]);
+        }
+        tube.slice(1).forEach(m => m.dispose());
+
+        // The loaders' own root nodes are now empty.
+        for (const r of results) {
+            r.meshes.filter(m => m.getTotalVertices() === 0).forEach(m => m.dispose());
+            (r.transformNodes || []).forEach(n => n.dispose());
+        }
+
+        this.applyPose();
+        this.centreOnMount(mount, build.saddleTop);
+        return 'Model loaded successfully';
+    }
+    /** Removes the assembled mount (loadAssembly), if there is one. */
+    disposeAssembly() {
+        if (!this.assembly) return;
+        this.assembly.holder.dispose(false, true);
+        this.assembly = null;
     }
 
     /**
@@ -822,6 +1099,16 @@ class TelescopeViewer {
         const B = window.BABYLON;
         this.requestRender();
         const { x, y, z, yCentre } = this.pose;
+
+        // An assembled mount: the same three angles, each turning its own joint (see loadAssembly).
+        if (this.assembly) {
+            const turn = (node, matrix) => { node.rotationQuaternion = B.Quaternion.FromRotationMatrix(matrix); };
+            turn(this.assembly.latitude, B.Matrix.RotationX(rad(z)));
+            turn(this.assembly.ra, B.Matrix.RotationY(rad(y)));
+            turn(this.assembly.dec, B.Matrix.RotationZ(rad(x)));
+            return;
+        }
+
         const centre = new B.Vector3(0, yCentre, ROTATION_CENTRE_Z);
         const toCentre = B.Matrix.Translation(-centre.x, -centre.y, -centre.z);
         const back = B.Matrix.Translation(centre.x, centre.y, centre.z);
@@ -936,6 +1223,601 @@ class TelescopeViewer {
         this.scene.dispose();
         this.engine.dispose();
     }
+}
+
+/**
+ * Simple shapes for the built mount, placed in a joint's frame (millimetres): boxes by their extents, cylinders by
+ * their axis (X, Y or Z), diameter and the span along it. Only the builders the trimmed Babylon bundle has.
+ */
+class AssemblyShapes {
+    constructor(B, scene, keep) {
+        this.B = B;
+        this.scene = scene;
+        this.keep = keep;
+        this.count = 0;
+    }
+
+    add(mesh, parent, material) {
+        mesh.parent = parent;
+        mesh.material = material;
+        this.keep(mesh);
+        return mesh;
+    }
+
+    /** A box from x0..x1, y0..y1, z0..z1. */
+    box(parent, material, [x0, x1], [y0, y1], [z0, z1]) {
+        const m = this.B.MeshBuilder.CreateBox(`Eq6r${this.count++}`,
+            { width: Math.abs(x1 - x0), height: Math.abs(y1 - y0), depth: Math.abs(z1 - z0) }, this.scene);
+        m.position = new this.B.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+        return this.add(m, parent, material);
+    }
+
+    /**
+     * A cylinder along `axis` ('x', 'y' or 'z') from `from` to `to`, centred on (a, b) across it (the other two
+     * coordinates in x, y, z order). `top` narrows it to a cone toward `to`.
+     */
+    cylinder(parent, material, axis, diameter, from, to, [a, b] = [0, 0], { top = diameter, tessellation = 40 } = {}) {
+        const B = this.B;
+        const m = B.MeshBuilder.CreateCylinder(`Eq6r${this.count++}`,
+            { height: Math.abs(to - from), diameterBottom: diameter, diameterTop: top, tessellation }, this.scene);
+        const mid = (from + to) / 2, up = to >= from ? 1 : -1;
+        // A Babylon cylinder stands along its own Y, top at +Y: turn that onto the axis, top toward `to`.
+        if (axis === 'x') {
+            m.position = new B.Vector3(mid, a, b);
+            m.rotation.z = -up * Math.PI / 2;
+        } else if (axis === 'y') {
+            m.position = new B.Vector3(a, mid, b);
+            if (up < 0) m.rotation.x = Math.PI;
+        } else {
+            m.position = new B.Vector3(a, b, mid);
+            m.rotation.x = up * Math.PI / 2;
+        }
+        return this.add(m, parent, material);
+    }
+
+    /** A star knob along `axis`: a steel stem from `from`, the knob (black unless `knob` says) at `to`. */
+    knob(parent, m, axis, from, to, across, knob = m.black) {
+        const toward = to >= from ? 1 : -1;
+        this.cylinder(parent, m.steel, axis, 10, from, to - toward * 12, across, { tessellation: 12 });
+        this.cylinder(parent, knob, axis, 34, to - toward * 12, to, across, { tessellation: 5 });
+        this.cylinder(parent, knob, axis, 18, to, to + toward * 4, across, { tessellation: 12 });
+    }
+}
+
+/**
+ * A pier for an assembled model (holder frame, millimetres, Z up), `diameter` across its whole height: a foot plate
+ * on the ground, a flared foot, the pier tube up to a top plate of the same width, and the steel mount adapter at
+ * `top`. On the large (12-inch) pier the weights of some small, low mounts (CEM40, CQ350 Pro, EQM-35 Pro) reach it,
+ * as they would on a real one without an extension.
+ */
+function buildPier(s, holder, m, top, diameter) {
+    const d = diameter;
+    s.cylinder(holder, m.tripod, 'z', Math.max(460, d * 1.9), 0, 24, [0, 0], { tessellation: 6 });   // foot plate
+    s.cylinder(holder, m.tripod, 'z', d * 1.3, 24, 70, [0, 0], { top: d });         // flared foot
+    s.cylinder(holder, m.tripod, 'z', d, 70, top - 40);                             // pier tube
+    s.cylinder(holder, m.tripod, 'z', d, top - 40, top - 22);                       // top plate
+    s.cylinder(holder, m.tripod, 'z', d + 4, top - 30, top - 26);                   // the plate's seam
+    for (const a of [30, 150, 270]) {                                               // levelling bolts in the plate
+        const r = d / 2 - 14, x = r * Math.cos(a * Math.PI / 180), y = r * Math.sin(a * Math.PI / 180);
+        s.cylinder(holder, m.steel, 'z', 14, top - 22, top - 10, [x, y], { tessellation: 12 });
+    }
+    s.cylinder(holder, m.steel, 'z', 150, top - 22, top);                           // mount adapter
+}
+
+/**
+ * The EQ6-R Pro's mount base, fixed on the tripod's centre column (holder frame, millimetres, Z up, pole -Y):
+ * the white azimuth drum, the central latitude tower with a silver hinge cap each side, the latitude rod and
+ * L-lever on the south side, the latitude lock knob on the north side, and the azimuth adjuster knobs.
+ */
+function buildEq6rBase(s, holder, m, mount) {
+    const z0 = mount.top, hinge = z0 + mount.hinge;
+    // Azimuth drum on the column.
+    s.cylinder(holder, m.white, 'z', 150, z0, z0 + 44);
+    s.cylinder(holder, m.white, 'z', 136, z0 + 44, z0 + 56);
+    // Latitude tower: a white upright under the RA body, rounded over the hinge, a silver cap on each side.
+    s.box(holder, m.white, [-44, 44], [-58, 58], [z0 + 56, hinge]);
+    s.cylinder(holder, m.white, 'x', 116, -44, 44, [0, hinge]);
+    for (const side of [-1, 1]) {
+        s.cylinder(holder, m.white, 'x', 70, side * 44, side * 48, [0, hinge]);
+        s.cylinder(holder, m.steel, 'x', 46, side * 48, side * 54, [0, hinge], { top: 34 });
+    }
+    // Latitude rod on the south side, with its black L-lever; the lock knob on the north side.
+    s.box(holder, m.white, [-20, 20], [58, 80], [z0 + 60, z0 + 92]);
+    s.cylinder(holder, m.steel, 'y', 12, 80, 190, [0, z0 + 76]);
+    s.cylinder(holder, m.black, 'y', 22, 190, 204, [0, z0 + 76], { tessellation: 16 });
+    s.box(holder, m.black, [-6, 6], [198, 210], [z0 + 20, z0 + 82]);
+    s.knob(holder, m, 'y', -58, -92, [0, hinge - 40]);
+    // Azimuth adjusters: a knob out each side at the tower's foot.
+    for (const side of [-1, 1]) s.knob(holder, m, 'x', side * 44, side * 96, [0, z0 + 66]);
+}
+
+/**
+ * The EQ6-R Pro's head on the three joints (each joint's frame, millimetres; home position: the polar axis level
+ * along -Y toward the pole, the Dec axis along +Z):
+ *   latitude: the RA body (tilts, doesn't turn in RA): housing, ribbed polar scope cover, carry handle on top,
+ *             RA clutch lever, the green RA setting circle
+ *   ra:       the head: one rounded white block with the control panel on its west face, a nose underneath
+ *             with the counterweight shaft and two white weights, the green Dec setting circle
+ *   dec:      the puck: a short white body, the Dec clutch lever and a white saddle with star knobs
+ *             (the OTA is added after)
+ */
+function buildEq6rHead(s, j, m, mount) {
+    const D = mount.decAlongRa, saddleTop = mount.saddleTop;
+    const junction = -(D - 92);   // where the RA body meets the head, in the latitude joint's frame
+
+    // RA body (latitude joint; the hinge is at the origin, on the polar axis).
+    s.cylinder(j.latitude, m.white, 'y', 132, 150, junction);             // housing
+    s.cylinder(j.latitude, m.white, 'y', 124, 150, 164);                  // step to the cover
+    for (let y = 164; y < 212; y += 8) {                                  // ribbed polar scope cover
+        s.cylinder(j.latitude, m.white, 'y', 118, y, y + 5, [0, 0], { tessellation: 32 });
+        s.cylinder(j.latitude, m.white, 'y', 110, y + 5, y + 8, [0, 0], { tessellation: 32 });
+    }
+    s.cylinder(j.latitude, m.white, 'y', 110, 212, 226, [0, 0], { top: 70 });
+    s.cylinder(j.latitude, m.green, 'y', 140, junction + 14, junction);   // green RA setting circle
+    // Carry handle on top: two posts and a grip along the polar axis.
+    for (const y of [20, 112]) s.box(j.latitude, m.white, [-12, 12], [y - 9, y + 9], [60, 104]);
+    s.box(j.latitude, m.white, [-13, 13], [6, 126], [100, 118]);
+    // RA clutch lever on the east side.
+    s.cylinder(j.latitude, m.black, 'x', 20, 66, 80, [-50, 0], { tessellation: 16 });
+    s.box(j.latitude, m.black, [76, 86], [-56, -44], [0, 58]);
+
+    // Head (RA joint; origin where the Dec axis crosses the polar axis): one big block, its edges rounded.
+    s.box(j.ra, m.white, [-82, 82], [-90, 92], [-96, 96]);
+    for (const [a, b] of [[-82, -90], [82, -90], [-82, 92], [82, 92]]) {   // rounded vertical edges
+        s.cylinder(j.ra, m.white, 'z', 24, -96, 96, [a, b], { tessellation: 16 });
+    }
+    s.box(j.ra, m.white, [-70, 70], [-78, 80], [96, 112]);                // its top, stepped in
+    s.box(j.ra, m.white, [-70, 70], [-78, 80], [-112, -96]);              // and bottom
+    s.cylinder(j.ra, m.white, 'y', 138, 92, 100);                         // collar meeting the RA body
+    // Control panel on the west face: a raised panel, power switch, ports and two grey caps.
+    s.box(j.ra, m.white, [-90, -82], [-70, 72], [-74, 84]);
+    s.box(j.ra, m.black, [-94, -90], [-30, -16], [44, 62]);
+    for (const [y, z, d] of [[-46, -10, 14], [-24, -10, 14], [-2, -10, 12], [24, 20, 18]]) {
+        s.cylinder(j.ra, m.black, 'x', d, -90, -94, [y, z], { tessellation: 16 });
+    }
+    for (const [y, z] of [[-60, -86], [62, 92]]) s.cylinder(j.ra, m.grey, 'x', 26, -82, -96, [y, z], { tessellation: 20 });
+    // Nose underneath, the counterweight shaft's lock knob, the shaft and its end stop.
+    s.cylinder(j.ra, m.white, 'z', 96, -112, -150);
+    s.cylinder(j.ra, m.white, 'z', 96, -150, -172, [0, 0], { top: 56 });
+    s.knob(j.ra, m, 'x', 40, 80, [0, -140]);
+    s.cylinder(j.ra, m.steel, 'z', 20, -172, -560);
+    s.cylinder(j.ra, m.steel, 'z', 34, -560, -574);
+    // Two white weights with black lock knobs.
+    for (const z of [-340, -420]) {
+        s.cylinder(j.ra, m.white, 'z', 124, z + 30, z - 30, [0, 0], { tessellation: 48 });
+        s.knob(j.ra, m, 'x', 62, 92, [0, z]);
+    }
+    s.cylinder(j.ra, m.green, 'z', 120, 112, 124);                        // green Dec setting circle
+
+    // Puck (Dec joint): a short white body, the Dec clutch lever, and the saddle along the polar axis.
+    s.cylinder(j.dec, m.white, 'z', 112, 124, 168);
+    s.cylinder(j.dec, m.black, 'x', 20, 56, 70, [0, 146], { tessellation: 16 });
+    s.box(j.dec, m.black, [66, 76], [-6, 6], [146, 200]);
+    s.box(j.dec, m.white, [-58, 58], [-104, 104], [168, 206]);           // saddle body
+    s.box(j.dec, m.white, [-58, -40], [-104, 104], [206, saddleTop]);  // fixed jaw
+    s.box(j.dec, m.white, [34, 52], [-104, 104], [206, saddleTop]);    // moving jaw
+    for (const y of [-52, 52]) s.knob(j.dec, m, 'x', 52, 92, [y, 214]);  // clamp knobs, east side
+    s.knob(j.dec, m, 'x', -58, -92, [70, 190]);                           // and one on the west side
+}
+
+/**
+ * Counterweights below the head (RA joint's frame): a shaft from `from` down to `to`, an end stop, and weights
+ * centred at `at`, each with a lock knob. The shaft runs down the Dec axis, or at `y` along the polar axis from it
+ * (negative: toward the pole), as a centre-balanced mount's does to clear its pier.
+ */
+function buildWeights(s, ra, m, { from, to, shaft, stop, weight, thick, at, material, knob = m.black, y = 0 }) {
+    s.cylinder(ra, m.steel, 'z', shaft, from, to, [0, y]);
+    s.cylinder(ra, m.steel, 'z', stop, to, to - 14, [0, y]);
+    for (const z of at) {
+        s.cylinder(ra, material, 'z', weight, z + thick / 2, z - thick / 2, [0, y], { tessellation: 48 });
+        s.knob(ra, m, 'x', weight / 2 - 4, weight / 2 + 30, [y, z], knob);
+    }
+}
+
+/**
+ * Sky-Watcher HEQ5 Pro: the EQ6-R's smaller sibling. White; a round black badge on the latitude tower, silver
+ * latitude T-bolts front and back, green bands on the RA housing and the head, a narrow Vixen saddle, two white
+ * weights with black T knobs.
+ */
+function buildHeq5Base(s, holder, m, mount) {
+    const z0 = mount.top, hinge = z0 + mount.hinge;
+    s.cylinder(holder, m.white, 'z', 124, z0, z0 + 34);
+    s.box(holder, m.white, [-34, 34], [-44, 44], [z0 + 34, hinge]);
+    s.cylinder(holder, m.white, 'x', 92, -34, 34, [0, hinge]);
+    for (const side of [-1, 1]) {
+        s.cylinder(holder, m.black, 'x', 64, side * 34, side * 38, [0, hinge]);          // badge
+        s.cylinder(holder, m.steel, 'x', 14, side * 38, side * 41, [0, hinge]);
+    }
+    for (const side of [-1, 1]) {                                                       // latitude T-bolts
+        const y1 = side * 112, z = z0 + 64;
+        s.cylinder(holder, m.steel, 'y', 10, side * 44, y1, [0, z]);
+        s.cylinder(holder, m.steel, 'x', 8, -26, 26, [y1, z]);
+    }
+    s.knob(holder, m, 'x', 34, 70, [-30, z0 + 50]);                                     // azimuth
+}
+
+function buildHeq5Head(s, j, m, mount) {
+    const D = mount.decAlongRa, junction = -(D - 70);
+    // RA body (latitude joint).
+    s.cylinder(j.latitude, m.white, 'y', 104, 112, junction);
+    s.cylinder(j.latitude, m.green, 'y', 108, 100, 110);
+    s.cylinder(j.latitude, m.white, 'y', 104, 112, 126, [0, 0], { top: 78 });
+    s.cylinder(j.latitude, m.black, 'y', 38, 126, 138);                                 // polar scope cap
+    s.cylinder(j.latitude, m.green, 'y', 110, junction + 10, junction);
+    // Head (RA joint): a tall white block, its edges rounded, grey caps on its east face.
+    s.box(j.ra, m.white, [-58, 58], [-62, 70], [-96, 92]);
+    for (const [a, b] of [[-58, -62], [58, -62], [-58, 70], [58, 70]]) {
+        s.cylinder(j.ra, m.white, 'z', 18, -96, 92, [a, b], { tessellation: 16 });
+    }
+    s.cylinder(j.ra, m.white, 'y', 108, 70, 78);
+    for (const [y, z] of [[-30, -60], [30, 50]]) s.cylinder(j.ra, m.grey, 'x', 22, 58, 66, [y, z], { tessellation: 20 });
+    s.box(j.ra, m.black, [-74, -58], [-8, 8], [-10, 34]);                               // RA clutch
+    s.cylinder(j.ra, m.white, 'z', 82, 92, 120);                                        // neck
+    s.cylinder(j.ra, m.green, 'z', 86, 100, 108);
+    s.cylinder(j.ra, m.white, 'z', 70, -96, -124);                                      // nose
+    s.cylinder(j.ra, m.white, 'z', 70, -124, -136, [0, 0], { top: 44 });
+    s.knob(j.ra, m, 'x', 30, 62, [0, -116]);
+    buildWeights(s, j.ra, m, { from: -136, to: -430, shaft: 18, stop: 30, weight: 110, thick: 46, at: [-290, -340], material: m.white });
+    // Puck (Dec joint): a short neck and a narrow Vixen saddle with two knobs.
+    s.cylinder(j.dec, m.white, 'z', 76, 120, 140);
+    s.box(j.dec, m.white, [-38, 38], [-72, 72], [140, 158]);
+    s.box(j.dec, m.white, [-38, -26], [-72, 72], [158, mount.saddleTop]);
+    s.box(j.dec, m.white, [22, 34], [-72, 72], [158, mount.saddleTop]);
+    for (const y of [-32, 32]) s.knob(j.dec, m, 'x', 34, 62, [y, 162]);
+}
+
+/**
+ * Sky-Watcher EQ8-R Pro: a big black observatory mount with bright green knobs. A tall latitude housing with round
+ * side covers and a silver T-handle, a large head with a long handle on its west side and an electronics box on its
+ * east side, a wide Dec flange under a huge saddle with three green knobs, black weights on a thick shaft.
+ */
+function buildEq8Base(s, holder, m, mount) {
+    const z0 = mount.top, hinge = z0 + mount.hinge;
+    s.cylinder(holder, m.dark, 'z', 214, z0, z0 + 58);
+    s.cylinder(holder, m.black, 'z', 224, z0 + 58, z0 + 70);
+    s.box(holder, m.dark, [-72, 72], [-92, 92], [z0 + 70, hinge]);
+    s.cylinder(holder, m.dark, 'x', 184, -72, 72, [0, hinge]);
+    for (const side of [-1, 1]) {
+        s.cylinder(holder, m.dark, 'x', 96, side * 72, side * 84, [0, hinge]);          // side covers
+        s.cylinder(holder, m.black, 'x', 56, side * 84, side * 88, [0, hinge]);
+        s.knob(holder, m, 'x', side * 72, side * 112, [40, z0 + 96], m.green);          // azimuth
+    }
+    s.cylinder(holder, m.steel, 'y', 14, -92, -140, [0, hinge - 70]);                   // latitude T-handle
+    s.cylinder(holder, m.steel, 'z', 12, hinge - 140, hinge - 10, [0, -140]);
+}
+
+function buildEq8Head(s, j, m, mount) {
+    const D = mount.decAlongRa, junction = -(D - 140);
+    // RA body (latitude joint).
+    s.cylinder(j.latitude, m.dark, 'y', 172, 150, junction);
+    s.cylinder(j.latitude, m.black, 'y', 150, 150, 176);
+    // Head (RA joint): a large block, an electronics box east, a long handle west.
+    s.box(j.ra, m.dark, [-96, 96], [-124, 140], [-150, 140]);
+    s.box(j.ra, m.black, [96, 152], [-100, 70], [-40, 138]);
+    s.box(j.ra, m.black, [152, 156], [-60, 30], [20, 110]);
+    for (const z of [-70, 70]) s.box(j.ra, m.black, [-124, -96], [-10, 10], [z - 10, z + 10]);
+    s.box(j.ra, m.black, [-140, -124], [-14, 14], [-90, 90]);
+    s.cylinder(j.ra, m.dark, 'z', 120, -150, -190);                                     // nose
+    buildWeights(s, j.ra, m, { from: -190, to: -720, shaft: 32, stop: 50, weight: 190, thick: 80, at: [-470, -580], material: m.dark });
+    s.cylinder(j.ra, m.dark, 'z', 226, 140, 160);                                       // Dec flange
+    // Puck (Dec joint): a body and a huge saddle with three green knobs on its west side.
+    s.cylinder(j.dec, m.dark, 'z', 184, 160, 200);
+    s.box(j.dec, m.dark, [-92, 92], [-165, 165], [200, 296]);
+    s.box(j.dec, m.black, [-82, 82], [-160, 160], [296, mount.saddleTop]);
+    for (const y of [-100, 0, 100]) s.knob(j.dec, m, 'x', -92, -132, [y, 300], m.green);
+}
+
+/**
+ * ZWO AM5: a compact strain-wave mount, red and black, without counterweights. Red side plates with black levers
+ * on a red and black base disc, a short black RA barrel into a red cube (the motor housing), and a short black Dec
+ * barrel up to a large red saddle with black knobs.
+ */
+function buildAm5Base(s, holder, m, mount) {
+    const z0 = mount.top, hinge = z0 + mount.hinge;
+    s.cylinder(holder, m.black, 'z', 168, z0, z0 + 10);
+    s.cylinder(holder, m.red, 'z', 156, z0 + 10, z0 + 24);
+    for (const side of [-1, 1]) {
+        const x = side < 0 ? [-58, -46] : [46, 58];
+        s.box(holder, m.red, x, [-62, 62], [z0 + 24, hinge]);
+        s.cylinder(holder, m.red, 'x', 124, side * 46, side * 58, [0, hinge]);
+        s.cylinder(holder, m.steel, 'x', 16, side * 58, side * 64, [0, hinge]);
+    }
+    s.box(holder, m.black, [58, 66], [-8, 8], [hinge - 46, hinge + 6]);                 // latitude lever
+    s.box(holder, m.black, [58, 66], [-34, 30], [hinge - 26, hinge - 14]);
+    s.knob(holder, m, 'x', 58, 84, [30, z0 + 44]);
+    s.box(holder, m.red, [-26, 26], [-84, -62], [z0 + 24, z0 + 66]);                   // azimuth block
+    for (const side of [-1, 1]) s.knob(holder, m, 'x', side * 26, side * 56, [-74, z0 + 44]);
+    s.cylinder(holder, m.steel, 'y', 10, -84, -110, [0, z0 + 58]);
+}
+
+function buildAm5Head(s, j, m, mount) {
+    const D = mount.decAlongRa;
+    s.cylinder(j.latitude, m.black, 'y', 104, 42, -(D - 72));                          // RA barrel
+    // Head (RA joint): the red cube, a black face on its west side, a cap where a counterweight bar would screw in.
+    s.box(j.ra, m.red, [-72, 72], [-72, 72], [-72, 72]);
+    s.box(j.ra, m.black, [-76, -72], [-72, 72], [-72, 72]);
+    s.cylinder(j.ra, m.black, 'z', 36, -72, -80);
+    // Puck (Dec joint): the Dec barrel and the red saddle with two black knobs.
+    s.cylinder(j.dec, m.black, 'z', 104, 72, 132);
+    s.box(j.dec, m.red, [-64, 64], [-96, 96], [132, 174]);
+    s.box(j.dec, m.red, [-64, -48], [-96, 96], [174, mount.saddleTop]);
+    s.box(j.dec, m.red, [40, 56], [-96, 96], [174, mount.saddleTop]);
+    for (const y of [-42, 42]) s.knob(j.dec, m, 'x', 56, 92, [y, 180]);
+}
+
+/**
+ * iOptron CEM70: a black centre-balanced mount. Its axes cross nearly over the pier, so the RA housing sits low and
+ * short and a tall Dec housing rises from it; a large round RA gear housing, an electronic polar finder's disc, a
+ * black saddle, and one big weight on a long shaft.
+ */
+function buildCem70Base(s, holder, m, mount) {
+    const z0 = mount.top, hinge = z0 + mount.hinge;
+    s.cylinder(holder, m.dark, 'z', 204, z0, z0 + 40);
+    s.box(holder, m.dark, [-96, 96], [-46, 46], [z0 + 40, z0 + 70]);                   // azimuth clamp
+    s.knob(holder, m, 'y', -46, -80, [60, z0 + 55]);
+    s.box(holder, m.dark, [-62, 62], [-74, 74], [z0 + 70, hinge]);
+    s.cylinder(holder, m.dark, 'x', 148, -62, 62, [0, hinge]);
+    s.cylinder(holder, m.grey, 'x', 70, 62, 68, [-20, hinge - 52]);                     // polar finder disc
+    s.cylinder(holder, m.steel, 'x', 20, -62, -70, [0, hinge]);
+}
+
+function buildCem70Head(s, j, m, mount) {
+    const D = mount.decAlongRa;
+    s.cylinder(j.latitude, m.dark, 'y', 150, 84, -(D - 30));                          // RA housing
+    s.cylinder(j.latitude, m.dark, 'y', 196, 40, 92);                                  // RA gear housing
+    s.cylinder(j.latitude, m.black, 'y', 120, 92, 98);
+    // Head (RA joint): the tall Dec housing, its motor box east, and the Dec gear housing near the top.
+    s.cylinder(j.ra, m.dark, 'z', 132, -120, 196);
+    s.box(j.ra, m.dark, [62, 108], [-60, 60], [-40, 120]);
+    s.cylinder(j.ra, m.dark, 'z', 196, 196, 232);
+    // The counterweight bar hangs from a lug at the pole end, off the Dec axis, so it clears the pier (the axes
+    // cross nearly over it); an end cap on the RA axis there.
+    s.cylinder(j.ra, m.dark, 'y', 150, -60, -104);
+    s.box(j.ra, m.dark, [-38, 38], [-190, -60], [-150, -40]);
+    s.cylinder(j.ra, m.dark, 'z', 76, -150, -170, [0, CEM70_BAR_Y]);
+    buildWeights(s, j.ra, m, { from: -170, to: -720, shaft: 28, stop: 40, weight: 196, thick: 110, at: [-480], material: m.dark, y: CEM70_BAR_Y });
+    // Puck (Dec joint): the saddle body and a black dual saddle with knobs east.
+    s.cylinder(j.dec, m.dark, 'z', 150, 232, 262);
+    s.box(j.dec, m.black, [-76, 76], [-150, 150], [262, 288]);
+    s.box(j.dec, m.black, [-76, -58], [-150, 150], [288, mount.saddleTop]);
+    s.box(j.dec, m.black, [50, 68], [-150, 150], [288, mount.saddleTop]);
+    for (const y of [-60, 60]) s.knob(j.dec, m, 'x', 68, 104, [y, 294]);
+}
+
+/**
+ * Sky-Watcher CQ350 Pro: black with bright green knobs. A short, wide RA drum rides in a curved latitude cradle (an
+ * arc under it) rather than on a tower; the flat Dec housing sits on top of the drum, its ports on the east side,
+ * with the saddle above; the counterweight bar hangs from an arm at the drum's north face, off the Dec axis, as on a
+ * centre-balanced mount; big green azimuth knobs on the base.
+ */
+function buildCq350Base(s, holder, m, mount) {
+    const z0 = mount.top, hinge = z0 + mount.hinge;
+    s.cylinder(holder, m.dark, 'z', 200, z0, z0 + 36);
+    s.cylinder(holder, m.black, 'z', 186, z0 + 36, z0 + 46);
+    for (const side of [-1, 1]) s.knob(holder, m, 'x', side * 92, side * 132, [0, z0 + 22], m.green);
+    // The cradle: a post up to an arc under the RA drum, in the north-south plane about the hinge.
+    s.box(holder, m.dark, [-40, 40], [-40, 40], [z0 + 46, hinge - 118]);
+    const r = 122;
+    for (let a = 200; a <= 340; a += 10) {
+        const t = a * Math.PI / 180;
+        s.cylinder(holder, m.dark, 'x', 42, -56, 56, [r * Math.cos(t), hinge + r * Math.sin(t)], { tessellation: 16 });
+    }
+    s.knob(holder, m, 'x', 56, 96, [0, hinge - 118], m.green);                             // latitude lock
+}
+
+function buildCq350Head(s, j, m, mount) {
+    const D = mount.decAlongRa, bar = CQ350_BAR_Y;
+    // RA drum (latitude joint): short and wide, in the cradle, a round cap on its north face, a green ring south.
+    s.cylinder(j.latitude, m.dark, 'y', 210, 56, -46);
+    s.cylinder(j.latitude, m.black, 'y', 116, -46, -58);
+    s.cylinder(j.latitude, m.green, 'y', 214, 56, 64);
+    s.cylinder(j.latitude, m.dark, 'y', 196, 64, 80);
+    // Head (RA joint; the axes cross over the drum): the flat Dec housing on top of the drum, its ports east, and
+    // an arm down past the drum's north face carrying the counterweight bar, off the Dec axis so it clears the pier.
+    s.box(j.ra, m.dark, [-82, 82], [bar - 22, 100], [104, 170]);
+    s.box(j.ra, m.black, [82, 88], [-60, 70], [116, 160]);
+    for (const [y, z] of [[-40, 146], [-16, 146], [8, 146], [40, 130]]) s.cylinder(j.ra, m.steel, 'x', 12, 88, 91, [y, z], { tessellation: 16 });
+    s.knob(j.ra, m, 'x', -82, -112, [40, 136], m.green);                                 // Dec clutch
+    s.box(j.ra, m.dark, [-44, 44], [bar - 22, bar + 22], [-64, 104]);                    // the arm
+    buildWeights(s, j.ra, m, { from: -64, to: -560, shaft: 28, stop: 44, weight: 160, thick: 64, at: [-380, -452], material: m.dark, y: bar });
+    // Puck (Dec joint): the Dec plate and the saddle with green knobs on its west side.
+    s.cylinder(j.dec, m.dark, 'z', 172, 170, 190);
+    s.cylinder(j.dec, m.green, 'z', 176, 170, 176);
+    s.box(j.dec, m.dark, [-66, 66], [-142, 142], [190, 226]);
+    s.box(j.dec, m.black, [-60, 60], [-138, 138], [226, mount.saddleTop]);
+    for (const y of [-90, 0, 90]) s.knob(j.dec, m, 'x', -66, -104, [y, 230], m.green);
+}
+
+/**
+ * Sky-Watcher EQM-35 Pro: a small white mount. A white latitude tower with a black dial; a white RA housing with a
+ * green ring and its black motor box; a tall white Dec housing with a ribbed conical nose, a round black clutch knob
+ * and the black Dec motor box; a green anodised saddle on a short neck, and two white weights.
+ */
+function buildEqm35Base(s, holder, m, mount) {
+    const z0 = mount.top, hinge = z0 + mount.hinge;
+    s.cylinder(holder, m.white, 'z', 112, z0, z0 + 28);
+    s.box(holder, m.white, [-30, 30], [-38, 38], [z0 + 28, hinge]);
+    s.cylinder(holder, m.white, 'x', 80, -30, 30, [0, hinge]);
+    s.cylinder(holder, m.black, 'x', 58, 30, 36, [0, hinge]);                             // dial
+    s.cylinder(holder, m.black, 'x', 58, -30, -34, [0, hinge]);
+    for (const side of [-1, 1]) {                                                         // latitude T-bolts
+        s.cylinder(holder, m.steel, 'y', 9, side * 38, side * 96, [0, z0 + 54]);
+        s.cylinder(holder, m.steel, 'x', 7, -22, 22, [side * 96, z0 + 54]);
+    }
+    for (const side of [-1, 1]) s.knob(holder, m, 'x', side * 30, side * 62, [-24, z0 + 16]);   // azimuth
+}
+
+function buildEqm35Head(s, j, m, mount) {
+    const D = mount.decAlongRa, junction = -(D - 50);
+    // RA housing (latitude joint): white, a green ring near the head, the polar scope cap south, the RA motor east.
+    s.cylinder(j.latitude, m.white, 'y', 86, 92, junction);
+    s.cylinder(j.latitude, m.green, 'y', 90, junction + 22, junction + 12);
+    s.cylinder(j.latitude, m.white, 'y', 86, 92, 104, [0, 0], { top: 64 });
+    s.cylinder(j.latitude, m.black, 'y', 44, 104, 116);
+    s.box(j.latitude, m.black, [42, 86], [-50, 20], [-30, 30]);
+    // Head (RA joint): the tall white Dec housing with a ribbed conical nose down to the shaft, a round black Dec
+    // clutch knob, the Dec motor box with its ports on the east side near the top, and two white weights.
+    s.cylinder(j.ra, m.white, 'y', 92, 50, 34);
+    s.cylinder(j.ra, m.white, 'z', 92, -150, 92);
+    s.cylinder(j.ra, m.white, 'z', 92, -150, -188, [0, 0], { top: 40 });
+    for (let z = -158; z > -184; z -= 8) {
+        const d = 92 - (52 * (-150 - z)) / 38;
+        s.cylinder(j.ra, m.white, 'z', d + 4, z, z - 3, [0, 0], { tessellation: 32 });
+    }
+    s.knob(j.ra, m, 'x', 22, 50, [0, -176]);                                             // shaft lock
+    s.cylinder(j.ra, m.black, 'x', 40, -44, -60, [-20, -40], { tessellation: 24 });     // Dec clutch knob
+    s.box(j.ra, m.black, [44, 100], [-40, 46], [10, 92]);                                // Dec motor box
+    for (const [y, z] of [[-24, 70], [-4, 70], [16, 70], [-14, 34]]) s.cylinder(j.ra, m.steel, 'x', 10, 100, 103, [y, z], { tessellation: 16 });
+    buildWeights(s, j.ra, m, { from: -188, to: -420, shaft: 16, stop: 26, weight: 112, thick: 40, at: [-300, -346], material: m.white });
+    // Puck (Dec joint): a green ring, a short white neck, and the green anodised saddle with a black knob.
+    s.cylinder(j.dec, m.green, 'z', 96, 92, 100);
+    s.cylinder(j.dec, m.white, 'z', 74, 100, 114);
+    s.box(j.dec, m.green, [-34, 34], [-62, 62], [114, 128]);
+    s.box(j.dec, m.green, [-34, -24], [-62, 62], [128, mount.saddleTop]);
+    s.box(j.dec, m.green, [20, 30], [-62, 62], [128, mount.saddleTop]);
+    for (const y of [-26, 26]) s.knob(j.dec, m, 'x', 30, 56, [y, 132]);
+}
+
+/**
+ * Sky-Watcher Wave 150i Pro: a black strain-wave mount with green trim, without counterweights. A black base with
+ * green knobs and side plates, a short RA barrel, a big black drum with a green ring (the RA head, carrying the Dec
+ * drive), and the Dec axis out of the drum's side to a black saddle with green knobs and a small port box.
+ */
+function buildWave150Base(s, holder, m, mount) {
+    const z0 = mount.top, hinge = z0 + mount.hinge;
+    s.box(holder, m.dark, [-62, 62], [-72, 72], [z0, z0 + 40]);
+    for (const side of [-1, 1]) {
+        const x = side < 0 ? [-62, -50] : [50, 62];
+        s.box(holder, m.dark, x, [-56, 56], [z0 + 40, hinge]);
+        s.cylinder(holder, m.dark, 'x', 112, side * 50, side * 62, [0, hinge]);
+        s.knob(holder, m, 'x', side * 62, side * 92, [-40, z0 + 20], m.green);          // azimuth
+    }
+    s.knob(holder, m, 'x', 62, 94, [30, hinge - 30], m.green);                           // latitude lock
+    s.knob(holder, m, 'y', -72, -100, [0, z0 + 20], m.green);
+}
+
+function buildWave150Head(s, j, m, mount) {
+    const D = mount.decAlongRa;
+    s.cylinder(j.latitude, m.dark, 'y', 116, 46, -(D - 100));                           // RA barrel
+    // Head (RA joint): the big drum along the polar axis, a green ring near its base.
+    s.cylinder(j.ra, m.dark, 'y', 172, 100, -84);
+    s.cylinder(j.ra, m.dark, 'y', 172, -84, -96, [0, 0], { top: 150 });
+    s.cylinder(j.ra, m.green, 'y', 176, 70, 80);
+    s.cylinder(j.ra, m.black, 'x', 40, 86, 90, [-10, -20], { tessellation: 24 });       // the Wi-Fi badge
+    s.cylinder(j.ra, m.black, 'z', 40, -86, -92);                                       // counterweight thread cap
+    // Puck (Dec joint): out of the drum's side: the Dec plate, a port box and the saddle with green knobs.
+    s.cylinder(j.dec, m.dark, 'z', 108, 84, 104);
+    s.box(j.dec, m.black, [-46, 46], [-70, -20], [104, 126]);
+    s.box(j.dec, m.dark, [-52, 52], [-92, 92], [104, 128]);
+    s.box(j.dec, m.dark, [-52, -38], [-92, 92], [128, mount.saddleTop]);
+    s.box(j.dec, m.dark, [32, 46], [-92, 92], [128, mount.saddleTop]);
+    for (const y of [-40, 40]) s.knob(j.dec, m, 'x', 46, 76, [y, 132], m.green);
+}
+
+/**
+ * iOptron CEM40: a centre-balanced mount in red and black, the CEM70's smaller sibling. A black base with shaped
+ * side plates, a brass latitude screw and a bubble level; a red RA housing with a black octagonal end cap; a black
+ * Dec housing with a red band; a black saddle, and one black weight on a steel shaft.
+ */
+function buildCem40Base(s, holder, m, mount) {
+    const z0 = mount.top, hinge = z0 + mount.hinge;
+    s.cylinder(holder, m.dark, 'z', 156, z0, z0 + 24);
+    for (const side of [-1, 1]) {
+        const x = side < 0 ? [-58, -46] : [46, 58];
+        s.box(holder, m.dark, x, [-66, 54], [z0 + 24, hinge]);
+        s.cylinder(holder, m.dark, 'x', 110, side * 46, side * 58, [0, hinge]);
+        s.cylinder(holder, m.steel, 'x', 18, side * 58, side * 62, [0, hinge]);
+    }
+    s.cylinder(holder, m.brass, 'z', 10, z0 + 30, hinge - 60, [0, -50]);              // latitude screw
+    s.cylinder(holder, m.black, 'x', 26, -12, 12, [-50, z0 + 70], { tessellation: 5 });
+    s.cylinder(holder, m.green, 'x', 16, 58, 62, [-40, z0 + 14], { tessellation: 16 });  // bubble level
+    s.knob(holder, m, 'y', -66, -92, [30, z0 + 14]);                                     // azimuth
+}
+
+function buildCem40Head(s, j, m, mount) {
+    const D = mount.decAlongRa;
+    // RA housing (latitude joint): red, a black octagonal cap on its south end.
+    s.cylinder(j.latitude, m.red, 'y', 118, 92, -(D - 20));
+    s.cylinder(j.latitude, m.dark, 'y', 142, 92, 128, [0, 0], { tessellation: 8 });
+    // Head (RA joint): the black Dec housing with a red band, the Dec drive on top, and the counterweight.
+    s.box(j.ra, m.dark, [-60, 60], [-62, 62], [-84, 108]);
+    s.cylinder(j.ra, m.red, 'z', 128, -24, 52);
+    s.cylinder(j.ra, m.dark, 'z', 150, 108, 136);
+    s.box(j.ra, m.dark, [60, 92], [-40, 30], [20, 96]);                                 // ports box
+    // The counterweight bar hangs from a lug at the pole end, off the Dec axis, so it clears the pier (the axes
+    // cross nearly over it); an end cap on the RA axis there.
+    s.cylinder(j.ra, m.dark, 'y', 124, -62, -100);
+    s.box(j.ra, m.dark, [-32, 32], [-168, -62], [-112, -30]);
+    s.cylinder(j.ra, m.dark, 'z', 62, -112, -130, [0, CEM40_BAR_Y]);
+    buildWeights(s, j.ra, m, { from: -130, to: -540, shaft: 22, stop: 34, weight: 150, thick: 84, at: [-380], material: m.dark, y: CEM40_BAR_Y });
+    // Puck (Dec joint): the Dec plate and a black saddle with a big knob east.
+    s.cylinder(j.dec, m.dark, 'z', 128, 136, 156);
+    s.box(j.dec, m.black, [-62, 62], [-130, 130], [156, 196]);
+    s.box(j.dec, m.black, [-62, -48], [-130, 130], [196, mount.saddleTop]);
+    s.box(j.dec, m.black, [42, 56], [-130, 130], [196, mount.saddleTop]);
+    s.cylinder(j.dec, m.black, 'x', 46, 62, 82, [60, 180], { tessellation: 24 });
+}
+
+/**
+ * OTAs built from simple shapes (ASSEMBLY_BUILT_OTAS), in their own frame on the saddle (millimetres): the tube
+ * along Y with its aperture toward -Y (the pole at the home position), its dovetail standing on the saddle at z = 0.
+ * Drawn at the size an .obj OTA has at the default scale (ASSEMBLY_OTA.scale), then scaled with it.
+ */
+
+/** A small finder scope on a foot, along the tube's top at height `z`, from y0 to y1. */
+function buildFinder(s, ota, m, z, y0, y1) {
+    s.box(ota, m.black, [-10, 10], [y0 + 30, y1 - 30], [z, z + 24]);
+    s.cylinder(ota, m.black, 'y', 44, y0, y1, [0, z + 46]);
+    s.cylinder(ota, m.glass, 'y', 36, y0 - 1, y0, [0, z + 46], { tessellation: 24 });
+}
+
+/**
+ * Newtonian: a long open tube on two tube rings and a dovetail; the open aperture dark at the front, the focuser on
+ * the side near the front, a finder on top, and the mirror cell with collimation knobs at the back.
+ */
+function buildNewtonian(s, ota, m) {
+    const d = 250, half = 520, axis = 20 + 18 + d / 2;          // the tube's axis above the dovetail's foot
+    s.box(ota, m.steel, [-40, 40], [-270, 270], [0, 20]);       // dovetail
+    for (const y of [-210, 210]) {                              // tube rings and their feet
+        s.box(ota, m.black, [-18, 18], [y - 14, y + 14], [20, 40]);
+        s.cylinder(ota, m.black, 'y', d + 26, y - 16, y + 16, [0, axis], { tessellation: 48 });
+    }
+    // The tube stops just inside the front ring and mirror cell, so their faces don't fight over the same plane.
+    s.cylinder(ota, m.ota, 'y', d, -half + 4, half - 4, [0, axis], { tessellation: 48 });
+    s.cylinder(ota, m.black, 'y', d + 8, -half, -half + 16, [0, axis], { tessellation: 48 });   // front ring
+    s.cylinder(ota, m.glass, 'y', d - 14, -half - 1, -half, [0, axis], { tessellation: 48 });   // the open end, dark
+    s.cylinder(ota, m.black, 'y', d + 6, half - 22, half, [0, axis], { tessellation: 48 });     // mirror cell
+    for (const a of [90, 210, 330]) {                           // collimation knobs
+        const t = a * Math.PI / 180;
+        s.cylinder(ota, m.black, 'y', 22, half, half + 16, [d * 0.32 * Math.cos(t), axis + d * 0.32 * Math.sin(t)], { tessellation: 12 });
+    }
+    // Focuser out of the east side near the front, its draw tube and a knob.
+    s.box(ota, m.black, [d / 2 - 6, d / 2 + 18], [-half + 70, -half + 150], [axis - 40, axis + 40]);
+    s.cylinder(ota, m.black, 'x', 64, d / 2 + 18, d / 2 + 70, [-half + 110, axis]);
+    s.cylinder(ota, m.steel, 'x', 48, d / 2 + 70, d / 2 + 110, [-half + 110, axis]);
+    s.cylinder(ota, m.black, 'z', 20, axis - 50, axis + 50, [d / 2 + 44, -half + 110], { tessellation: 12 });
+    buildFinder(s, ota, m, axis + d / 2, -half + 60, -half + 260);
+}
+
+/**
+ * Maksutov-Cassegrain: a short, fat tube; the glass meniscus at the front with its silvered secondary spot, a
+ * mounting rail, and at the back the visual back, a star diagonal, an eyepiece and the focus knob.
+ */
+function buildMaksutov(s, ota, m) {
+    const d = 210, front = -240, back = 230, axis = 18 + 14 + d / 2;
+    s.box(ota, m.steel, [-36, 36], [-170, 170], [0, 18]);       // dovetail
+    for (const y of [-120, 120]) s.box(ota, m.black, [-24, 24], [y - 22, y + 22], [18, 40]);    // mounting blocks
+    s.cylinder(ota, m.ota, 'y', d, front + 4, back, [0, axis], { tessellation: 48 });   // just inside the front cell
+    s.cylinder(ota, m.black, 'y', d + 12, front, front + 34, [0, axis], { tessellation: 48 });  // front cell
+    s.cylinder(ota, m.glass, 'y', d - 24, front - 2, front, [0, axis], { tessellation: 48 });   // meniscus
+    s.cylinder(ota, m.steel, 'y', 60, front - 3, front - 2, [0, axis], { tessellation: 32 });  // secondary spot
+    s.cylinder(ota, m.black, 'y', d - 8, back, back + 30, [0, axis], { tessellation: 48 });    // rear cell
+    s.cylinder(ota, m.black, 'y', 56, back + 30, back + 74, [0, axis]);                        // visual back
+    s.box(ota, m.black, [-30, 30], [back + 74, back + 134], [axis - 30, axis + 30]);           // star diagonal
+    s.cylinder(ota, m.black, 'z', 46, axis + 30, axis + 74, [0, back + 104]);
+    s.cylinder(ota, m.steel, 'z', 40, axis + 74, axis + 130, [0, back + 104]);                 // eyepiece
+    s.cylinder(ota, m.black, 'x', 38, d / 2 - 30, d / 2 + 6, [back + 14, axis - 40], { tessellation: 16 });  // focus knob
+    buildFinder(s, ota, m, axis + d / 2, front + 40, front + 200);
 }
 
 // ===== Blazor interop =====

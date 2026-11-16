@@ -48,6 +48,53 @@ public enum CardinalSize
     XLarge
 }
 
+/// <summary>
+/// EXPERIMENTAL: what an assembled model stands on (model3d.js ASSEMBLY_SUPPORTS, keyed by these names in lower case):
+/// tripods at 82%, 100% and 120% of the full-size one, piers 6, 10 and 12 inches across.
+/// </summary>
+public enum AssemblySupport
+{
+    SmallTripod,
+    MediumTripod,
+    LargeTripod,
+    SmallPier,
+    MediumPier,
+    LargePier
+}
+
+/// <summary>
+/// EXPERIMENTAL: the mount of an assembled model (model3d.js ASSEMBLY_MOUNTS, keyed by these names in lower case).
+/// All German equatorial: they share the viewer's joints and differ in measurements and shapes.
+/// </summary>
+public enum AssemblyMount
+{
+    Eq6rPro,
+    Heq5Pro,
+    Eq8rPro,
+    Am5,
+    Cem70,
+    Cq350Pro,
+    Eqm35Pro,
+    Wave150iPro,
+    Cem40
+}
+
+/// <summary>
+/// EXPERIMENTAL: the OTA an assembled model carries. The first five are the tube from that model's German polar .obj
+/// (same names as <see cref="GS.Alpaca.Shared.Model3DType"/>); the rest the viewer builds itself
+/// (model3d.js ASSEMBLY_BUILT_OTAS, keyed by these names).
+/// </summary>
+public enum AssemblyOta
+{
+    Refractor,
+    Reflector,
+    SchmidtCassegrain,
+    RitcheyChretien,
+    RitcheyChretienTruss,
+    Newtonian,
+    MaksutovCassegrain
+}
+
 /// <summary>Which edge of the scene the coordinates grid sits on; the model moves into the space left over.</summary>
 public enum GridPosition
 {
@@ -94,6 +141,107 @@ public static class Model3D
         "RitcheyChretien.obj", "RitcheyChretienAltAz.obj",
         "RitcheyChretienTruss.obj", "RitcheyChretienTrussAltAz.obj",
         "DualTelescopeAltAz.obj", "DualTelescopePolarLeft.obj", "DualTelescopePolarRight.obj"
+    };
+
+    // ===== EXPERIMENTAL: models assembled from parts (model3d.js loadAssembly) =====
+
+    /// <summary>
+    /// The model file an assembled model loads by: the tripod (also loaded only for a tripod support). The viewer
+    /// builds the pier and the mount itself, and takes the OTA from that OTA's German polar .obj.
+    /// </summary>
+    public const string AssemblyFile = "eq6r/TripodAndBase.glb";
+
+    /// <summary>The OTAs an assembled model can carry, in the order offered.</summary>
+    public static IReadOnlyList<AssemblyOta> AssemblyOtas { get; } = Enum.GetValues<AssemblyOta>();
+
+    /// <summary>
+    /// The model type whose .obj an OTA's tube comes from, or null for an OTA the viewer builds itself.
+    /// </summary>
+    public static Model3DType? GetObjModel(AssemblyOta ota)
+        => Enum.TryParse<Model3DType>(ota.ToString(), out var type) ? type : null;
+
+    /// <summary>
+    /// Whether the assembled model shows: on a German equatorial mount (the only kind assembled so far). Other mounts
+    /// show the usual model of the chosen OTA.
+    /// </summary>
+    public static bool ShowsAssembly(AlignmentModes mode, PolarMode polarMode)
+        => GetSuffix(mode, polarMode).Length == 0;
+
+    /// <summary>
+    /// The OTA sizes offered, in percent of the mount's own OTA size (model3d.js ASSEMBLY_MOUNTS otaScale), so one
+    /// setting suits whichever mount is chosen. 100 is the mount's own size.
+    /// </summary>
+    public static IReadOnlyList<int> AssemblyOtaSizes { get; } = [50, 75, 100, 125, 150, 200];
+
+    public const int DefaultAssemblyOtaSize = 100;
+
+    /// <summary>A saved OTA size if it is one offered, else the mount's own size.</summary>
+    public static int GetAssemblyOtaSize(int percent)
+        => AssemblyOtaSizes.Contains(percent) ? percent : DefaultAssemblyOtaSize;
+
+    /// <summary>
+    /// The usual (.obj) model to show for an OTA: when the assembled model is off, or on a mount it doesn't cover. A
+    /// built OTA shows the nearest one: the Newtonian as the reflector, the Maksutov as the Schmidt-Cassegrain.
+    /// </summary>
+    public static Model3DType GetUsualModel(AssemblyOta ota) => GetObjModel(ota) ?? ota switch
+    {
+        AssemblyOta.MaksutovCassegrain => Model3DType.SchmidtCassegrain,
+        _ => Model3DType.Reflector
+    };
+
+    /// <summary>
+    /// The OTA for a server saved before the OTA was chosen on the card: its old Model's, or the refractor for the
+    /// default and dual-telescope models, which have no OTA of their own.
+    /// </summary>
+    public static AssemblyOta GetOtaFor(Model3DType modelType)
+        => Enum.TryParse<AssemblyOta>(modelType.ToString(), out var ota) ? ota : AssemblyOta.Refractor;
+
+    public static string GetDisplayName(AssemblyOta ota) => ota switch
+    {
+        AssemblyOta.Newtonian => L.T("Newtonian"),
+        AssemblyOta.MaksutovCassegrain => L.T("Maksutov-Cassegrain"),
+        _ => GetDisplayName(GetObjModel(ota) ?? Model3DType.Refractor)
+    };
+
+    public static string GetDisplayName(AssemblySupport support) => support switch
+    {
+        AssemblySupport.SmallTripod => L.T("Small tripod"),
+        AssemblySupport.LargeTripod => L.T("Large tripod"),
+        AssemblySupport.SmallPier => L.T("Small pier"),
+        AssemblySupport.MediumPier => L.T("Medium pier"),
+        AssemblySupport.LargePier => L.T("Large pier"),
+        _ => L.T("Medium tripod")
+    };
+
+    /// <summary>The support a new server starts with.</summary>
+    public const AssemblySupport DefaultAssemblySupport = AssemblySupport.MediumTripod;
+
+    /// <summary>
+    /// A saved support. Earlier names become their size: the full-size tripod the medium one, the observatory pier
+    /// (9 inches) and the 10-inch pier the medium pier, the 6-inch the small one and the 12-inch the large one.
+    /// Anything else unknown is the default.
+    /// </summary>
+    public static AssemblySupport ParseAssemblySupport(string? saved) => saved switch
+    {
+        "Tripod" => AssemblySupport.MediumTripod,
+        "Pier" or "Pier10" => AssemblySupport.MediumPier,
+        "Pier6" => AssemblySupport.SmallPier,
+        "Pier12" => AssemblySupport.LargePier,
+        _ => Enum.TryParse<AssemblySupport>(saved, out var support) && Enum.IsDefined(support) ? support : DefaultAssemblySupport
+    };
+
+    /// <summary>The mount's maker and product name (not translated).</summary>
+    public static string GetDisplayName(AssemblyMount mount) => mount switch
+    {
+        AssemblyMount.Heq5Pro => "Sky-Watcher HEQ5 Pro",
+        AssemblyMount.Eq8rPro => "Sky-Watcher EQ8-R Pro",
+        AssemblyMount.Am5 => "ZWO AM5",
+        AssemblyMount.Cem70 => "iOptron CEM70",
+        AssemblyMount.Cem40 => "iOptron CEM40",
+        AssemblyMount.Cq350Pro => "Sky-Watcher CQ350 Pro",
+        AssemblyMount.Eqm35Pro => "Sky-Watcher EQM-35 Pro",
+        AssemblyMount.Wave150iPro => "Sky-Watcher Wave 150i Pro",
+        _ => "Sky-Watcher EQ6-R Pro"
     };
 
     /// <summary>File-name suffix GSServer adds for each alignment mode.</summary>

@@ -245,6 +245,20 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     /// <summary>How big the distant N E S W letters are.</summary>
     [ObservableProperty] public partial CardinalSize CardinalSize { get; set; } = CardinalSize.Large;
 
+    // EXPERIMENTAL: the model assembled from parts (a support, a mount and an OTA), shown on a German equatorial
+    // mount; other mounts show the usual model of the OTA.
+    /// <summary>What the assembled model stands on.</summary>
+    [ObservableProperty] public partial AssemblySupport AssemblySupport { get; set; } = Model3D.DefaultAssemblySupport;
+
+    /// <summary>The assembled model's mount.</summary>
+    [ObservableProperty] public partial AssemblyMount AssemblyMount { get; set; } = AssemblyMount.Eq6rPro;
+
+    /// <summary>The OTA the assembled model carries (one of <see cref="Model3D.AssemblyOtas"/>).</summary>
+    [ObservableProperty] public partial AssemblyOta AssemblyOta { get; set; } = AssemblyOta.Refractor;
+
+    /// <summary>The OTA's size, in percent of the mount's own (one of <see cref="Model3D.AssemblyOtaSizes"/>).</summary>
+    [ObservableProperty] public partial int AssemblyOtaSize { get; set; } = Model3D.DefaultAssemblyOtaSize;
+
     /// <summary>Saved 3D camera position for this server's model (null = the default view).</summary>
     [ObservableProperty] public partial CameraView? Camera { get; set; }
 

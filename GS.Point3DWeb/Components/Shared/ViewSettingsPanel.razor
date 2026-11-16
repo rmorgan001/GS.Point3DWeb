@@ -30,18 +30,50 @@
     </header>
 
     <div class="settings-body">
-        <fieldset class="show-items model">
-            <legend>@L.T("3D Model")</legend>
-            <div class="model-grid">
-                <label class="field model-type">
-                    <span class="field-label">@L.T("Model")</span>
-                    <select value="@Server.ModelType" @onchange="OnModelChanged">
-                        @foreach (var type in Model3D.ModelTypes)
+        @* EXPERIMENTAL: a model assembled from parts (model3d.js loadAssembly) instead of the usual one. *@
+        <fieldset class="show-items assembly">
+            <legend>@L.T("Assembled model (experimental)")</legend>
+            <div class="assembly-grid first">
+                <label class="field">
+                    <span class="field-label">@L.T("Support")</span>
+                    <select value="@Server.AssemblySupport" @onchange="OnAssemblySupportChanged">
+                        @foreach (var support in Enum.GetValues<AssemblySupport>())
                         {
-                            <option value="@type">@Model3D.GetDisplayName(type)</option>
+                            <option value="@support">@Model3D.GetDisplayName(support)</option>
                         }
                     </select>
                 </label>
+                <label class="field">
+                    <span class="field-label">@L.T("Mount")</span>
+                    <select value="@Server.AssemblyMount" @onchange="OnAssemblyMountChanged">
+                        @foreach (var mount in Enum.GetValues<AssemblyMount>())
+                        {
+                            <option value="@mount">@Model3D.GetDisplayName(mount)</option>
+                        }
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field-label">@L.T("OTA")</span>
+                    <select value="@Server.AssemblyOta" @onchange="OnAssemblyOtaChanged">
+                        @foreach (var ota in Model3D.AssemblyOtas)
+                        {
+                            <option value="@ota">@Model3D.GetDisplayName(ota)</option>
+                        }
+                    </select>
+                </label>
+                <label class="field" title="@L.T("The OTA's size, compared with the size that suits the chosen mount")">
+                    <span class="field-label">@L.T("OTA size")</span>
+                    <select value="@Model3D.GetAssemblyOtaSize(Server.AssemblyOtaSize)" @onchange="OnAssemblyOtaSizeChanged">
+                        @foreach (var size in Model3D.AssemblyOtaSizes)
+                        {
+                            <option value="@size">@(size == Model3D.DefaultAssemblyOtaSize ? L.T("{0}% (the mount's size)", size) : $"{size}%")</option>
+                        }
+                    </select>
+                </label>
+            </div>
+            <p class="assembly-note">@L.T("German equatorial mounts only: other mounts show the usual model.")</p>
+            @* How the model lines up with the mount, for any model: polar (fork) side, and fixed turns of its axes. *@
+            <div class="assembly-grid adjust-grid">
                 <label class="field">
                     <span class="field-label">@L.T("Polar mode")</span>
                     <select value="@Server.PolarMode" @onchange="OnPolarModeChanged"
@@ -438,10 +470,32 @@
     private void OnServerPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         => _ = InvokeAsync(StateHasChanged);
 
-    private Task OnModelChanged(ChangeEventArgs e)
+    private Task OnAssemblySupportChanged(ChangeEventArgs e)
     {
-        if (!Enum.TryParse<GS.Alpaca.Shared.Model3DType>(e.Value?.ToString(), out var type)) return Task.CompletedTask;
-        Server.ModelType = type;
+        if (!Enum.TryParse<AssemblySupport>(e.Value?.ToString(), out var support)) return Task.CompletedTask;
+        Server.AssemblySupport = support;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task OnAssemblyMountChanged(ChangeEventArgs e)
+    {
+        if (!Enum.TryParse<AssemblyMount>(e.Value?.ToString(), out var mount)) return Task.CompletedTask;
+        Server.AssemblyMount = mount;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task OnAssemblyOtaChanged(ChangeEventArgs e)
+    {
+        if (!Enum.TryParse<AssemblyOta>(e.Value?.ToString(), out var ota) || !Enum.IsDefined(ota)) return Task.CompletedTask;
+        Server.AssemblyOta = ota;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task OnAssemblyOtaSizeChanged(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var size))
+            return Task.CompletedTask;
+        Server.AssemblyOtaSize = Model3D.GetAssemblyOtaSize(size);
         return OnChanged.InvokeAsync();
     }
 

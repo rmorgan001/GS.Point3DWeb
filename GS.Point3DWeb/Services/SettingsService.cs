@@ -263,6 +263,13 @@ public class SettingsService
                     ShowHeading = s.ShowHeading ?? false,
                     ShowCardinals = s.ShowCardinals ?? false,
                     CardinalSize = Enum.TryParse<CardinalSize>(s.CardinalSize, out var cardinalSize) && Enum.IsDefined(cardinalSize) ? cardinalSize : CardinalSize.Large,
+                    AssemblySupport = Model3D.ParseAssemblySupport(s.AssemblySupport),
+                    AssemblyMount = Enum.TryParse<AssemblyMount>(s.AssemblyMount, out var assemblyMount) && Enum.IsDefined(assemblyMount) ? assemblyMount : AssemblyMount.Eq6rPro,
+                    // Saved before the OTA was chosen on the card: the OTA of the Model it had, so its view doesn't change.
+                    AssemblyOta = Enum.TryParse<AssemblyOta>(s.AssemblyOta, out var assemblyOta) && Enum.IsDefined(assemblyOta)
+                        ? assemblyOta
+                        : Model3D.GetOtaFor(Enum.TryParse<Model3DType>(s.ModelType, out var oldModel) && Enum.IsDefined(oldModel) ? oldModel : Model3DType.Default),
+                    AssemblyOtaSize = Model3D.GetAssemblyOtaSize(s.AssemblyOtaSize ?? Model3D.DefaultAssemblyOtaSize),
                     ShowMountState = s.ShowMountState ?? true,
                     CoordinatesLayout = Enum.TryParse<CoordinatesLayout>(s.CoordinatesLayout, out var layout) && Enum.IsDefined(layout) ? layout : CoordinatesLayout.Individual,
                     GridPosition = Enum.TryParse<GridPosition>(s.GridPosition, out var gridPosition) && Enum.IsDefined(gridPosition) ? gridPosition : GridPosition.Left
@@ -413,7 +420,8 @@ public class SettingsService
                     s.PolarMode.ToString(), s.AlignmentMode.ToString(), s.Latitude, s.Camera,
                     s.PollSeconds, s.ShowLst, s.RaInDegrees, s.ModelColor, s.Background, s.ShowGrid, s.ShowMountState,
                     s.CoordinatesLayout.ToString(), s.GridPosition.ToString(), s.ShowHeading, s.ShowCardinals,
-                    s.CardinalSize.ToString()))],
+                    s.CardinalSize.ToString(), s.AssemblySupport.ToString(), s.AssemblyMount.ToString(),
+                    s.AssemblyOta.ToString(), s.AssemblyOtaSize))],
                 [.. quadrants.Select(id => servers.Any(s => s.IdGuid == id) ? id : null)],
                 ViewCount,
                 CurrentVersion,
@@ -504,5 +512,6 @@ public class SettingsService
         CameraView? Camera = null, double? PollSeconds = null, bool? ShowLst = null, bool? RaInDegrees = null,
         string? ModelColor = null, string? Background = null, bool? ShowGrid = null, bool? ShowMountState = null,
         string? CoordinatesLayout = null, string? GridPosition = null, bool? ShowHeading = null,
-        bool? ShowCardinals = null, string? CardinalSize = null);
+        bool? ShowCardinals = null, string? CardinalSize = null, string? AssemblySupport = null,
+        string? AssemblyMount = null, string? AssemblyOta = null, int? AssemblyOtaSize = null);
 }

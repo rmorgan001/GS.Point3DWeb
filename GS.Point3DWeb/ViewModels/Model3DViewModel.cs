@@ -56,6 +56,11 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     private TimeSpan _nextMountInfoTry;
     private const int MountInfoTries = 5;
     private static readonly TimeSpan MountInfoRetryInterval = TimeSpan.FromSeconds(2);
+    // Once the mount info is read, the latitude is read again this often, so a site changed in the driver
+    // (another hemisphere, say) reaches the compass, tilt and pose without a reconnect.
+    // Settable so tests don't wait a minute.
+    internal TimeSpan LatitudeRefreshInterval { get; init; } = TimeSpan.FromSeconds(60);
+    private TimeSpan _nextLatitudeRead;
 
     // The shared read this view last had (AlpacaConnector.ReadStateAsync), so it isn't handed the same one again.
     // The number counts one server's reads, so it starts again (0, never a read's number) when the server changes.
@@ -317,6 +322,22 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
                             _logger.LogWarning("{Server}: the alignment mode and latitude couldn't be read after {Tries} tries; using {Mode}",
                                 server.ServerName, MountInfoTries, server.AlignmentMode);
                         }
+                        if (_mountInfoRead) _nextLatitudeRead = timer.Elapsed + LatitudeRefreshInterval;
+                    }
+                    else if (_mountInfoRead && timer.Elapsed >= _nextLatitudeRead)
+                    {
+                        _nextLatitudeRead = timer.Elapsed + LatitudeRefreshInterval;
+                        // A failed re-read only means the latitude stays as it is; the poll below finds out
+                        // whether the server is still there.
+                        try
+                        {
+                            await AlpacaConnector.RefreshLatitudeAsync(server, token);
+                        }
+                        catch (Exception ex) when (!token.IsCancellationRequested)
+                        {
+                            _logger.LogDebug(ex, "{Server}: the latitude couldn't be read again", server.ServerName);
+                        }
+                        if (token.IsCancellationRequested) break;
                     }
 
                     if (!IsConnectionBusy && timer.Elapsed - _lastConnectedCheck >= ConnectedCheckInterval)

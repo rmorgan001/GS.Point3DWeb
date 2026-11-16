@@ -39,6 +39,15 @@ public enum CoordinatesLayout
     None
 }
 
+/// <summary>How big the distant N E S W letters in the 3D view are (model3d.js CARDINAL_SIZES).</summary>
+public enum CardinalSize
+{
+    Small,
+    Medium,
+    Large,
+    XLarge
+}
+
 /// <summary>Which edge of the scene the coordinates grid sits on; the model moves into the space left over.</summary>
 public enum GridPosition
 {

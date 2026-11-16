@@ -108,6 +108,24 @@
                 <label class="check" title="@L.T("Show a grid on the ground under the mount")">
                     <input type="checkbox" checked="@Server.ShowGrid" @onchange="SetShowGrid" /> @L.T("Ground grid")
                 </label>
+                <label class="check" title="@L.T("Show which way the camera is facing, with a needle pointing north")">
+                    <input type="checkbox" checked="@Server.ShowHeading" @onchange="SetShowHeading" /> @L.T("Compass heading")
+                </label>
+                <label class="check" title="@L.T("Show large N, E, S and W letters on the ground in the distance")">
+                    <input type="checkbox" checked="@Server.ShowCardinals" @onchange="SetShowCardinals" /> @L.T("Distant N E S W")
+                </label>
+                @if (Server.ShowCardinals)
+                {
+                    <label class="field cardinal-size" title="@L.T("Size of the distant N E S W letters")">
+                        <select value="@Server.CardinalSize" @onchange="OnCardinalSizeChanged"
+                                aria-label="@L.T("Size of the distant N E S W letters")">
+                            @foreach (var size in Enum.GetValues<CardinalSize>())
+                            {
+                                <option value="@size">@CardinalSizeName(size)</option>
+                            }
+                        </select>
+                    </label>
+                }
             </div>
 
             <span class="field-label background-label" id="bg-label-@Server.IdGuid">@L.T("Background")</span>
@@ -126,7 +144,7 @@
 
             <div class="appearance-actions">
                 <button type="button" class="btn" @onclick="ResetAppearance"
-                        disabled="@(Server.ModelColor == ModelAppearance.DefaultColor && Server.Background == ModelAppearance.DefaultBackground && Server.ShowGrid)">
+                        disabled="@(Server.ModelColor == ModelAppearance.DefaultColor && Server.Background == ModelAppearance.DefaultBackground && Server.ShowGrid && !Server.ShowHeading && !Server.ShowCardinals && Server.CardinalSize == CardinalSize.Large)">
                     @L.T("Reset appearance")
                 </button>
             </div>
@@ -335,12 +353,42 @@
         Server.ModelColor = ModelAppearance.DefaultColor;
         Server.Background = ModelAppearance.DefaultBackground;
         Server.ShowGrid = true;
+        Server.ShowHeading = false;
+        Server.ShowCardinals = false;
+        Server.CardinalSize = CardinalSize.Large;
+        return OnChanged.InvokeAsync();
+    }
+
+    private static string CardinalSizeName(CardinalSize size) => size switch
+    {
+        CardinalSize.Small => L.T("Small"),
+        CardinalSize.Medium => L.T("Medium"),
+        CardinalSize.XLarge => L.T("Extra large"),
+        _ => L.T("Large")
+    };
+
+    private Task OnCardinalSizeChanged(ChangeEventArgs e)
+    {
+        if (!Enum.TryParse<CardinalSize>(e.Value?.ToString(), out var size) || size == Server.CardinalSize) return Task.CompletedTask;
+        Server.CardinalSize = size;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task SetShowCardinals(ChangeEventArgs e)
+    {
+        Server.ShowCardinals = IsChecked(e);
         return OnChanged.InvokeAsync();
     }
 
     private Task SetShowGrid(ChangeEventArgs e)
     {
         Server.ShowGrid = IsChecked(e);
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task SetShowHeading(ChangeEventArgs e)
+    {
+        Server.ShowHeading = IsChecked(e);
         return OnChanged.InvokeAsync();
     }
 

@@ -635,3 +635,16 @@
     border-radius: 2px;
     background: var(--green);
 }
+
+/* Size of the distant N E S W letters: a compact dropdown beside their checkbox, as tall as the chips. */
+.cardinal-size {
+    display: inline-flex;
+    align-items: center;
+}
+
+    .cardinal-size select {
+        width: auto;
+        padding: .3rem .6rem;
+        border-radius: 999px;
+        font-weight: 600;
+    }

@@ -41,10 +41,10 @@ public static class WindowPin
     /// <summary>
     /// Makes the window whose caption contains <paramref name="titleToken"/> topmost, or no longer topmost.
     /// </summary>
-    /// <returns>True if the window was found and changed; false if no window on this desktop has the title.</returns>
-    public static async Task<bool> SetTopMostAsync(string titleToken, bool topMost, CancellationToken token = default)
+    /// <returns>The changed window handle, or zero if no window was found or changed.</returns>
+    public static async Task<IntPtr> FindAndSetTopMostAsync(string titleToken, bool topMost, CancellationToken token = default)
     {
-        if (!IsSupported) return false;
+        if (!IsSupported) return IntPtr.Zero;
 
         var started = Stopwatch.GetTimestamp();
         while (true)
@@ -52,19 +52,26 @@ public static class WindowPin
             var window = Find(titleToken);
             if (window != IntPtr.Zero)
             {
-                var ok = SetWindowPos(window, topMost ? HwndTopMost : HwndNoTopMost, 0, 0, 0, 0,
-                    SwpNoMove | SwpNoSize | SwpNoActivate);
-                if (!ok) Log.LogWarning("Couldn't change the browser window's stay-on-top (Win32 error {Error})", Marshal.GetLastWin32Error());
-                else Log.LogInformation("Browser window {State}", topMost ? "kept on top" : "no longer kept on top");
-                return ok;
+                return SetTopMost(window, topMost) ? window : IntPtr.Zero;
             }
             if (Stopwatch.GetElapsedTime(started) >= FindTimeout)
             {
                 Log.LogInformation("Stay on top: no browser window with the page's title on this computer's desktop");
-                return false;
+                return IntPtr.Zero;
             }
             await Task.Delay(60, token).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>Changes the topmost state of a previously identified browser window.</summary>
+    public static bool SetTopMost(IntPtr window, bool topMost)
+    {
+        if (!IsSupported || window == IntPtr.Zero || !IsWindow(window)) return false;
+        var ok = SetWindowPos(window, topMost ? HwndTopMost : HwndNoTopMost, 0, 0, 0, 0,
+            SwpNoMove | SwpNoSize | SwpNoActivate);
+        if (!ok) Log.LogWarning("Couldn't change the browser window's stay-on-top (Win32 error {Error})", Marshal.GetLastWin32Error());
+        else Log.LogInformation("Browser window {State}", topMost ? "kept on top" : "no longer kept on top");
+        return ok;
     }
 
     /// <summary>The first visible top-level window whose caption contains the text, or zero.</summary>
@@ -103,6 +110,10 @@ public static class WindowPin
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowVisible(IntPtr window);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindow(IntPtr window);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetWindowText(IntPtr window, StringBuilder text, int maxCount);

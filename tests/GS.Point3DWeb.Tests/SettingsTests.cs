@@ -66,7 +66,7 @@ public class SettingsServiceTests
         var settings = Sandbox.NewSettings();
         var s = new AlpacaServer("http://h:1/api/v1/telescope/3/", "Everything")
         {
-            UserName = "user", Password = "secret", ModelType = Model3DType.RitcheyChretienTruss, RaOffset = 12, DecOffset = -7,
+            UserName = "user", Password = "secret", RaOffset = 12, DecOffset = -7,
             PolarMode = PolarMode.Right, AlignmentMode = AlignmentModes.algPolar, Latitude = -33.5,
             Camera = new CameraView(1, 2, 3, 4, 5, 6), PollSeconds = 2.5, ShowRa = false, ShowDec = false, ShowAz = false,
             ShowAlt = false, ShowLha = false, ShowLst = false, RaInDegrees = true, ModelColor = "#123456", Background = "M33",
@@ -84,7 +84,7 @@ public class SettingsServiceTests
         var loaded = Sandbox.NewSettings();
         var l = loaded.Servers.Single(x => x.IdGuid == s.IdGuid);
         Assert.Equal((s.ServerName, s.Url, s.UserName, s.Password), (l.ServerName, l.Url, l.UserName, l.Password));
-        Assert.Equal((s.ModelType, s.RaOffset, s.DecOffset, s.PolarMode, s.AlignmentMode, s.Latitude), (l.ModelType, l.RaOffset, l.DecOffset, l.PolarMode, l.AlignmentMode, l.Latitude));
+        Assert.Equal((s.RaOffset, s.DecOffset, s.PolarMode, s.AlignmentMode, s.Latitude), (l.RaOffset, l.DecOffset, l.PolarMode, l.AlignmentMode, l.Latitude));
         Assert.Equal(s.Camera, l.Camera);
         Assert.Equal((s.PollSeconds, s.ShowRa, s.ShowDec, s.ShowAz, s.ShowAlt, s.ShowLha, s.ShowLst, s.RaInDegrees), (l.PollSeconds, l.ShowRa, l.ShowDec, l.ShowAz, l.ShowAlt, l.ShowLha, l.ShowLst, l.RaInDegrees));
         Assert.Equal((s.ModelColor, s.Background, s.ShowGrid, s.ShowMountState), (l.ModelColor, l.Background, l.ShowGrid, l.ShowMountState));
@@ -220,7 +220,7 @@ public class SettingsServiceTests
         Assert.Equal(5, s.PollSeconds);
         Assert.Equal(ModelAppearance.DefaultColor, s.ModelColor);
         Assert.Equal("NorthAmerica", s.Background);
-        Assert.Equal(Model3DType.Default, s.ModelType);
+        Assert.Equal(Model3D.DefaultAssemblyOta, s.AssemblyOta);   // no Model or OTA saved: the default OTA
         Assert.Equal(PolarMode.Left, s.PolarMode);
         Assert.Equal((90.0, -90.0), (s.RaOffset, s.DecOffset));
         Assert.Equal(4, settings.ViewCount);

@@ -105,18 +105,17 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     /// <summary>EXPERIMENTAL: the model assembled from parts shows (chosen, on a German equatorial mount).</summary>
     public bool ShowsAssembly => Model3D.ShowsAssembly(Mode, Server?.PolarMode ?? PolarMode.Left);
 
-    private AssemblyOta ChosenOta => Server?.AssemblyOta ?? AssemblyOta.Refractor;
+    private AssemblyOta ChosenOta => Server?.AssemblyOta ?? Model3D.DefaultAssemblyOta;
 
     /// <summary>The usual model for the chosen OTA: shown when the assembled model is off or can't show.</summary>
     private Model3DType UsualModel => Model3D.GetUsualModel(ChosenOta);
 
-    public string ModelUrl => ShowsAssembly
-        ? Model3D.ModelFolder + Model3D.AssemblyFile
-        : Model3D.GetModelUrl(UsualModel, Mode, Server?.PolarMode ?? PolarMode.Left);
+    /// <summary>The usual model's file; for the assembled model, its OTA comes from it (or is built instead).</summary>
+    public string ModelUrl => Model3D.GetModelUrl(UsualModel, Mode, Server?.PolarMode ?? PolarMode.Left);
 
     /// <summary>The model's name: the assembled model's mount and OTA, or the usual model's type.</summary>
     public string ModelTitle => ShowsAssembly
-        ? $"{Model3D.GetDisplayName(Server?.AssemblyMount ?? AssemblyMount.Eq6rPro)} · {Model3D.GetDisplayName(ChosenOta)}"
+        ? $"{Model3D.GetDisplayName(Server?.AssemblyMount ?? Model3D.DefaultAssemblyMount)} · {Model3D.GetDisplayName(ChosenOta)}"
         : Model3D.GetDisplayName(UsualModel);
 
     public string ModelName => $"{ModelTitle} ({Model3D.GetDisplayName(Mode)})";
@@ -150,20 +149,24 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     /// Mount data the viewer needs to build the pier, and for an assembled model its parts (support, mount and the
     /// OTA's model name). Part of the model's key, so changing a part loads the model again.
     /// </summary>
-    public object MountInfo => new
-    {
-        mode = (int)Mode,
-        latitude = Latitude,
-        assembly = ShowsAssembly
-            ? new
-            {
-                support = (Server?.AssemblySupport ?? Model3D.DefaultAssemblySupport).ToString().ToLowerInvariant(),
-                mount = (Server?.AssemblyMount ?? AssemblyMount.Eq6rPro).ToString().ToLowerInvariant(),
-                ota = ChosenOta.ToString(),
-                otaSize = Model3D.GetAssemblyOtaSize(Server?.AssemblyOtaSize ?? Model3D.DefaultAssemblyOtaSize)
-            }
-            : null
-    };
+    public object MountInfo => new { mode = (int)Mode, latitude = Latitude, assembly = AssemblyParts };
+
+    /// <summary>The assembled model's parts for the viewer, or null when the usual model shows.</summary>
+    private object? AssemblyParts => ShowsAssembly
+        ? new
+        {
+            support = (Server?.AssemblySupport ?? Model3D.DefaultAssemblySupport).ToString().ToLowerInvariant(),
+            mount = (Server?.AssemblyMount ?? Model3D.DefaultAssemblyMount).ToString().ToLowerInvariant(),
+            ota = ChosenOta.ToString(),
+            otaSize = Model3D.GetAssemblyOtaSize(Server?.AssemblyOtaSize ?? Model3D.DefaultAssemblyOtaSize)
+        }
+        : null;
+
+    /// <summary>
+    /// What the loaded model depends on: when it changes, the model loads again. A usual model's pier depends on the
+    /// latitude; the assembled model doesn't (the latitude only tilts its joints, and re-aims the camera).
+    /// </summary>
+    public string ModelKey => ShowsAssembly ? $"{ModelUrl}|{(int)Mode}|{AssemblyParts}" : $"{ModelUrl}|{MountInfo}";
 
     /// <summary>
     /// GSServer's model transform (XAxisOffset, YAxisOffset, ZAxisOffset, YAxisCentre) for the

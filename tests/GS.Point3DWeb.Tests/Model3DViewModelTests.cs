@@ -465,10 +465,16 @@ public class Model3DViewModelTests : FakeServerTest
         };
         var view = View(server);
         Assert.True(view.ShowsAssembly);
-        Assert.Equal("model3d/models/" + Model3D.AssemblyFile, view.ModelUrl);
+        // The OTA comes from its usual model's file (in its folder), the rest is built by the viewer.
+        Assert.Equal("model3d/models/SchmidtCassegrain.obj", view.ModelUrl);
         Assert.Equal("Sky-Watcher EQ6-R Pro · Schmidt-Cassegrain", view.ModelTitle);
         Assert.Equal("{ mode = 2, latitude = 28, assembly = { support = mediumpier, mount = eq6rpro, ota = SchmidtCassegrain, otaSize = 125 } }",
             view.MountInfo.ToString());
+
+        // A new latitude doesn't reload the assembled model (it only tilts the joints): the key stays the same.
+        var key = view.ModelKey;
+        server.Latitude = -33;
+        Assert.Equal(key, view.ModelKey);
 
         // An Alt-Az mount shows the chosen OTA's usual model.
         server.AlignmentMode = AlignmentModes.algAltAz;

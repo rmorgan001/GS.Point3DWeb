@@ -242,7 +242,6 @@ public class SettingsService
                     Password = UnprotectPassword(s.IdGuid, s.Password, out var unreadable),
                     PasswordUnreadable = unreadable,
                     // Older files have no model settings, so they get the defaults.
-                    ModelType = Enum.TryParse<Model3DType>(s.ModelType, out var modelType) && Enum.IsDefined(modelType) ? modelType : Model3DType.Default,
                     RaOffset = Model3D.ClampOffset(s.RaOffset is { } ra ? ra - legacyRa : Model3D.DefaultRaOffset),
                     DecOffset = Model3D.ClampOffset(s.DecOffset is { } dec ? dec - legacyDec : Model3D.DefaultDecOffset),
                     PolarMode = Enum.TryParse<PolarMode>(s.PolarMode, out var polarMode) && Enum.IsDefined(polarMode) ? polarMode : PolarMode.Left,
@@ -264,7 +263,7 @@ public class SettingsService
                     ShowCardinals = s.ShowCardinals ?? false,
                     CardinalSize = Enum.TryParse<CardinalSize>(s.CardinalSize, out var cardinalSize) && Enum.IsDefined(cardinalSize) ? cardinalSize : CardinalSize.Large,
                     AssemblySupport = Model3D.ParseAssemblySupport(s.AssemblySupport),
-                    AssemblyMount = Enum.TryParse<AssemblyMount>(s.AssemblyMount, out var assemblyMount) && Enum.IsDefined(assemblyMount) ? assemblyMount : AssemblyMount.Eq6rPro,
+                    AssemblyMount = Enum.TryParse<AssemblyMount>(s.AssemblyMount, out var assemblyMount) && Enum.IsDefined(assemblyMount) ? assemblyMount : Model3D.DefaultAssemblyMount,
                     // Saved before the OTA was chosen on the card: the OTA of the Model it had, so its view doesn't change.
                     AssemblyOta = Enum.TryParse<AssemblyOta>(s.AssemblyOta, out var assemblyOta) && Enum.IsDefined(assemblyOta)
                         ? assemblyOta
@@ -415,7 +414,7 @@ public class SettingsService
             var stored = new StoredSettings(
                 SelectedAlpacaServer?.IdGuid,
                 [.. servers.Select(s => new StoredServer(s.IdGuid, s.ServerName, s.Url, s.UserName, ProtectPassword(s),
-                    s.ModelType.ToString(), s.RaOffset, s.DecOffset,
+                    null, s.RaOffset, s.DecOffset,   // ModelType: no longer saved (read only to seed an older file's OTA)
                     s.ShowRa, s.ShowDec, s.ShowAz, s.ShowAlt, s.ShowLha,
                     s.PolarMode.ToString(), s.AlignmentMode.ToString(), s.Latitude, s.Camera,
                     s.PollSeconds, s.ShowLst, s.RaInDegrees, s.ModelColor, s.Background, s.ShowGrid, s.ShowMountState,

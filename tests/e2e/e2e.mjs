@@ -139,18 +139,18 @@ await step('Double-click on Ra switches to degrees and back', async () => {
     await page.waitForFunction(() => document.querySelector('.quadrant .coord.ra .value').textContent.includes('h'), null, { timeout: 3000 });
 });
 
-await step('View settings: change the model and colour, then back', async () => {
+await step('View settings: change the OTA and colour, then back', async () => {
     await quadrant(page, 0).locator('button[title="View settings"]').click();
     const settings = quadrant(page, 0).locator('.settings');
     await settings.waitFor({ state: 'visible', timeout: 3000 });
-    await settings.locator('.model-type select').selectOption('Reflector');
+    await settings.locator('.ota select').selectOption('Reflector');
     await settings.locator('.swatch').nth(3).click();
     await settings.locator('button.done').click();
     await waitStatus(page, 0, s => s.startsWith('Every') || s.includes('Reflector'), 8000, 'model reload');
     assert((await quadrant(page, 0).locator('.mount-tag').innerText()).includes('Reflector'), 'mount tag');
-    // Back to the default model for the later steps.
+    // Back to the default OTA for the later steps.
     await quadrant(page, 0).locator('button[title="View settings"]').click();
-    await settings.locator('.model-type select').selectOption('Default');
+    await settings.locator('.ota select').selectOption('Refractor');
     await settings.locator('button.done').click();
 });
 

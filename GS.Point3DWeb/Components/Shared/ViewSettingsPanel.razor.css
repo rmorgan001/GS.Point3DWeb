@@ -55,6 +55,8 @@
 
 /* Centred when there is room; scrolls (from the top) in a small view. */
 .settings-body {
+    /* Its width (not the window's) decides how many dropdowns fit a line in the assembled model section. */
+    container: settings-body / inline-size;
     display: flex;
     flex-direction: column;
     gap: .9rem;
@@ -658,7 +660,7 @@
     color: var(--mare);
 }
 
-@media (max-width: 620px) {
+@container settings-body (max-width: 580px) {
     .assembly-grid {
         grid-template-columns: minmax(0, 1fr);
     }

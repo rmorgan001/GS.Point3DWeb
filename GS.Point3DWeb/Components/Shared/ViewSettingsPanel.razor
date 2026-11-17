@@ -32,7 +32,7 @@
     <div class="settings-body">
         @* EXPERIMENTAL: a model assembled from parts (model3d.js loadAssembly) instead of the usual one. *@
         <fieldset class="show-items assembly">
-            <legend>@L.T("Assembled model (experimental)")</legend>
+            <legend>@L.T("3D Model")</legend>
             <div class="assembly-grid first">
                 <label class="field">
                     <span class="field-label">@L.T("Support")</span>
@@ -52,7 +52,7 @@
                         }
                     </select>
                 </label>
-                <label class="field">
+                <label class="field ota">
                     <span class="field-label">@L.T("OTA")</span>
                     <select value="@Server.AssemblyOta" @onchange="OnAssemblyOtaChanged">
                         @foreach (var ota in Model3D.AssemblyOtas)
@@ -472,14 +472,14 @@
 
     private Task OnAssemblySupportChanged(ChangeEventArgs e)
     {
-        if (!Enum.TryParse<AssemblySupport>(e.Value?.ToString(), out var support)) return Task.CompletedTask;
+        if (!Enum.TryParse<AssemblySupport>(e.Value?.ToString(), out var support) || !Enum.IsDefined(support)) return Task.CompletedTask;
         Server.AssemblySupport = support;
         return OnChanged.InvokeAsync();
     }
 
     private Task OnAssemblyMountChanged(ChangeEventArgs e)
     {
-        if (!Enum.TryParse<AssemblyMount>(e.Value?.ToString(), out var mount)) return Task.CompletedTask;
+        if (!Enum.TryParse<AssemblyMount>(e.Value?.ToString(), out var mount) || !Enum.IsDefined(mount)) return Task.CompletedTask;
         Server.AssemblyMount = mount;
         return OnChanged.InvokeAsync();
     }

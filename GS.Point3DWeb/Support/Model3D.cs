@@ -129,7 +129,6 @@ public static class Model3D
     public const double DefaultRaOffset = 0;
     public const double DefaultDecOffset = 0;
 
-    public static IReadOnlyList<Model3DType> ModelTypes { get; } = Enum.GetValues<Model3DType>();
 
     /// <summary>The .obj files in wwwroot/model3d/models (same set as GSServer).</summary>
     private static readonly HashSet<string> ModelFiles = new(StringComparer.OrdinalIgnoreCase)
@@ -145,11 +144,9 @@ public static class Model3D
 
     // ===== EXPERIMENTAL: models assembled from parts (model3d.js loadAssembly) =====
 
-    /// <summary>
-    /// The model file an assembled model loads by: the tripod (also loaded only for a tripod support). The viewer
-    /// builds the pier and the mount itself, and takes the OTA from that OTA's German polar .obj.
-    /// </summary>
-    public const string AssemblyFile = "eq6r/TripodAndBase.glb";
+    // The assembled model's dropdowns start at these (the support's is DefaultAssemblySupport, below).
+    public const AssemblyMount DefaultAssemblyMount = AssemblyMount.Eq6rPro;
+    public const AssemblyOta DefaultAssemblyOta = AssemblyOta.Refractor;
 
     /// <summary>The OTAs an assembled model can carry, in the order offered.</summary>
     public static IReadOnlyList<AssemblyOta> AssemblyOtas { get; } = Enum.GetValues<AssemblyOta>();

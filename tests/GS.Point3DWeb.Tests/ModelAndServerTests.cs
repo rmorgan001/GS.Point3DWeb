@@ -59,7 +59,6 @@ public class Model3DTests
     [Fact]
     public void The_assembled_models_files_are_served()
     {
-        Assert.True(File.Exists(Path.Combine(Repo.WebRoot, Model3D.ModelFolder, Model3D.AssemblyFile)));
         foreach (var ota in Model3D.AssemblyOtas)
         {
             if (Model3D.GetObjModel(ota) is { } type)

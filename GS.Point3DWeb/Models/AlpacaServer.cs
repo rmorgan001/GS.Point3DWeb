@@ -179,10 +179,6 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     /// </summary>
     public double ClientTransactionId { get; set; }
 
-    /// <summary>Telescope model shown for this server.</summary>
-    [ObservableProperty]
-    public partial Model3DType ModelType { get; set; } = Model3DType.Default;
-
     /// <summary>
     /// RA axis adjustment in degrees (-90 to 90), added to the alignment mode's built-in offset.
     /// </summary>
@@ -251,10 +247,10 @@ public partial class AlpacaServer(string url, string name) : ObservableObject
     [ObservableProperty] public partial AssemblySupport AssemblySupport { get; set; } = Model3D.DefaultAssemblySupport;
 
     /// <summary>The assembled model's mount.</summary>
-    [ObservableProperty] public partial AssemblyMount AssemblyMount { get; set; } = AssemblyMount.Eq6rPro;
+    [ObservableProperty] public partial AssemblyMount AssemblyMount { get; set; } = Model3D.DefaultAssemblyMount;
 
     /// <summary>The OTA the assembled model carries (one of <see cref="Model3D.AssemblyOtas"/>).</summary>
-    [ObservableProperty] public partial AssemblyOta AssemblyOta { get; set; } = AssemblyOta.Refractor;
+    [ObservableProperty] public partial AssemblyOta AssemblyOta { get; set; } = Model3D.DefaultAssemblyOta;
 
     /// <summary>The OTA's size, in percent of the mount's own (one of <see cref="Model3D.AssemblyOtaSizes"/>).</summary>
     [ObservableProperty] public partial int AssemblyOtaSize { get; set; } = Model3D.DefaultAssemblyOtaSize;

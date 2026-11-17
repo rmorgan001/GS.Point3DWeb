@@ -61,12 +61,12 @@ const GRID_CELL = 1;            // minor grid spacing
 const GRID_MAJOR_EVERY = 5;     // a major line every 5 cells
 const GRID_Y = -1.01;           // just under the compass base (its underside is at -1)
 
-// Assembled mount (EXPERIMENTAL; loadAssembly, models/eq6r): the tripod from TripodAndBase.glb, and an EQ6-R Pro
-// style mount base and head built here (buildEq6rBase, buildEq6rHead). Millimetres throughout.
+// Assembled mount (EXPERIMENTAL; loadAssembly): a support, a mount and an OTA, built here from simple shapes (the OTA
+// can also be an .obj model's tube). Millimetres throughout.
 const ASSEMBLY_SCALE = 0.6;             // Helix units per millimetre: the tripod's feet well inside the compass
 const ASSEMBLY_COLUMN_TOP = 1248;       // top of the full-size tripod's centre column (and the piers), where a mount sits
-// The supports (the AssemblySupport names in lower case): a tripod from TripodAndBase.glb at a scale (its top scales
-// with it), or a pier of a diameter in millimetres built here (pier tops are at ASSEMBLY_COLUMN_TOP).
+// The supports (the AssemblySupport names in lower case): the tripod (buildTripod) at a scale (its top scales with
+// it), or a pier (buildPier) of a diameter in millimetres (pier tops are at ASSEMBLY_COLUMN_TOP).
 const ASSEMBLY_SUPPORTS = {
     smalltripod: { tripod: 0.82 },
     mediumtripod: { tripod: 1 },
@@ -116,8 +116,6 @@ const ASSEMBLY_MOUNTS = {
     eqm35pro: { hinge: 100, decAlongRa: 150, saddleTop: 140, otaScale: 0.95, base: (...a) => buildEqm35Base(...a), head: (...a) => buildEqm35Head(...a) },
     wave150ipro: { hinge: 96, decAlongRa: 150, saddleTop: 140, otaScale: 1.2, base: (...a) => buildWave150Base(...a), head: (...a) => buildWave150Head(...a) }
 };
-// The tripod file's own mount base: replaced by buildEq6rBase.
-const ASSEMBLY_HIDDEN_BASE = ['Latitude_base', 'Azimuth_post', 'Azimuth_knob_1', 'Azimuth_knob_2'];
 
 // Alignment modes (ASCOM AlignmentModes)
 const ALT_AZ = 0, POLAR = 1;
@@ -506,6 +504,7 @@ class TelescopeViewer {
      * and radius out again from where the camera is now, so set after it they would be overwritten.
      */
     aimCamera(target, alpha, beta, radius) {
+        this.lastAim = target.clone();
         this.camera.setTarget(target);
         this.camera.alpha = alpha;
         this.camera.beta = beta;
@@ -537,13 +536,16 @@ class TelescopeViewer {
         this.root.computeWorldMatrix(true);
         const centre = B.Vector3.TransformCoordinates(helix, this.root.getWorldMatrix());
         this.mountCentre = centre;
-        if (!this.savedCamera) {
-            const c = this.camera;
-            this.aimCamera(centre.clone(), c.alpha, c.beta, c.radius);
-        }
+        this.centreOtaBottom = otaBottom;
+        // Only a view still looking where it was last aimed: one the user has panned, or has saved (setCamera or
+        // getCamera), keeps its own target.
+        const c = this.camera, moved = this.lastAim && B.Vector3.Distance(c.target, this.lastAim) > 1e-6;
+        if (!this.savedCamera && !moved) this.aimCamera(centre.clone(), c.alpha, c.beta, c.radius);
     }
 
+    /** The camera as it is now, to be saved: from then on, a model reload doesn't re-aim it. */
     getCamera() {
+        this.savedCamera = true;
         const c = this.camera;
         const round = (n, d) => Math.round(n * 10 ** d) / 10 ** d;
         return {
@@ -824,7 +826,8 @@ class TelescopeViewer {
      */
     async loadModel(url, mount) {
         // A mount built from parts (tripod and base, head) rather than one .obj: see loadAssembly.
-        if (/\.glb$/i.test(url)) return this.loadAssembly(url, mount);
+        // A mount assembled from parts: see loadAssembly. The url is then its OTA's usual .obj model.
+        if (mount?.assembly) return this.loadAssembly(url, mount);
 
         const B = window.BABYLON;
         const load = ++this.loadCount;
@@ -880,9 +883,9 @@ class TelescopeViewer {
     /**
      * A German equatorial mount assembled from parts (EXPERIMENTAL), chosen on the back of the card
      * (mount.assembly: { support, mount, ota }):
-     *   support  'tripod' (TripodAndBase.glb, this url) or 'pier' (an observatory pier, built here)
-     *   mount    'eq6rpro': an EQ6-R Pro style mount base and head built from simple shapes (ASSEMBLY_MOUNTS)
-     *   ota      an .obj model's tube (ASSEMBLY_OTAS)
+     *   support  a tripod or a pier, built here (ASSEMBLY_SUPPORTS)
+     *   mount    a German equatorial mount's base and head, built here (ASSEMBLY_MOUNTS)
+     *   ota      an .obj model's tube from `url`'s folder (ASSEMBLY_OTAS), or one built here (ASSEMBLY_BUILT_OTAS)
      *   otaSize  its size in percent of the mount's own OTA size (otaScale); 100 if not given
      * The head hangs from three joints, driven by the same pose numbers as an .obj model, so it moves the same way:
      *
@@ -907,16 +910,14 @@ class TelescopeViewer {
         const builtOta = ASSEMBLY_BUILT_OTAS[parts.ota];
         const otaName = builtOta ? null : ASSEMBLY_OTAS.includes(parts.ota) ? parts.ota : 'Refractor';
 
-        let tripod, ota;
+        // The only download: an .obj OTA's model. A failed one is an error, unless a newer load has replaced this one.
+        let ota = null;
         try {
-            [tripod, ota] = await Promise.all([
-                onPier ? null : B.SceneLoader.ImportMeshAsync('', folder, url.substring(folder.length), this.scene),
-                otaName ? B.SceneLoader.ImportMeshAsync('', new URL('../', folder).href, `${otaName}.obj`, this.scene, null, '.obj') : null
-            ]);
+            if (otaName) ota = await B.SceneLoader.ImportMeshAsync('', folder, `${otaName}.obj`, this.scene, null, '.obj');
         } catch (error) {
-            return `Error: ${error?.message ?? error}`;
+            return load !== this.loadCount ? 'Superseded' : `Error: ${error?.message ?? error}`;
         }
-        const results = [tripod, ota].filter(Boolean);
+        const results = [ota].filter(Boolean);
         if (load !== this.loadCount || this.scene.isDisposed) {
             results.forEach(r => {
                 r.meshes.forEach(m => m.dispose());
@@ -979,27 +980,15 @@ class TelescopeViewer {
             this.modelMeshes.push(mesh);
         };
 
-        // The support: the tripod, where its file puts it at its scale (the file's own simple mount base left out),
-        // or a pier.
+        // The support: a pier, or the tripod at its scale.
         const shapes = new AssemblyShapes(B, this.scene, keep);
-        if (onPier) buildPier(shapes, holder, materials, top, support.pier);
-        const tripodNode = new B.TransformNode('Tripod', this.scene);
-        tripodNode.parent = holder;
-        tripodNode.scaling = new B.Vector3(support.tripod ?? 1, support.tripod ?? 1, support.tripod ?? 1);
-        for (const mesh of tripod ? tripod.meshes.filter(m => m.getTotalVertices() > 0) : []) {
-            if (ASSEMBLY_HIDDEN_BASE.includes(mesh.name.replace(/_mesh.*$/, ''))) {
-                mesh.dispose();
-                continue;
-            }
-            const world = mesh.computeWorldMatrix(true).clone();
-            mesh.parent = tripodNode;
-            const scaling = new B.Vector3(), rotation = new B.Quaternion(), position = new B.Vector3();
-            world.decompose(scaling, rotation, position);
-            mesh.scaling = scaling;
-            mesh.rotationQuaternion = rotation;
-            mesh.position = position;
-            mesh.material = materials.tripod;
-            keep(mesh);
+        if (onPier) {
+            buildPier(shapes, holder, materials, top, support.pier);
+        } else {
+            const tripodNode = new B.TransformNode('Tripod', this.scene);
+            tripodNode.parent = holder;
+            tripodNode.scaling = new B.Vector3(support.tripod, support.tripod, support.tripod);
+            buildTripod(shapes, tripodNode, materials);
         }
 
         build.base(shapes, holder, materials, at);
@@ -1275,12 +1264,49 @@ class AssemblyShapes {
         return this.add(m, parent, material);
     }
 
+    /** A rod (a cylinder) from point `p0` to point `p1`, each [x, y, z], at any angle. */
+    rod(parent, material, diameter, p0, p1, { top = diameter, tessellation = 24 } = {}) {
+        const B = this.B;
+        const a = new B.Vector3(...p0), b = new B.Vector3(...p1), d = b.subtract(a), length = d.length();
+        const m = B.MeshBuilder.CreateCylinder(`Eq6r${this.count++}`,
+            { height: length, diameterBottom: diameter, diameterTop: top, tessellation }, this.scene);
+        m.position = a.add(b).scale(0.5);
+        // Turn the cylinder's own axis (+Y) onto the rod's direction.
+        const dir = d.scale(1 / length), axis = B.Vector3.Cross(new B.Vector3(0, 1, 0), dir), s = axis.length();
+        m.rotationQuaternion = s < 1e-9
+            ? (dir.y > 0 ? B.Quaternion.Identity() : B.Quaternion.RotationAxis(new B.Vector3(1, 0, 0), Math.PI))
+            : B.Quaternion.RotationAxis(axis.scale(1 / s), Math.acos(Math.max(-1, Math.min(1, dir.y))));
+        return this.add(m, parent, material);
+    }
+
     /** A star knob along `axis`: a steel stem from `from`, the knob (black unless `knob` says) at `to`. */
     knob(parent, m, axis, from, to, across, knob = m.black) {
         const toward = to >= from ? 1 : -1;
         this.cylinder(parent, m.steel, axis, 10, from, to - toward * 12, across, { tessellation: 12 });
         this.cylinder(parent, knob, axis, 34, to - toward * 12, to, across, { tessellation: 5 });
         this.cylinder(parent, knob, axis, 18, to, to + toward * 4, across, { tessellation: 12 });
+    }
+}
+
+/**
+ * The full-size tripod (holder frame, millimetres, Z up; scaled for the small and large tripods): a hub on three
+ * splayed legs (an upper and a lower section each, a hinge at the top and a foot), a spreader with an accessory
+ * tray between the legs, and a centre column up to ASSEMBLY_COLUMN_TOP, where a mount's base stands.
+ */
+function buildTripod(s, node, m) {
+    const at = (r, az, z) => [r * Math.cos(az * Math.PI / 180), r * Math.sin(az * Math.PI / 180), z];
+    s.cylinder(node, m.tripod, 'z', 156, 1008, 1072);                               // hub
+    s.cylinder(node, m.tripod, 'z', 124, 1071, 1089);                               // mount plate
+    s.cylinder(node, m.tripod, 'z', 90, 1072, ASSEMBLY_COLUMN_TOP);                 // centre column
+    s.cylinder(node, m.tripod, 'z', 96, 625, 675);                                  // spreader collar
+    s.cylinder(node, m.tripod, 'z', 380, 619, 631, [0, 0], { tessellation: 48 });  // accessory tray
+    for (const az of [90, 212, 328]) {                                              // one leg south, two north
+        s.rod(node, m.tripod, 64, at(36, az, 1060), at(62, az, 984));               // hinge
+        s.rod(node, m.tripod, 46, at(30, az, 1030), at(400, az, 400));              // upper section
+        s.rod(node, m.tripod, 28, at(350, az, 480), at(575, az, 60));               // lower section
+        const [x, y] = at(572, az, 0);
+        s.cylinder(node, m.tripod, 'z', 76, 11, 49, [x, y]);                        // foot
+        s.rod(node, m.tripod, 30, at(48, az, 650), at(320, az, 650));               // spreader arm
     }
 }
 
@@ -1842,6 +1868,11 @@ export function setCamera(viewer, view) {
 
 export function getCamera(viewer) {
     return viewer.getCamera();
+}
+
+/** mount: as for loadModel. Aims the camera again for a new latitude, without reloading the model (centreOnMount). */
+export function recentre(viewer, mount) {
+    if (viewer.centreOtaBottom !== undefined) viewer.centreOnMount(mount, viewer.centreOtaBottom);
 }
 
 export function setModelColor(viewer, hex) {

@@ -1,4 +1,4 @@
-@* Copyright(C) 2026  Rob Morgan (robert.morgan.e@gmail.com)
+﻿@* Copyright(C) 2026  Rob Morgan (robert.morgan.e@gmail.com)
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published
@@ -168,7 +168,7 @@
                     <button type="button" class="background @(selected ? "selected" : null)" role="radio"
                             aria-checked="@selected" title="@L.T(background.Name)"
                             @onclick="() => SetBackground(background.Key)">
-                        <span class="thumb" style="@ThumbStyle(background)" aria-hidden="true"></span>
+                        <span class="thumb @(background.Generated ? "stars" : null)" style="@ThumbStyle(background)" aria-hidden="true"></span>
                         <span class="background-name">@L.T(background.Name)</span>
                     </button>
                 }
@@ -393,7 +393,7 @@
         p => string.Equals(p.Hex, Server.ModelColor, StringComparison.OrdinalIgnoreCase));
 
     private static string ThumbStyle(SceneBackground background)
-        => background.Url is null ? "" : $"background-image: url('{background.Url}')";
+        => background.Generated ? "" : background.Url is null ? "" : $"background-image: url('{background.Url}')";
 
     private Task SetModelColor(string? hex)
     {

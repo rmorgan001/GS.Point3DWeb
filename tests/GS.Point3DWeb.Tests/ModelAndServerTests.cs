@@ -1,4 +1,4 @@
-/* Copyright(C) 2026  Rob Morgan (robert.morgan.e@gmail.com)
+﻿/* Copyright(C) 2026  Rob Morgan (robert.morgan.e@gmail.com)
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published
@@ -261,6 +261,7 @@ public class ModelAppearanceTests
     [Theory]
     [InlineData("m51", "M51")]
     [InlineData("None", "None")]
+    [InlineData("stars", "Stars")]
     [InlineData(null, "NorthAmerica")]
     [InlineData("../../etc/passwd", "NorthAmerica")]
     public void Backgrounds(string? key, string expected) => Assert.Equal(expected, ModelAppearance.GetBackground(key).Key);
@@ -269,6 +270,9 @@ public class ModelAppearanceTests
     public void Every_background_and_preset_is_usable()
     {
         Assert.Null(ModelAppearance.GetBackground("None").Url);
+        Assert.Null(ModelAppearance.GetBackground(ModelAppearance.StarFieldBackground).Url);
+        Assert.True(ModelAppearance.GetBackground(ModelAppearance.StarFieldBackground).Generated);
+        Assert.Equal(ModelAppearance.StarFieldBackground, ModelAppearance.NormalizeBackground("Stars"));
         foreach (var bg in ModelAppearance.Backgrounds.Where(b => b.File is not null))
             Assert.True(File.Exists(Path.Combine(Repo.WebRoot, bg.Url!)), bg.Url);
         foreach (var preset in ModelAppearance.ColorPresets)

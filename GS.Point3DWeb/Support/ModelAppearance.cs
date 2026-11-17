@@ -1,4 +1,4 @@
-/* Copyright(C) 2026  Rob Morgan (robert.morgan.e@gmail.com)
+﻿/* Copyright(C) 2026  Rob Morgan (robert.morgan.e@gmail.com)
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published
@@ -18,8 +18,11 @@ using System.Text.RegularExpressions;
 
 namespace GS.Point3DWeb.Support;
 
-/// <summary>A background choice for the 3D scene; <see cref="File"/> is null for a plain dark sky.</summary>
-public sealed record SceneBackground(string Key, string Name, string? File)
+/// <summary>
+/// A background choice for the 3D scene; <see cref="File"/> is null for a plain dark sky or a <see cref="Generated"/> one
+/// (drawn by the viewer, with no image to download).
+/// </summary>
+public sealed record SceneBackground(string Key, string Name, string? File, bool Generated = false)
 {
     /// <summary>URL of the image (also used for the thumbnail), or null for a plain dark sky.</summary>
     public string? Url => File is null ? null : ModelAppearance.BackgroundFolder + File;
@@ -42,6 +45,12 @@ public static partial class ModelAppearance
     /// <summary>The user's own picture (BackgroundImages), shown flat behind the scene.</summary>
     public const string CustomBackground = "Custom";
 
+    /// <summary>A star field the viewer draws itself (no image): a black sky with randomly placed stars.</summary>
+    public const string StarFieldBackground = "Stars";
+
+    /// <summary>What the viewer is told to draw for <see cref="StarFieldBackground"/> (the value of { generated }).</summary>
+    public const string StarFieldGenerated = "stars";
+
     public static IReadOnlyList<ModelColorPreset> ColorPresets { get; } =
     [
         new("Green", DefaultColor),
@@ -60,6 +69,7 @@ public static partial class ModelAppearance
         new("Rosette", "Rosette nebula", "Rosette.jpg"),
         new("M51", "Whirlpool galaxy (M51)", "M51.jpg"),
         new("M33", "Triangulum galaxy (M33)", "M33.jpg"),
+        new(StarFieldBackground, "Star field", null, Generated: true),
         new("None", "Plain dark sky", null)
     ];
 

@@ -635,32 +635,46 @@
         font-weight: 600;
     }
 
-/* EXPERIMENTAL: the assembled model's parts and OTA size, two dropdowns a row (one on a narrow card). Each column is
-   at least as wide as its longest choice, so no name is cut off, and shares any room left over. */
+/* The 3D Model section, condensed: one grid, two a line (one on a narrow card), RA and Dec adjust sharing a cell.
+   Each column is at least as wide as its longest choice, so no name is cut off. */
 .assembly-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(max-content, 1fr));
-    gap: .6rem .9rem;
-    margin-top: .75rem;
+    gap: .45rem .8rem;
 }
+
+    .assembly-grid .field-label {
+        display: block;
+        margin-bottom: .2rem;
+        font-size: .76rem;
+    }
 
     .assembly-grid select {
         width: 100%;
         min-width: max-content;
+        padding: .32rem .55rem;
     }
 
-    .assembly-grid .field-label {
-        display: block;
-        margin-bottom: .4rem;
-    }
-
-.assembly-note {
-    margin: .6rem 0 0;
-    font-size: .8rem;
-    color: var(--mare);
+/* RA and Dec adjust: two narrow dropdowns side by side in one cell. */
+.adjust-pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .6rem;
 }
 
-@container settings-body (max-width: 580px) {
+    .adjust-pair select {
+        min-width: 0;
+    }
+
+.assembly .mount-row {
+    margin-top: .55rem;
+}
+
+    .assembly .mount-row .btn {
+        padding: .25rem .75rem;
+    }
+
+@container settings-body (max-width: 500px) {
     .assembly-grid {
         grid-template-columns: minmax(0, 1fr);
     }
@@ -668,14 +682,4 @@
         .assembly-grid select {
             min-width: 0;
         }
-}
-
-/* The first row sits right under the section's title; the adjustments a little apart from the parts. */
-.assembly-grid.first {
-    margin-top: 0;
-}
-
-/* The adjustments under the assembled model's parts: a little apart from them. */
-.adjust-grid {
-    margin-top: 1rem;
 }

@@ -32,8 +32,8 @@
     <div class="settings-body">
         @* EXPERIMENTAL: a model assembled from parts (model3d.js loadAssembly) instead of the usual one. *@
         <fieldset class="show-items assembly">
-            <legend>@L.T("3D Model")</legend>
-            <div class="assembly-grid first">
+            <legend title="@L.T("Each mount shows in the modes the real one works in; otherwise the usual model of the OTA shows.")">@L.T("3D Model")</legend>
+            <div class="assembly-grid">
                 <label class="field">
                     <span class="field-label">@L.T("Support")</span>
                     <select value="@Server.AssemblySupport" @onchange="OnAssemblySupportChanged">
@@ -70,10 +70,7 @@
                         }
                     </select>
                 </label>
-            </div>
-            <p class="assembly-note">@L.T("German equatorial mounts only: other mounts show the usual model.")</p>
-            @* How the model lines up with the mount, for any model: polar (fork) side, and fixed turns of its axes. *@
-            <div class="assembly-grid adjust-grid">
+                @* How the model lines up with the mount, for any model: polar (fork) side, and fixed turns of its axes. *@
                 <label class="field">
                     <span class="field-label">@L.T("Polar mode")</span>
                     <select value="@Server.PolarMode" @onchange="OnPolarModeChanged"
@@ -84,6 +81,7 @@
                         }
                     </select>
                 </label>
+                <div class="adjust-pair">
                 <label class="field">
                     <span class="field-label">@L.T("RA adjust (°)")</span>
                     <select value="@Invariant(Model3D.ClampOffset(Server.RaOffset))" @onchange="e => OnOffsetChanged(e, isRa: true)">
@@ -102,6 +100,7 @@
                         }
                     </select>
                 </label>
+                </div>
             </div>
 
             <div class="mount-row">
@@ -480,6 +479,11 @@
     private Task OnAssemblyMountChanged(ChangeEventArgs e)
     {
         if (!Enum.TryParse<AssemblyMount>(e.Value?.ToString(), out var mount) || !Enum.IsDefined(mount)) return Task.CompletedTask;
+        // The new mount brings the support and OTA that suit it, unless they were changed from the old one's.
+        var (oldSupport, oldOta) = Model3D.GetSuggestedParts(Server.AssemblyMount);
+        var (support, ota) = Model3D.GetSuggestedParts(mount);
+        if (Server.AssemblySupport == oldSupport) Server.AssemblySupport = support;
+        if (Server.AssemblyOta == oldOta) Server.AssemblyOta = ota;
         Server.AssemblyMount = mount;
         return OnChanged.InvokeAsync();
     }

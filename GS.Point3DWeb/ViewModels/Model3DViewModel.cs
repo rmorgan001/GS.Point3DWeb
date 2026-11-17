@@ -103,7 +103,7 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
     private AlignmentModes Mode => Server?.AlignmentMode ?? AlignmentModes.algGermanPolar;
 
     /// <summary>EXPERIMENTAL: the model assembled from parts shows (chosen, on a German equatorial mount).</summary>
-    public bool ShowsAssembly => Model3D.ShowsAssembly(Mode, Server?.PolarMode ?? PolarMode.Left);
+    public bool ShowsAssembly => Model3D.ShowsAssembly(Mode, Server?.AssemblyMount ?? Model3D.DefaultAssemblyMount);
 
     private AssemblyOta ChosenOta => Server?.AssemblyOta ?? Model3D.DefaultAssemblyOta;
 

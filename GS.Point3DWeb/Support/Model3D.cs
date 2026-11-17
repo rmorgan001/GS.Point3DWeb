@@ -76,7 +76,9 @@ public enum AssemblyMount
     Cq350Pro,
     Eqm35Pro,
     Wave150iPro,
-    Cem40
+    Cem40,
+    /// <summary>A generic fork mount: on a wedge (polar), or straight up (Alt-Az).</summary>
+    Fork
 }
 
 /// <summary>
@@ -158,11 +160,34 @@ public static class Model3D
         => Enum.TryParse<Model3DType>(ota.ToString(), out var type) ? type : null;
 
     /// <summary>
-    /// Whether the assembled model shows: on a German equatorial mount (the only kind assembled so far). Other mounts
-    /// show the usual model of the chosen OTA.
+    /// Whether the assembled model shows: when the chosen mount works the way the real one does. German equatorial
+    /// mounts in their own mode (as is an unknown mode); the AM5 and Wave 150i Pro in Alt-Az too, as the real ones
+    /// can; the fork as a polar mount (on its wedge) or Alt-Az. Otherwise the usual model of the chosen OTA shows.
     /// </summary>
-    public static bool ShowsAssembly(AlignmentModes mode, PolarMode polarMode)
-        => GetSuffix(mode, polarMode).Length == 0;
+    public static bool ShowsAssembly(AlignmentModes mode, AssemblyMount mount) => mode switch
+    {
+        AlignmentModes.algAltAz => mount is AssemblyMount.Am5 or AssemblyMount.Wave150iPro or AssemblyMount.Fork,
+        AlignmentModes.algPolar => mount is AssemblyMount.Fork,
+        _ => mount is not AssemblyMount.Fork
+    };
+
+    /// <summary>
+    /// The support and OTA that suit a mount: what it starts with when it's chosen, unless the support or OTA has
+    /// been changed from the previous mount's.
+    /// </summary>
+    public static (AssemblySupport Support, AssemblyOta Ota) GetSuggestedParts(AssemblyMount mount) => mount switch
+    {
+        AssemblyMount.Heq5Pro => (AssemblySupport.SmallTripod, AssemblyOta.Newtonian),
+        AssemblyMount.Eq8rPro => (AssemblySupport.LargePier, AssemblyOta.RitcheyChretienTruss),
+        AssemblyMount.Cq350Pro => (AssemblySupport.LargeTripod, AssemblyOta.SchmidtCassegrain),
+        AssemblyMount.Eqm35Pro => (AssemblySupport.SmallTripod, AssemblyOta.MaksutovCassegrain),
+        AssemblyMount.Wave150iPro => (AssemblySupport.MediumTripod, AssemblyOta.Refractor),
+        AssemblyMount.Am5 => (AssemblySupport.SmallTripod, AssemblyOta.RitcheyChretien),
+        AssemblyMount.Cem40 => (AssemblySupport.MediumTripod, AssemblyOta.Newtonian),
+        AssemblyMount.Cem70 => (AssemblySupport.MediumPier, AssemblyOta.SchmidtCassegrain),
+        AssemblyMount.Fork => (AssemblySupport.LargeTripod, AssemblyOta.SchmidtCassegrain),
+        _ => (DefaultAssemblySupport, DefaultAssemblyOta)
+    };
 
     /// <summary>
     /// The OTA sizes offered, in percent of the mount's own OTA size (model3d.js ASSEMBLY_MOUNTS otaScale), so one
@@ -227,7 +252,7 @@ public static class Model3D
         _ => Enum.TryParse<AssemblySupport>(saved, out var support) && Enum.IsDefined(support) ? support : DefaultAssemblySupport
     };
 
-    /// <summary>The mount's maker and product name (not translated).</summary>
+    /// <summary>The mount's maker and product name (not translated), or for the generic fork its kind.</summary>
     public static string GetDisplayName(AssemblyMount mount) => mount switch
     {
         AssemblyMount.Heq5Pro => "Sky-Watcher HEQ5 Pro",
@@ -238,6 +263,7 @@ public static class Model3D
         AssemblyMount.Cq350Pro => "Sky-Watcher CQ350 Pro",
         AssemblyMount.Eqm35Pro => "Sky-Watcher EQM-35 Pro",
         AssemblyMount.Wave150iPro => "Sky-Watcher Wave 150i Pro",
+        AssemblyMount.Fork => L.T("Fork mount"),
         _ => "Sky-Watcher EQ6-R Pro"
     };
 

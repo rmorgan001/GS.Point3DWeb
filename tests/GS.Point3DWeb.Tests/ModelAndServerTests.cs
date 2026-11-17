@@ -49,12 +49,22 @@ public class Model3DTests
     }
 
     [Theory]
-    [InlineData(AlignmentModes.algGermanPolar, true)]
-    [InlineData(AlignmentModes.algUnknown, true)]
-    [InlineData(AlignmentModes.algAltAz, false)]
-    [InlineData(AlignmentModes.algPolar, false)]
-    public void The_assembled_model_shows_only_on_a_german_equatorial_mount(AlignmentModes mode, bool shows)
-        => Assert.Equal(shows, Model3D.ShowsAssembly(mode, PolarMode.Left));
+    [InlineData(AlignmentModes.algGermanPolar, AssemblyMount.Eq6rPro, true)]
+    [InlineData(AlignmentModes.algUnknown, AssemblyMount.Eq6rPro, true)]
+    [InlineData(AlignmentModes.algAltAz, AssemblyMount.Eq6rPro, false)]
+    [InlineData(AlignmentModes.algPolar, AssemblyMount.Eq6rPro, false)]
+    [InlineData(AlignmentModes.algAltAz, AssemblyMount.Am5, true)]
+    [InlineData(AlignmentModes.algAltAz, AssemblyMount.Wave150iPro, true)]
+    [InlineData(AlignmentModes.algPolar, AssemblyMount.Am5, false)]
+    [InlineData(AlignmentModes.algPolar, AssemblyMount.Fork, true)]
+    [InlineData(AlignmentModes.algAltAz, AssemblyMount.Fork, true)]
+    [InlineData(AlignmentModes.algGermanPolar, AssemblyMount.Fork, false)]
+    public void Each_mount_shows_in_the_modes_the_real_one_works_in(AlignmentModes mode, AssemblyMount mount, bool shows)
+        => Assert.Equal(shows, Model3D.ShowsAssembly(mode, mount));
+
+    [Fact]
+    public void The_default_mount_suggests_the_default_support_and_ota()
+        => Assert.Equal((Model3D.DefaultAssemblySupport, Model3D.DefaultAssemblyOta), Model3D.GetSuggestedParts(Model3D.DefaultAssemblyMount));
 
     [Fact]
     public void The_assembled_models_files_are_served()

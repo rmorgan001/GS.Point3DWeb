@@ -333,15 +333,21 @@ public static class Model3D
     /// <summary>
     /// The transform GSServer applies to the model (XAxisOffset, YAxisOffset, ZAxisOffset,
     /// YAxisCentre) for mount axis positions ax / ay, plus the server's own RA / Dec adjustments.
+    /// <para>
+    /// One change from GSServer: a German equatorial mount in the southern hemisphere turns its RA axis the other
+    /// way. Its polar axis points at the south pole, and with GSServer's sign the OTA pointed mirrored about the
+    /// polar axis (off by up to 180° - 2 × |Dec|); this way it points where the mount does, on either pier side.
+    /// </para>
     /// </summary>
     public static (double X, double Y, double Z, double YCentre) GetPose(
         AlignmentModes mode, double latitude, double ax, double ay, double raAdjust, double decAdjust)
     {
         var (yAxis, xAxis) = RotateModel(ax, ay, latitude < 0, mode);
         var offsets = GetAxisModelOffsets(mode);
+        var southernGerman = mode == AlignmentModes.algGermanPolar && latitude < 0;
         return (
             xAxis + offsets.X + decAdjust,          // XAxisOffset = XAxis + offset.X
-            yAxis + offsets.Y + raAdjust,           // YAxisOffset = YAxis + offset.Y
+            (southernGerman ? -(yAxis + offsets.Y) : yAxis + offsets.Y) + raAdjust,   // YAxisOffset = YAxis + offset.Y
             offsets.Z - GetZAxis(mode, latitude),   // ZAxisOffset = offset.Z - ZAxis
             GetYAxisCentre(mode));
     }

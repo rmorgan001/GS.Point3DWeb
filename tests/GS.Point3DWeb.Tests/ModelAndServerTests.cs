@@ -185,6 +185,19 @@ public class Model3DTests
     }
 
     [Fact]
+    public void German_polar_pose_south_turns_the_ra_axis_the_other_way()
+    {
+        // The polar axis points at the south pole: the RA turn is mirrored (checked against the sky), and the
+        // user's RA adjustment still adds as it does in the north.
+        var (_, south, _, _) = Model3D.GetPose(AlignmentModes.algGermanPolar, -30, 30, 45, 0, 0);
+        var (_, north, _, _) = Model3D.GetPose(AlignmentModes.algGermanPolar, 30, 30, 45, 0, 0);
+        Assert.Equal((60.0, -60.0), (south, north));
+        Assert.Equal(65.0, Model3D.GetPose(AlignmentModes.algGermanPolar, -30, 30, 45, 5, 0).Y);
+        // A fork (polar) isn't changed: the viewer turns its assembled model itself.
+        Assert.Equal(-60.0, Model3D.GetPose(AlignmentModes.algPolar, -30, 30, 45, 0, 0).Y);
+    }
+
+    [Fact]
     public void Alt_az_pose_and_user_offsets()
     {
         var (x, y, z, centre) = Model3D.GetPose(AlignmentModes.algAltAz, 51.5, 120, 30, 5, -3);

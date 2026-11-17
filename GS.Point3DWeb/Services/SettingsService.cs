@@ -117,7 +117,14 @@ public class SettingsService
             foreach (var server in _servers.Where(s => s.IdGuid == idGuid)) server.Removed = true;
             removed = _servers.RemoveAll(s => s.IdGuid == idGuid) > 0;
         }
-        if (removed) ServersChanged?.Invoke();
+        if (!removed) return;
+        // Its own background picture goes with it.
+        try { BackgroundImages.Delete(idGuid); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Couldn't delete the background picture of {Server}: {Error}", idGuid, ex.Message);
+        }
+        ServersChanged?.Invoke();
     }
 
     /// <summary>Number of 3D model quadrants on the Home page.</summary>
@@ -257,7 +264,7 @@ public class SettingsService
                     ShowLst = s.ShowLst ?? true,
                     RaInDegrees = s.RaInDegrees ?? false,
                     ModelColor = ModelAppearance.NormalizeColor(s.ModelColor),
-                    Background = ModelAppearance.GetBackground(s.Background).Key,
+                    Background = ModelAppearance.NormalizeBackground(s.Background),
                     ShowGrid = s.ShowGrid ?? true,
                     ShowHeading = s.ShowHeading ?? false,
                     ShowCardinals = s.ShowCardinals ?? false,

@@ -1203,6 +1203,24 @@ class TelescopeViewer {
         const B = window.BABYLON;
         const request = ++this.backgroundRequest;
         const material = this.skybox.material;
+        // The user's own picture ({ url, flat }): shown flat behind the scene, dimmed a little like the panoramas,
+        // rather than wrapped round the sky, which would stretch an ordinary photo.
+        const flat = url && typeof url === 'object' && url.flat;
+        if (url && typeof url === 'object') url = url.url;
+        this.canvas.style.backgroundImage = '';
+        this.scene.clearColor = B.Color4.FromHexString(flat ? '#00000000' : '#070b0eff');
+        if (flat) {
+            const href = new URL(url, document.baseURI).href;
+            this.canvas.style.background =
+                `linear-gradient(rgba(7, 11, 14, .45), rgba(7, 11, 14, .45)), url("${href}") center / cover no-repeat, #070b0e`;
+            const old = material.reflectionTexture;
+            material.reflectionTexture = null;
+            this.skybox.setEnabled(false);
+            if (old) old.dispose();
+            this.requestRender();
+            return;
+        }
+        this.canvas.style.background = '';
         const swap = texture => {
             const old = material.reflectionTexture;
             material.reflectionTexture = texture;

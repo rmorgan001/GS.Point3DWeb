@@ -17,6 +17,7 @@
 @* Back of a quadrant's flip card: the server's 3D model settings, which coordinates show on the
    front, and the saved camera. Everything is stored on the server and saved with the server list. *@
 @inherits LocalizedComponentBase
+@using GS.Point3DWeb.Services
 @implements IDisposable
 
 <section class="settings" aria-label="@L.T("View settings for {0}", Server.ServerName)">
@@ -171,7 +172,37 @@
                         <span class="background-name">@L.T(background.Name)</span>
                     </button>
                 }
+                @* The user's own picture: picking a file chooses it; once there is one, the tile chooses it again. *@
+                @{
+                    var customUrl = BackgroundImages.Url(Server.IdGuid);
+                    var customSelected = Server.Background == ModelAppearance.CustomBackground && customUrl is not null;
+                }
+                <label class="background custom-background @(customSelected ? "selected" : null)" role="radio"
+                       aria-checked="@customSelected" title="@L.T("Your own picture (JPEG, PNG or WebP, up to 15 MB)")">
+                    @if (customUrl is not null)
+                    {
+                        <button type="button" class="thumb" style="background-image: url('@customUrl')"
+                                aria-label="@L.T("Your picture")" @onclick="() => SetBackground(ModelAppearance.CustomBackground)"></button>
+                    }
+                    else
+                    {
+                        <span class="thumb add" aria-hidden="true">+</span>
+                    }
+                    <span class="background-name">@(customUrl is null ? L.T("Your picture…") : L.T("Your picture"))</span>
+                    <InputFile class="visually-hidden-input" accept="@BackgroundImages.Accept" OnChange="OnPictureChosen" />
+                </label>
             </div>
+            @if (customUrl is not null)
+            {
+                <label class="picture-change">
+                    @L.T("Choose another picture…")
+                    <InputFile class="visually-hidden-input" accept="@BackgroundImages.Accept" OnChange="OnPictureChosen" />
+                </label>
+            }
+            @if (_pictureMessage is not null)
+            {
+                <p class="picture-message" role="alert">@_pictureMessage</p>
+            }
 
             <div class="appearance-actions">
                 <button type="button" class="btn" @onclick="ResetAppearance"
@@ -375,8 +406,43 @@
     private Task SetBackground(string key)
     {
         if (key == Server.Background) return Task.CompletedTask;
-        Server.Background = ModelAppearance.GetBackground(key).Key;
+        Server.Background = ModelAppearance.NormalizeBackground(key);
         return OnChanged.InvokeAsync();
+    }
+
+    /// <summary>Why the last picture wasn't taken, or null.</summary>
+    private string? _pictureMessage;
+
+    /// <summary>Keeps the chosen picture for this server and shows it (BackgroundImages checks what it is).</summary>
+    private async Task OnPictureChosen(InputFileChangeEventArgs e)
+    {
+        _pictureMessage = null;
+        var file = e.File;
+        if (file.Size > BackgroundImages.MaxBytes)
+        {
+            _pictureMessage = L.T("That picture is too big: up to 15 MB.");
+            return;
+        }
+        bool saved;
+        try
+        {
+            await using var stream = file.OpenReadStream(BackgroundImages.MaxBytes);
+            saved = await BackgroundImages.SaveAsync(Server.IdGuid, stream);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _pictureMessage = L.T("The picture couldn't be saved: {0}", ex.Message);
+            return;
+        }
+        if (!saved)
+        {
+            _pictureMessage = L.T("That isn't a JPEG, PNG or WebP picture.");
+            return;
+        }
+        // The address changes with the picture, so the view loads the new one even when it was already chosen.
+        Server.Background = ModelAppearance.DefaultBackground;
+        Server.Background = ModelAppearance.CustomBackground;
+        await OnChanged.InvokeAsync();
     }
 
     private Task ResetAppearance()

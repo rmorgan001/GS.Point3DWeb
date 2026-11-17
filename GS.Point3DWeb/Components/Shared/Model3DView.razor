@@ -469,7 +469,7 @@
                 _ = InvokeAsync(() => CallViewerAsync("setModelColor", ViewModel.ModelColor));
                 break;
             case nameof(AlpacaServer.Background):
-                _ = InvokeAsync(() => CallViewerAsync("setBackground", ViewModel.BackgroundUrl));
+                _ = InvokeAsync(() => CallViewerAsync("setBackground", ViewModel.Background));
                 break;
             case nameof(AlpacaServer.ShowGrid):
                 _ = InvokeAsync(() => CallViewerAsync("setGrid", Server?.ShowGrid != false));
@@ -615,7 +615,7 @@
             _viewer = await _module.InvokeAsync<IJSObjectReference>("create", _canvas, new
             {
                 primaryColor = ViewModel.ModelColor,
-                background = ViewModel.BackgroundUrl,
+                background = ViewModel.Background,
                 grid = Server?.ShowGrid != false,
                 cardinals = Server?.ShowCardinals == true,
                 cardinalSize = CardinalSizeKey,

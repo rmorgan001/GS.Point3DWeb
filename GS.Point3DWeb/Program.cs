@@ -171,6 +171,11 @@ app.MapGet("/culture/set", (string? culture, string? redirectUri, HttpContext co
         : "/";
     return Results.LocalRedirect(target);
 });
+// A server's own background picture (BackgroundImages). The id is checked to be a GUID, so no other file is served.
+app.MapGet("/background/{id}", (string id) => BackgroundImages.Find(id) is { } file
+    ? Results.File(file.FullName, BackgroundImages.ContentType(file), enableRangeProcessing: false)
+    : Results.NotFound());
+
 // The log viewer's Download link: the most recent log file, read while it is still being written.
 app.MapGet("/log/file", () => LogFiles.Latest() is { } file
     ? Results.File(LogFiles.OpenShared(file), "text/plain; charset=utf-8", file.Name)

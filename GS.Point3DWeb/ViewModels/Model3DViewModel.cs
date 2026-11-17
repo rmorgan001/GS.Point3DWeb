@@ -133,6 +133,15 @@ public partial class Model3DViewModel(SettingsService settingsService, DialogSer
 
     /// <summary>The server's background image URL, or null for a plain dark sky.</summary>
     public string? BackgroundUrl => ModelAppearance.GetBackground(Server?.Background).Url;
+
+    /// <summary>
+    /// The background for the viewer: a built-in panorama's URL, or the user's own picture as { url, flat } (shown flat
+    /// behind the scene), or null for a plain dark sky. Their own picture, if it has gone, shows the default instead.
+    /// </summary>
+    public object? Background => Server?.Background == ModelAppearance.CustomBackground
+        ? (BackgroundImages.Url(Server.IdGuid) is { } url ? new { url, flat = true }
+            : ModelAppearance.GetBackground(ModelAppearance.DefaultBackground).Url)
+        : BackgroundUrl;
     public string SecondaryColor => _settingsService.ModelSecondaryColor;
 
     [ObservableProperty] public partial string DeviceName { get; set; } = L.T("3D Model");

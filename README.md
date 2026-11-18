@@ -7,7 +7,7 @@ servers on the network, or to ASCOM COM drivers on the computer it runs on. It t
 mount as a live 3D model that moves as the mount does, so you can see where the telescope is
 pointing from any browser. 
 
-![GS Point3D Web showing two German equatorial mounts, one with its coordinates and mount state in a panel down the left of the view and one with them across the bottom](docs/Point3dWeb_1.jpg)
+![GS Point3D Web showing two German equatorial mounts, one with its coordinates and mount state in a panel down the left of the view and one with them across the bottom](docs/Point3dWeb_2.jpg)
 
 ## Features
 

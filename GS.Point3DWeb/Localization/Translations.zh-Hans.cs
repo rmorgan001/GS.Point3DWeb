@@ -254,6 +254,7 @@ internal static partial class Translations
         ["Showing the last {0} of the file; download it for the whole log."] = "显示文件的最后 {0}；下载可查看完整日志。",
         ["Slate"] = "石板灰",
         ["Sorry, the content you are looking for does not exist."] = "抱歉，您查找的内容不存在。",
+        ["Star field"] = "星空",
         ["Still connected: {0} kept the connection open"] = "仍处于连接状态：{0} 保持了连接",
         ["Support on GoFundMe"] = "在 GoFundMe 上支持",
         ["Support the GSServer project on GoFundMe (opens in a new tab)"] = "在 GoFundMe 上支持 GSServer 项目（在新标签页中打开）",

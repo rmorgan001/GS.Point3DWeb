@@ -1,4 +1,4 @@
-/* Copyright(C) 2026  Rob Morgan (robert.morgan.e@gmail.com)
+﻿/* Copyright(C) 2026  Rob Morgan (robert.morgan.e@gmail.com)
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published
@@ -60,6 +60,8 @@ const GRID_SIZE = 160;          // width of the ground plane
 const GRID_CELL = 1;            // minor grid spacing
 const GRID_MAJOR_EVERY = 5;     // a major line every 5 cells
 const GRID_Y = -1.01;           // just under the compass base (its underside is at -1)
+const CAMERA_MIN_HEIGHT = 1;    // the camera stays at least this far above the ground
+const CAMERA_MIN_Y = GRID_Y + CAMERA_MIN_HEIGHT;
 
 // Assembled mount (EXPERIMENTAL; loadAssembly): a support, a mount and an OTA, built here from simple shapes (the OTA
 // can also be an .obj model's tube). Millimetres throughout.
@@ -204,6 +206,90 @@ const MIN_GLIDE_DEGREES = 0.1;
 
 /** The signed change from angle a to angle b the short way round, in degrees (-180 to 180). */
 const angleDelta = (a, b) => ((((b - a) % 360) + 540) % 360) - 180;
+
+// The star field background (a background of { generated: 'stars' }): drawn here onto an equirectangular texture, the
+// same layout the panoramas have, so it needs no download and no extra Babylon class.
+const STAR_TEXTURE_WIDTH = 4096;    // the height is half of it; lowered for a GPU whose largest texture is smaller
+const STAR_COUNT = 3000;            // all above the horizon
+const HORIZON_GLOW_DEGREES = 7;     // a faint glow this high above the horizon (light pollution, airglow)
+const STAR_EXTINCTION_DEGREES = 15; // stars dim towards the horizon, below this elevation
+// The ground below the star field's horizon: a fixed dark colour. Over the star field the ground's floor is this colour
+// nearly solid, so the grid's fade into the distance meets it without a seam; over a picture the floor stays faint.
+const GROUND_COLOR = '#0b1114';
+const GROUND_FLOOR_SOLID = 'rgba(11, 17, 20, 0.92)';
+const GROUND_FLOOR_FAINT = 'rgba(16, 24, 28, 0.45)';
+const STAR_SEED = 0x50494E54;       // fixed, so the sky is the same on every load and in every view
+
+/** A small seeded random number generator (mulberry32): the same seed always gives the same numbers, 0 up to 1. */
+function seededRandom(seed) {
+    return () => {
+        let t = seed += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+
+/**
+ * A night sky on an equirectangular texture: the top half is black with randomly placed stars, the bottom half is the
+ * ground (GROUND_COLOR), and the picture's middle row is the horizon. Stars are many faint ones, fewer medium and very
+ * few bright ones (the brightness is a random number cubed), each with a slight warm or cool tint, dimmed towards the
+ * horizon. They are spread evenly over the sky, not over the flat picture (which would crowd them at the zenith), and
+ * each is stretched sideways by the picture's own stretch there, so it comes out round on the sky.
+ */
+function buildStarTexture(scene) {
+    const B = window.BABYLON;
+    const maxSize = scene.getEngine().getCaps().maxTextureSize || STAR_TEXTURE_WIDTH;
+    const width = Math.min(STAR_TEXTURE_WIDTH, maxSize), height = width / 2;
+    const texture = new B.DynamicTexture('StarField', { width, height }, scene, false, B.Texture.BILINEAR_SAMPLINGMODE);
+    const ctx = texture.getContext();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, width, height / 2);
+    ctx.fillStyle = GROUND_COLOR;
+    ctx.fillRect(0, height / 2, width, height / 2);
+    const glow = height * HORIZON_GLOW_DEGREES / 180;
+    const haze = ctx.createLinearGradient(0, height / 2 - glow, 0, height / 2);
+    haze.addColorStop(0, 'rgba(34, 58, 66, 0)');
+    haze.addColorStop(1, 'rgba(34, 58, 66, 0.85)');
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, height / 2 - glow, width, glow);
+
+    const random = seededRandom(STAR_SEED);
+    const pixel = width / STAR_TEXTURE_WIDTH;   // a star is as big on screen whatever the texture's size
+    const tint = (level, warm) => Math.min(255, Math.round(level * (1 + warm))); // clamped, so a bright star doesn't wrap
+    // Stars stop at the horizon: one on its edge isn't drawn over the ground.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, width, height / 2);
+    ctx.clip();
+    for (let i = 0; i < STAR_COUNT; i++) {
+        const x = random() * width;
+        const elevation = Math.asin(random());   // evenly over the sky above the horizon
+        const y = (0.5 - elevation / Math.PI) * height;
+        const magnitude = Math.pow(random(), 3);
+        const near = Math.min(elevation / rad(STAR_EXTINCTION_DEGREES), 1);
+        const level = (90 + magnitude * 165) * (0.25 + 0.75 * near * near * (3 - 2 * near));   // dimmer near the horizon
+        const warm = (random() * 2 - 1) * 0.18;
+        const radius = (0.4 + magnitude * 1.6) * pixel;
+        const stretch = 1 / Math.max(Math.cos(elevation), 0.15);
+        ctx.fillStyle = `rgb(${tint(level, warm)},${tint(level, 0)},${tint(level, -warm)})`;
+        // A star over the picture's left or right edge is drawn again on the other side, so it isn't cut in half.
+        for (const shift of [0, -width, width]) {
+            const cx = x + shift;
+            if (cx + radius * stretch < 0 || cx - radius * stretch > width) continue;
+            ctx.save();
+            ctx.translate(cx, y);
+            ctx.scale(stretch, 1);
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+    ctx.restore();
+    texture.update();
+    return texture;
+}
 
 class TelescopeViewer {
     constructor(canvas, options) {
@@ -565,6 +651,22 @@ class TelescopeViewer {
     }
 
 
+    /**
+     * Holds the camera at least CAMERA_MIN_HEIGHT above the ground: the target is kept above it too (panning, a saved
+     * view), and the tilt is limited to the angle at which the camera, at this distance from the target, reaches
+     * the minimum height. Runs as the camera updates, before its view is worked out, so it never shows a frame below.
+     */
+    keepCameraAboveGround() {
+        const B = window.BABYLON;
+        const c = this.camera;
+        // Keeping alpha, beta and radius (the last argument), so only the target moves.
+        if (c.target.y < CAMERA_MIN_Y) c.setTarget(new B.Vector3(c.target.x, CAMERA_MIN_Y, c.target.z), false, false, true);
+        // The camera's height is target.y + radius * cos(beta); this beta puts it at the minimum.
+        const limit = Math.acos(Math.max(-1, Math.min(1, (CAMERA_MIN_Y - c.target.y) / c.radius)));
+        c.upperBetaLimit = limit;
+        if (c.beta > limit) c.beta = limit;
+    }
+
     createScene() {
         const B = window.BABYLON;
         const scene = new B.Scene(this.engine);
@@ -580,6 +682,9 @@ class TelescopeViewer {
         // so the model follows the fingers (both, unlike the default fixed steps, scale with distance).
         this.camera.wheelDeltaPercentage = 0.02;
         this.camera.useNaturalPinchZoom = true;
+        // Never below the ground: after the controls have moved the camera, its target and tilt are held (see
+        // keepCameraAboveGround), so it can't be orbited, panned or zoomed under the floor.
+        this.camera.onAfterCheckInputsObservable.add(() => this.keepCameraAboveGround());
 
         // Lighting
         const hemi = new B.HemisphericLight('hemisphericLight', new B.Vector3(0, 1, 0), scene);
@@ -601,6 +706,7 @@ class TelescopeViewer {
         skyMat.specularColor = new B.Color3(0, 0, 0);
         this.skybox.material = skyMat;
         this.skybox.isPickable = false;
+        this.skybox.infiniteDistance = true; // stays centred on the camera, so the sky has no parallax and can't be reached
         this.skybox.setEnabled(false); // shown once a background image has loaded (setBackground)
 
         // Root in Helix coordinates: Z up -> scene Y up, Helix units -> scene units.
@@ -643,7 +749,8 @@ class TelescopeViewer {
 
     /**
      * The ground: a large plane under the compass base with a tiled grid, fading out towards its
-     * edge so it has no hard border. It is see-through, so the background shows between the lines.
+     * edge so it has no hard border. It is see-through, so the background shows between the lines (less so over the
+     * star field: see setGroundFloor).
      */
     createGround(scene) {
         const B = window.BABYLON;
@@ -652,19 +759,24 @@ class TelescopeViewer {
         const px = 512, step = px / GRID_MAJOR_EVERY;
         const grid = new B.DynamicTexture('GridTexture', { width: px, height: px }, scene, true);
         const ctx = grid.getContext();
-        ctx.clearRect(0, 0, px, px);
-        ctx.fillStyle = 'rgba(16, 24, 28, 0.45)'; // faint floor so the mount stands on something
-        ctx.fillRect(0, 0, px, px);
         const line = (pos, width, color) => {
             ctx.fillStyle = color;
             ctx.fillRect(pos - width / 2, 0, width, px);
             ctx.fillRect(0, pos - width / 2, px, width);
         };
-        for (let i = 1; i < GRID_MAJOR_EVERY; i++) line(i * step, 2, 'rgba(82, 183, 136, 0.28)');
-        // Major lines straddle the tile edges, so each tile draws half of them.
-        line(0, 6, 'rgba(82, 183, 136, 0.65)');
-        line(px, 6, 'rgba(82, 183, 136, 0.65)');
-        grid.update();
+        // Painted again when the floor changes (setGroundFloor).
+        this.paintGrid = floor => {
+            ctx.clearRect(0, 0, px, px);
+            ctx.fillStyle = floor; // a floor, so the mount stands on something
+            ctx.fillRect(0, 0, px, px);
+            for (let i = 1; i < GRID_MAJOR_EVERY; i++) line(i * step, 2, 'rgba(82, 183, 136, 0.28)');
+            // Major lines straddle the tile edges, so each tile draws half of them.
+            line(0, 6, 'rgba(82, 183, 136, 0.65)');
+            line(px, 6, 'rgba(82, 183, 136, 0.65)');
+            grid.update();
+        };
+        this.paintGrid(GROUND_FLOOR_FAINT);
+        this.groundSolid = false;
         grid.hasAlpha = true;
         grid.wrapU = grid.wrapV = B.Texture.WRAP_ADDRESSMODE;
         grid.uScale = grid.vScale = GRID_SIZE / (GRID_CELL * GRID_MAJOR_EVERY);
@@ -730,6 +842,14 @@ class TelescopeViewer {
         shadow.material = material;
         shadow.isPickable = false;
         return shadow;
+    }
+
+    /** Over the star field the ground's floor is nearly solid, so it reads as ground; over a picture it is faint. */
+    setGroundFloor(solid) {
+        if (this.groundSolid === !!solid) return;
+        this.groundSolid = !!solid;
+        this.paintGrid(solid ? GROUND_FLOOR_SOLID : GROUND_FLOOR_FAINT);
+        this.requestRender();
     }
 
     /** Shows or hides the ground grid. */
@@ -1196,7 +1316,8 @@ class TelescopeViewer {
     }
 
     /**
-     * Background image URL (relative to the page), or null for a plain dark sky. The current
+     * Background image URL (relative to the page), { url, flat } for the user's own picture, { generated: 'stars' } for
+     * the star field, or null for a plain dark sky. The current
      * background stays until the new image has downloaded, so switching doesn't flash black.
      */
     setBackground(url) {
@@ -1206,6 +1327,7 @@ class TelescopeViewer {
         // The user's own picture ({ url, flat }): shown flat behind the scene, dimmed a little like the panoramas,
         // rather than wrapped round the sky, which would stretch an ordinary photo.
         const flat = url && typeof url === 'object' && url.flat;
+        const generated = url && typeof url === 'object' ? url.generated : null;
         if (url && typeof url === 'object') url = url.url;
         this.canvas.style.backgroundImage = '';
         this.scene.clearColor = B.Color4.FromHexString(flat ? '#00000000' : '#070b0eff');
@@ -1216,18 +1338,27 @@ class TelescopeViewer {
             const old = material.reflectionTexture;
             material.reflectionTexture = null;
             this.skybox.setEnabled(false);
+            this.setGroundFloor(false);
             if (old) old.dispose();
             this.requestRender();
             return;
         }
         this.canvas.style.background = '';
-        const swap = texture => {
+        const swap = (texture, solidGround = false) => {
             const old = material.reflectionTexture;
             material.reflectionTexture = texture;
+            this.setGroundFloor(solidGround);
             this.skybox.setEnabled(!!texture);
             if (old && old !== texture) old.dispose();
             this.requestRender();
         };
+
+        if (generated === 'stars') {
+            const stars = buildStarTexture(this.scene);
+            stars.coordinatesMode = B.Texture.FIXED_EQUIRECTANGULAR_MODE;
+            swap(stars, true);
+            return;
+        }
 
         if (!url) {
             swap(null);

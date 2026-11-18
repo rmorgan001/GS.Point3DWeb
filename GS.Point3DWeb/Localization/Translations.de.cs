@@ -254,6 +254,7 @@ internal static partial class Translations
         ["Showing the last {0} of the file; download it for the whole log."] = "Es werden die letzten {0} der Datei angezeigt; laden Sie sie herunter, um das ganze Protokoll zu sehen.",
         ["Slate"] = "Schiefer",
         ["Sorry, the content you are looking for does not exist."] = "Der gesuchte Inhalt existiert leider nicht.",
+        ["Star field"] = "Sternenfeld",
         ["Still connected: {0} kept the connection open"] = "Noch verbunden: {0} hat die Verbindung offen gehalten",
         ["Support on GoFundMe"] = "Auf GoFundMe unterstützen",
         ["Support the GSServer project on GoFundMe (opens in a new tab)"] = "Das Projekt GSServer auf GoFundMe unterstützen (öffnet in einem neuen Tab)",

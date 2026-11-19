@@ -157,7 +157,8 @@ git push origin v1.0.0
 The [release workflow](.github/workflows/release.yml) then builds the app for all six platforms
 at once, and attaches them, with a `SHA256SUMS.txt` checksum file, to a GitHub Release for that
 tag. Its notes list the changes since the last release. The tag sets the version shown in the
-app. Every release is currently published as a pre-release.
+app. A tag with a suffix, such as `v1.2.0-beta` or `v1.2.0-rc.1`, is published as a pre-release;
+a plain `vX.Y.Z` tag is a normal release, marked Latest when it is the highest version.
 
 The release is published as soon as the Windows and Linux builds finish. The macOS downloads are
 added when their builds finish, as GitHub's macOS build machines are sometimes slow to start or

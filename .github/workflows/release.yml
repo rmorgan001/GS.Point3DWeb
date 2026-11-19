@@ -121,9 +121,12 @@ jobs:
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
           else
-            # Every release is published as a pre-release for now. To publish normal releases again,
-            # remove --prerelease here (or keep it only for tags with a suffix: [[ "$TAG" == *-* ]]).
-            flags=(--verify-tag --title "GS Point3D Web ${TAG#v}" --notes-file notes.md --generate-notes --prerelease)
+            flags=(--verify-tag --title "GS Point3D Web ${TAG#v}" --notes-file notes.md --generate-notes)
+            # A tag with a suffix (v1.2.0-beta, v1.2.0-rc.1) is a pre-release; a plain vX.Y.Z tag is a
+            # normal release, which GitHub marks Latest when it is the highest version.
+            if [[ "$TAG" == *-* ]]; then
+              flags+=(--prerelease)
+            fi
             gh release create "$TAG" dist/* "${flags[@]}"
           fi
 

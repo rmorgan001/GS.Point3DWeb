@@ -88,7 +88,7 @@
 
 .close:hover:not(:disabled) {
     color: var(--red) !important;
-    border-color: rgba(239, 100, 97, .45) !important;
+    border-color: color-mix(in srgb, var(--red) 45%, transparent) !important;
 }
 
 /* ===== Scene ===== */
@@ -135,9 +135,9 @@
     align-items: baseline;
     gap: .4rem;
     padding: .2rem .55rem;
-    border: 1px solid rgba(52, 71, 79, .8);
+    border: 1px solid color-mix(in srgb, var(--line-strong) 80%, transparent);
     border-radius: var(--radius-sm);
-    background: rgba(7, 11, 14, .72);
+    background: color-mix(in srgb, var(--sky) 72%, transparent);
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
 }
@@ -195,16 +195,16 @@
 
     /* When connected it's the quieter action: dark, turning red on hover. */
     .connect-btn.connected {
-        border-color: rgba(52, 71, 79, .8);
-        background: rgba(7, 11, 14, .72);
+        border-color: color-mix(in srgb, var(--line-strong) 80%, transparent);
+        background: color-mix(in srgb, var(--sky) 72%, transparent);
         color: var(--moon);
         -webkit-backdrop-filter: blur(6px);
         backdrop-filter: blur(6px);
     }
 
         .connect-btn.connected:hover:not(:disabled) {
-            border-color: rgba(239, 100, 97, .6);
-            background: rgba(239, 100, 97, .15);
+            border-color: color-mix(in srgb, var(--red) 60%, transparent);
+            background: color-mix(in srgb, var(--red) 15%, transparent);
             color: var(--red);
         }
 
@@ -252,9 +252,9 @@
     align-items: center;
     gap: .45rem;
     padding: .25rem .55rem .25rem .3rem;
-    border: 1px solid rgba(52, 71, 79, .8);
+    border: 1px solid color-mix(in srgb, var(--line-strong) 80%, transparent);
     border-radius: var(--radius-sm);
-    background: rgba(7, 11, 14, .72);
+    background: color-mix(in srgb, var(--sky) 72%, transparent);
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
 }
@@ -508,9 +508,9 @@
     max-height: calc(100% - 1.2rem);
     overflow: hidden auto;
     scrollbar-width: thin;
-    border: 1px solid rgba(82, 183, 136, .28);
+    border: 1px solid color-mix(in srgb, var(--green) 28%, transparent);
     border-radius: var(--radius);
-    background: linear-gradient(180deg, rgba(16, 24, 28, .88) 0%, rgba(7, 11, 14, .84) 100%);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 88%, transparent) 0%, color-mix(in srgb, var(--sky) 84%, transparent) 100%);
     -webkit-backdrop-filter: blur(10px) saturate(1.2);
     backdrop-filter: blur(10px) saturate(1.2);
     box-shadow: 0 12px 32px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .05);
@@ -571,7 +571,7 @@
     /* Header: the Live pill, with a rule after it. */
     .coord-panel.horizontal .cp-head {
         padding: .45rem .8rem;
-        border-right: 1px solid rgba(52, 71, 79, .7);
+        border-right: 1px solid color-mix(in srgb, var(--line-strong) 70%, transparent);
     }
 
     /* Each coordinate a cell: label over value, a faint rule between cells. */
@@ -591,7 +591,7 @@
     }
 
         .coord-panel.horizontal .cp-row + .cp-row {
-            box-shadow: -1px 0 0 rgba(52, 71, 79, .45);
+            box-shadow: -1px 0 0 color-mix(in srgb, var(--line-strong) 45%, transparent);
         }
 
         .coord-panel.horizontal .cp-row dd {
@@ -613,7 +613,7 @@
         margin: 0;
         padding: .45rem .6rem;
         border-top: 0;
-        border-left: 1px solid rgba(52, 71, 79, .7);
+        border-left: 1px solid color-mix(in srgb, var(--line-strong) 70%, transparent);
     }
 
     .coord-panel.horizontal .cp-flags {
@@ -677,7 +677,7 @@
     }
 
     .cp-live.on {
-        border-color: rgba(82, 183, 136, .45);
+        border-color: color-mix(in srgb, var(--green) 45%, transparent);
         background: var(--green-soft);
         color: var(--green);
     }
@@ -693,7 +693,7 @@
     }
 
     0%, 100% {
-        box-shadow: 0 0 0 0 rgba(82, 183, 136, .55);
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 55%, transparent);
     }
 }
 
@@ -714,7 +714,7 @@
 }
 
     .cp-row + .cp-row {
-        box-shadow: 0 -1px 0 rgba(52, 71, 79, .45);
+        box-shadow: 0 -1px 0 color-mix(in srgb, var(--line-strong) 45%, transparent);
     }
 
     .cp-row:hover {
@@ -752,7 +752,7 @@
 .cp-section {
     margin-top: .35rem;
     padding: .5rem .4rem 0;
-    border-top: 1px solid rgba(52, 71, 79, .7);
+    border-top: 1px solid color-mix(in srgb, var(--line-strong) 70%, transparent);
 }
 
 .cp-flags {
@@ -769,7 +769,7 @@
         font-size: .66rem;
         line-height: 1.2;
         white-space: normal;
-        border-color: rgba(52, 71, 79, .6);
+        border-color: color-mix(in srgb, var(--line-strong) 60%, transparent);
         background: rgba(255, 255, 255, .025);
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
@@ -777,12 +777,12 @@
     }
 
     .cp-flags .flag.on {
-        border-color: rgba(82, 183, 136, .4);
+        border-color: color-mix(in srgb, var(--green) 40%, transparent);
         background: var(--green-soft);
     }
 
     .cp-flags .flag.busy {
-        border-color: rgba(242, 200, 75, .4);
+        border-color: color-mix(in srgb, var(--yellow) 40%, transparent);
         background: var(--yellow-soft);
     }
 

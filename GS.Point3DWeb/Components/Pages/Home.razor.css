@@ -39,7 +39,7 @@
     min-height: var(--header-height);
     padding: 0 1rem 0 1.25rem;
     border-bottom: 1px solid var(--line);
-    background: rgba(7, 11, 14, .86);
+    background: color-mix(in srgb, var(--sky) 86%, transparent);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
 }
@@ -246,7 +246,7 @@
     }
 
 .pin-toggle.on {
-    border-color: rgba(82, 183, 136, .55);
+    border-color: color-mix(in srgb, var(--green) 55%, transparent);
     background: var(--green-soft);
     color: var(--green);
 }
@@ -281,7 +281,7 @@
     height: .95rem;
     border-radius: 50%;
     background: var(--red);
-    color: #fff;
+    color: var(--on-strong);
     font-size: .68rem;
     font-weight: 700;
     line-height: 1;
@@ -304,7 +304,7 @@
     justify-content: center;
     width: 2rem;
     padding: 0;
-    color: #4fc0ff;
+    color: var(--link-sky);
 }
 
     .help-button:hover {
@@ -457,7 +457,7 @@
 /* Delete turns red on hover. */
 .toolbar .icon-btn.danger:hover:not(:disabled) {
     color: var(--red);
-    border-color: rgba(239, 100, 97, .45);
+    border-color: color-mix(in srgb, var(--red) 45%, transparent);
 }
 
 .server-nav {
@@ -656,8 +656,8 @@
     border: 1.5px dashed var(--line-strong);
     border-radius: var(--radius);
     background:
-        radial-gradient(closest-side, rgba(82, 183, 136, .05), transparent) center / 70% 70% no-repeat,
-        rgba(16, 24, 28, .45);
+        radial-gradient(closest-side, color-mix(in srgb, var(--green) 5%, transparent), transparent) center / 70% 70% no-repeat,
+        color-mix(in srgb, var(--panel) 45%, transparent);
     color: var(--mare);
     text-align: center;
 }
@@ -695,7 +695,7 @@
     justify-content: center;
     border: 2px dashed var(--green);
     border-radius: var(--radius);
-    background: rgba(82, 183, 136, .07);
+    background: color-mix(in srgb, var(--green) 7%, transparent);
     color: var(--moon);
     font-weight: 600;
     pointer-events: none;
@@ -706,12 +706,12 @@
         padding: .4rem .85rem;
         border: 1px solid var(--line-strong);
         border-radius: var(--radius-sm);
-        background: rgba(7, 11, 14, .9);
+        background: color-mix(in srgb, var(--sky) 90%, transparent);
     }
 
     .drop-zone.over {
         border-style: solid;
-        background: rgba(82, 183, 136, .2);
+        background: color-mix(in srgb, var(--green) 20%, transparent);
     }
 
         .drop-zone.over span {

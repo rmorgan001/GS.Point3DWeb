@@ -22,8 +22,8 @@
     display: none;
     width: 100%;
     padding: 0.7rem 2.75rem 0.75rem 1.25rem;
-    border-top: 1px solid rgba(239, 100, 97, .45);
-    background: #2a1416;
+    border-top: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
+    background: var(--fail-surface);
     color: var(--moon);
     box-shadow: 0 -8px 24px -12px rgba(0, 0, 0, .8);
 }

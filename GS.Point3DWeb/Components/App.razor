@@ -22,7 +22,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <ResourcePreloader />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#070b0e" />
     <link rel="icon" type="image/x-icon" href="@Assets["favicon.ico"]" />
     @* Barlow fonts are served by the app (wwwroot/fonts), so it needs no internet connection. *@
@@ -30,6 +30,8 @@
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["GS.Point3DWeb.styles.css"]" />
     @* Before the body is drawn: puts the server list back the way this browser left it (collapsed or not). *@
+    @* Before anything is drawn: the theme this browser chose (Day, Dusk, Night or its own colours), so there is no flash of the wrong one. *@
+    <script src="@Assets["theme.js"]"></script>
     <script src="@Assets["sidebar.js"]"></script>
     <ImportMap />
     <HeadOutlet @rendermode="InteractiveServer" />

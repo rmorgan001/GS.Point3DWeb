@@ -15,7 +15,8 @@
  */
 
 /* GS Point3D Web: the Green Swamp look (greenswamp.org / tools.greenswamp.org), a night-observing
-   console. Dark only. Barlow for text, Barlow Condensed for titles. */
+   console. Dark by default; Day, Dusk, Night and the user's own colours are themes (the end of this file). Barlow for text,
+   Barlow Condensed for titles. */
 
 :root {
     color-scheme: dark;
@@ -31,10 +32,15 @@
     --green: #52b788;        /* actions, connected */
     --green-hover: #6cc89b;
     --green-ink: #06130d;    /* text on green */
-    --green-soft: rgba(82, 183, 136, .14);
+    --green-soft: color-mix(in srgb, var(--green) 14%, transparent);
     --yellow: #f2c84b;       /* titles, highlights, focus */
-    --yellow-soft: rgba(242, 200, 75, .12);
+    --yellow-soft: color-mix(in srgb, var(--yellow) 12%, transparent);
     --red: #ef6461;          /* errors */
+
+    /* Colours that were fixed in the components; a theme changes them with the rest. */
+    --link-sky: #4fc0ff;     /* the help link */
+    --fail-surface: #2a1416; /* the connection-lost banner */
+    --on-strong: #fff;       /* text on strong fills */
 
     /* CJK fallbacks so Chinese uses a proper system font (Barlow has no CJK glyphs). */
     --font: "Barlow", "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
@@ -84,7 +90,7 @@ h1:focus {
 }
 
 ::selection {
-    background: rgba(82, 183, 136, .35);
+    background: color-mix(in srgb, var(--green) 35%, transparent);
 }
 
 /* Thin dark scrollbars to match the panels. */
@@ -113,7 +119,7 @@ h1:focus {
 
     .btn:hover:not(:disabled) {
         border-color: var(--mare);
-        color: #fff;
+        color: var(--on-strong);
     }
 
     .btn:disabled {
@@ -176,7 +182,7 @@ h1:focus {
     align-items: center;
     justify-content: center;
     padding: 16px;
-    background: rgba(3, 6, 8, .72);
+    background: color-mix(in srgb, var(--sky) 72%, transparent);
     -webkit-backdrop-filter: blur(3px);
     backdrop-filter: blur(3px);
 }
@@ -253,7 +259,7 @@ h1:focus {
 
     .dialog-button:hover {
         border-color: var(--mare);
-        color: #fff;
+        color: var(--on-strong);
     }
 
     .dialog-button:first-child {
@@ -274,7 +280,7 @@ h1:focus {
 }
 
 .dialog-button.danger:hover {
-    border-color: rgba(239, 100, 97, .6);
+    border-color: color-mix(in srgb, var(--red) 60%, transparent);
     color: var(--red);
 }
 
@@ -282,7 +288,7 @@ h1:focus {
 .key-reason {
     margin: 0 0 .85rem;
     padding: .6rem .8rem;
-    border: 1px solid rgba(242, 200, 75, .4);
+    border: 1px solid color-mix(in srgb, var(--yellow) 40%, transparent);
     border-radius: var(--radius-sm);
     background: var(--yellow-soft);
     font-size: .9rem;
@@ -353,7 +359,7 @@ h1:focus {
     .key-field textarea:focus {
         outline: none;
         border-color: var(--green);
-        box-shadow: 0 0 0 3px rgba(82, 183, 136, .2);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 20%, transparent);
     }
 
     .key-field textarea.has-error {
@@ -462,7 +468,7 @@ h1:focus {
     padding: .6rem .9rem .9rem;
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    background: rgba(23, 34, 38, .45);
+    background: color-mix(in srgb, var(--panel-raised) 45%, transparent);
 }
 
     .field-group legend {
@@ -508,7 +514,7 @@ h1:focus {
     .field select:focus {
         outline: none;
         border-color: var(--green);
-        box-shadow: 0 0 0 3px rgba(82, 183, 136, .2);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 20%, transparent);
     }
 
     .field input[readonly] {
@@ -580,10 +586,88 @@ h1:focus {
 .blazor-error-boundary {
     padding: 1rem 1rem 1rem 1.25rem;
     border-left: 4px solid var(--red);
-    background: rgba(239, 100, 97, .13);
+    background: color-mix(in srgb, var(--red) 13%, transparent);
     color: var(--moon);
 }
 
     .blazor-error-boundary::after {
         content: "An error has occurred.";
     }
+
+/* ======================================================================================================
+   Themes (the same ones as GS Test Harness). The default, with no data-theme, is the dark look above. The
+   header's Day / Dark / Dusk / Night / Custom switch sets data-theme on <html> (wwwroot/theme.js); a theme
+   only changes the variables, so every component follows. Night is red only, which rods barely respond to,
+   so the screen doesn't spoil dark adaptation (no green or blue in it).
+   ====================================================================================================== */
+:root[data-theme="day"] {
+    color-scheme: light;
+    --sky: #f4f7f8; --panel: #ffffff; --panel-raised: #eef3f5; --well: #fbfcfd;
+    --line: #d5dde2; --line-strong: #b9c6cd;
+    --moon: #14202a; --mare: #51636f;
+    --green: #1f7a52; --green-hover: #16633f; --green-ink: #ffffff;
+    --yellow: #8a6100; --red: #b3261e;
+    --link-sky: #0b6aa8; --fail-surface: #fdecea; --on-strong: #ffffff;
+}
+:root[data-theme="dusk"] {
+    color-scheme: dark;
+    --sky: #0a0500; --panel: #140a02; --panel-raised: #1d1004; --well: #0e0701;
+    --line: #2e1c0a; --line-strong: #4a2e12;
+    --moon: #ffb066; --mare: #c08040;
+    --green: #e0a050; --green-hover: #f0b868; --green-ink: #1a0d00;
+    --yellow: #ffb066; --red: #ff6a3d;
+    --link-sky: #e0a050; --fail-surface: #2a1208; --on-strong: #ffe8cc;
+}
+:root[data-theme="night"] {
+    color-scheme: dark;
+    --sky: #000000; --panel: #0d0000; --panel-raised: #170000; --well: #080000;
+    --line: #3a0000; --line-strong: #5a0000;
+    --moon: #ff2020; --mare: #e01818;
+    --green: #ff2020; --green-hover: #ff4040; --green-ink: #000000;
+    --yellow: #ff2020; --red: #ff2020;
+    --link-sky: #ff2020; --fail-surface: #1a0000; --on-strong: #000000;
+}
+
+/* The user's own theme: colours set by wwwroot/theme.js as --c-*; the rest of the palette is worked out from them. */
+:root[data-theme="custom"] {
+    --sky: var(--c-bg);
+    --panel: color-mix(in srgb, var(--c-bg) 94%, var(--c-text));
+    --panel-raised: color-mix(in srgb, var(--c-bg) 88%, var(--c-text));
+    --well: color-mix(in srgb, var(--c-bg) 97%, var(--c-text));
+    --line: color-mix(in srgb, var(--c-bg) 82%, var(--c-text));
+    --line-strong: color-mix(in srgb, var(--c-bg) 68%, var(--c-text));
+    --moon: var(--c-text);
+    --mare: color-mix(in srgb, var(--c-text) 68%, var(--c-bg));
+    --green: var(--c-accent);
+    --green-hover: color-mix(in srgb, var(--c-accent) 82%, var(--c-text));
+    --green-ink: var(--c-bg);
+    --yellow: var(--c-warn);
+    --red: var(--c-fail);
+    --link-sky: var(--c-accent);
+    --fail-surface: color-mix(in srgb, var(--c-fail) 12%, var(--c-bg));
+    --on-strong: var(--c-text);
+}
+
+/* The header's Day / Dark / Dusk / Night / Custom switch. */
+.theme-switch { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden; flex: none; }
+.theme-switch button {
+    border: 0; background: transparent; color: var(--mare); padding: .25rem .65rem; font: inherit; font-size: .8rem; cursor: pointer;
+}
+.theme-switch button:hover { color: var(--moon); background: var(--panel-raised); }
+.theme-switch button[aria-pressed="true"] { background: var(--green); color: var(--green-ink); font-weight: 600; }
+
+/* The colour editor: a panel under the header, not a dialog, so the page shows through and the colours can be judged. */
+.theme-pop {
+    position: fixed; top: calc(var(--header-height) + .5rem); right: 1rem; z-index: 70; width: min(400px, calc(100vw - 2rem));
+    max-height: calc(100vh - var(--header-height) - 1.5rem); overflow: auto; padding: 1rem 1.25rem; background: var(--panel);
+    border: 1px solid var(--line-strong); border-radius: var(--radius-lg); box-shadow: 0 16px 40px -16px rgba(0, 0, 0, .8);
+}
+.theme-pop h2 { margin: 0 0 .5rem; font-size: 1.2rem; color: var(--yellow); }
+.theme-pop .theme-note { margin: .4rem 0; font-size: .85rem; color: var(--mare); }
+.theme-pop .theme-row { display: grid; grid-template-columns: 6rem 3rem 5.5rem 1fr; gap: .4rem .6rem; align-items: center; padding: .25rem 0; font-size: .88rem; }
+.theme-pop input[type="color"] { width: 3rem; height: 2rem; padding: 0; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; cursor: pointer; }
+.theme-pop .theme-hex { font-family: var(--font-code); font-size: .85rem; }
+.theme-pop .theme-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .6rem 0 .2rem; }
+.theme-pop .ratio-ok { color: var(--green); }
+.theme-pop .ratio-low { color: var(--yellow); }
+.theme-pop textarea { width: 100%; min-height: 4.5rem; margin-top: .4rem; font-family: var(--font-code); font-size: .8rem; background: var(--well); color: var(--moon); border: 1px solid var(--line-strong); border-radius: 6px; }

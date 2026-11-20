@@ -59,7 +59,7 @@
 }
 
 #components-reconnect-modal::backdrop {
-    background-color: rgba(3, 6, 8, .72);
+    background-color: color-mix(in srgb, var(--sky) 72%, transparent);
     animation: components-reconnect-modal-fadeInOpacity 0.5s ease-in-out;
     opacity: 1;
 }

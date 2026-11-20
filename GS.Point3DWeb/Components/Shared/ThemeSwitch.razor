@@ -1,0 +1,72 @@
+@* Copyright(C) 2026  Rob Morgan (robert.morgan.e@gmail.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *@
+
+@inherits LocalizedComponentBase
+@implements IDisposable
+@inject IJSRuntime JS
+@inject ThemeService Theme
+
+@* Day / Dark / Dusk / Night / Custom: Dark is the default look; Dusk is dim amber and Night is red only, for dark-adapted eyes
+   at the telescope; Custom is the user's own colours (a double click opens the editor). Remembered by this browser
+   (wwwroot/theme.js, app.css). *@
+<div class="theme-switch" role="group" aria-label="@L.T("Colour theme")">
+    <button type="button" aria-pressed="@Pressed("day")" title="@L.T("Light, for daylight")" @onclick="@(() => Pick("day"))">@L.T("Day")</button>
+    <button type="button" aria-pressed="@Pressed("dark")" title="@L.T("The default dark look")" @onclick="@(() => Pick("dark"))">@L.T("Dark")</button>
+    <button type="button" aria-pressed="@Pressed("dusk")" title="@L.T("Dim amber, while your eyes adapt")" @onclick="@(() => Pick("dusk"))">@L.T("Dusk")</button>
+    <button type="button" aria-pressed="@Pressed("night")" title="@L.T("Red only, to keep your night vision")" @onclick="@(() => Pick("night"))">@L.T("Night")</button>
+    <button type="button" aria-pressed="@Pressed("custom")" title="@L.T("Your own colours: double-click to change them")"
+            @onclick="@(() => Pick("custom"))" @ondblclick="() => _editing = !_editing">@L.T("Custom")</button>
+</div>
+
+@if (_editing)
+{
+    <ThemeEditor Done="() => _editing = false" />
+}
+
+@code {
+    private bool _editing;
+
+    private string Pressed(string name) => Theme.Current == name ? "true" : "false";
+
+    protected override void OnInitialized() => Theme.Changed += OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            Theme.Set(await JS.InvokeAsync<string>("gsTheme.get"));
+        }
+        catch (Exception) { /* no browser to ask */ }
+    }
+
+    private async Task Pick(string name)
+    {
+        try
+        {
+            // The first time Custom is picked it starts as a copy of the dark theme, ready to change.
+            if (name == "custom" && await JS.InvokeAsync<Dictionary<string, string>?>("gsTheme.getCustom") is null)
+                await JS.InvokeVoidAsync("gsTheme.setCustom", ThemeColours.Presets["dark"]);
+            await JS.InvokeVoidAsync("gsTheme.set", name);
+        }
+        catch (Exception) { /* no browser to ask */ }
+        Theme.Set(name);
+    }
+
+    public void Dispose() => Theme.Changed -= OnChanged;
+}

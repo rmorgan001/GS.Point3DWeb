@@ -82,6 +82,9 @@ builder.Services.AddSingleton<FeatureKeyService>();
 // Dialogs: one per browser connection (circuit).
 builder.Services.AddScoped<DialogService>();
 
+// The colour theme in use in each browser tab (Day, Dark, Dusk, Night or Custom).
+builder.Services.AddScoped<ThemeService>();
+
 // Each browser connection's UI language, so renders triggered by other connections keep it.
 builder.Services.AddScoped<CircuitCulture>();
 

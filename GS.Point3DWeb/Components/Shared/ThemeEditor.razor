@@ -1,0 +1,159 @@
+@* Copyright(C) 2026  Rob Morgan (robert.morgan.e@gmail.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *@
+
+@inherits LocalizedComponentBase
+@inject IJSRuntime JS
+@inject ThemeService Theme
+
+@* Your own colour theme: five colours, with a live preview. The rest of the palette (panels, lines, hover shades) is worked
+   out from them. Kept by this browser; Export and Import move it between browsers and projects (it is the palette GS Test
+   Harness uses too). A panel under the header, not a dialog, so the page shows through and the colours can be judged. *@
+<section class="theme-pop" role="dialog" aria-label="@L.T("Your own colours")">
+    <h2>@L.T("Your own colours")</h2>
+    <p class="theme-note">@L.T("Change a colour and the page changes with it. Panels, lines and hover shades are worked out from these colours. Kept by this browser; use Export to take the palette elsewhere.")</p>
+
+    <div class="theme-actions">
+        <label>@L.T("Start from")
+            <select @bind="_base">
+                <option value="dark">@L.T("Dark")</option>
+                <option value="day">@L.T("Day")</option>
+                <option value="dusk">@L.T("Dusk")</option>
+                <option value="night">@L.T("Night")</option>
+            </select>
+        </label>
+        <button type="button" class="dialog-button" title="@L.T("Replace these colours with that theme's")" @onclick="UseBase">@L.T("Use it")</button>
+    </div>
+
+    @foreach (var key in ThemeColours.EditorKeys)
+    {
+        var hex = _colours.GetValueOrDefault(key, "#000000");
+        var label = ThemeColours.Label(key);
+        <div class="theme-row">
+            <span>@label</span>
+            <input type="color" value="@hex" aria-label="@label" @oninput="e => ChangeAsync(key, e.Value?.ToString())" />
+            <span class="theme-hex">@hex</span>
+            @if (key != "bg")
+            {
+                var ratio = ThemeColours.Contrast(hex, _colours.GetValueOrDefault("bg"));
+                <span class="@(ratio >= 4.5 ? "ratio-ok" : "ratio-low")">
+                    @(ratio >= 4.5 ? "✓" : "⚠") @L.T("{0}:1 against the background", ratio.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))@(ratio >= 4.5 ? "" : ", " + L.T("hard to read"))
+                </span>
+            }
+        </div>
+    }
+
+    <p class="theme-note @(_safe ? "ratio-ok" : null)">
+        @(_safe ? "✓ " + L.T("Red-light safe: these colours have almost no green or blue, so they keep your night vision.")
+                : L.T("Not red-light safe: the colours include green or blue light. For the telescope, keep every colour a deep red."))
+    </p>
+
+    <div class="theme-actions">
+        <button type="button" class="dialog-button" @onclick="ExportAsync">@L.T("Export")</button>
+        <button type="button" class="dialog-button" @onclick="() => _showImport = !_showImport">@L.T("Import…")</button>
+        <button type="button" class="dialog-button" @onclick="Done">@L.T("Done")</button>
+        @if (_message is not null) { <span class="theme-note @(_messageIsError ? "ratio-low" : "ratio-ok")">@_message</span> }
+    </div>
+    @if (_exported is not null)
+    {
+        <textarea readonly aria-label="@L.T("Export")" onfocus="this.select()">@_exported</textarea>
+    }
+    @if (_showImport)
+    {
+        <textarea placeholder="@L.T("Paste a palette here")" aria-label="@L.T("Paste a palette here")" @bind="_import" @bind:event="oninput"></textarea>
+        <div class="theme-actions"><button type="button" class="dialog-button" @onclick="ImportAsync">@L.T("Use this palette")</button></div>
+    }
+</section>
+
+@code {
+    /// <summary>Closes the panel.</summary>
+    [Parameter] public EventCallback Done { get; set; }
+
+    private Dictionary<string, string> _colours = new(ThemeColours.Presets["dark"]);
+    private string _base = "dark", _import = "";
+    private string? _exported, _message;
+    private bool _showImport, _messageIsError;
+
+    private bool _safe => ThemeColours.RedLightSafe(_colours);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            if (await JS.InvokeAsync<Dictionary<string, string>?>("gsTheme.getCustom") is { } stored)
+            {
+                _colours = stored;
+                StateHasChanged();
+            }
+        }
+        catch (Exception) { /* no browser to ask */ }
+    }
+
+    /// <summary>Keeps the colours, and switches to the custom theme so the change shows.</summary>
+    private async Task SaveAsync()
+    {
+        _message = null;
+        _exported = null;
+        try
+        {
+            await JS.InvokeVoidAsync("gsTheme.setCustom", _colours);
+            if (Theme.Current != "custom")
+            {
+                await JS.InvokeVoidAsync("gsTheme.set", "custom");
+                Theme.Set("custom");
+            }
+        }
+        catch (Exception) { /* no browser to ask */ }
+    }
+
+    private async Task ChangeAsync(string key, string? value)
+    {
+        if (ThemeColours.Parse(value) is null) return;
+        _colours = new Dictionary<string, string>(_colours) { [key] = value!.ToLowerInvariant() };
+        await SaveAsync();
+    }
+
+    private async Task UseBase()
+    {
+        _colours = new Dictionary<string, string>(ThemeColours.Presets[_base]);
+        await SaveAsync();
+    }
+
+    private async Task ExportAsync()
+    {
+        _exported = ThemeColours.Export(_colours);
+        try
+        {
+            var copied = await JS.InvokeAsync<bool>("gsCopy", _exported);
+            (_message, _messageIsError) = (copied ? L.T("Copied to the clipboard.") : L.T("Select the text below and copy it."), false);
+        }
+        catch (Exception) { (_message, _messageIsError) = (L.T("Select the text below and copy it."), false); }
+    }
+
+    private async Task ImportAsync()
+    {
+        if (!ThemeColours.TryImport(_import, out var colours, out var error))
+        {
+            (_message, _messageIsError) = (error, true);
+            return;
+        }
+        _colours = colours;
+        _import = "";
+        _showImport = false;
+        await SaveAsync();
+        (_message, _messageIsError) = (L.T("Palette in use."), false);
+    }
+}

@@ -65,6 +65,11 @@
         } catch { /* nothing to change */ }
     }
 
+    // Tells what is drawn outside the page's CSS (the 3D view's canvas) to take the colours again.
+    function changed() {
+        window.dispatchEvent(new Event('gsthemechange'));
+    }
+
     function get() {
         return stored('gsTheme') || (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'day' : 'dark');
     }
@@ -80,6 +85,7 @@
         else root.dataset.theme = name;
         if (name === 'custom') applyCustom();
         syncWindowColour();
+        changed();
     }
 
     window.gsTheme = {
@@ -91,6 +97,7 @@
             try { localStorage.setItem('gsCustomTheme', JSON.stringify(colours)); } catch { /* not remembered */ }
             if (root.dataset.theme === 'custom') applyCustom();
             syncWindowColour();
+            changed();
         }
     };
 

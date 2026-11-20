@@ -181,10 +181,10 @@ const CARDINAL_SIZES = { small: 8, medium: 11, large: 14, xlarge: 20 };
 // See-through, so the letters sit back as landmarks rather than compete with the mount.
 const CARDINAL_ALPHA = 0.45;
 const CARDINALS = [
-    { letter: 'N', bearing: 0, color: '#ef6461' }, // red, like the heading needle's north tip
-    { letter: 'E', bearing: 90, color: '#e8e6df' },
-    { letter: 'S', bearing: 180, color: '#e8e6df' },
-    { letter: 'W', bearing: 270, color: '#e8e6df' }
+    { letter: 'N', bearing: 0, role: 'red' }, // red, like the heading needle's north tip
+    { letter: 'E', bearing: 90, role: 'text' },
+    { letter: 'S', bearing: 180, role: 'text' },
+    { letter: 'W', bearing: 270, role: 'text' }
 ];
 
 // Highest pixel density drawn at: sharp on high-DPI screens (Retina, 150% Windows scaling) without
@@ -213,12 +213,73 @@ const STAR_TEXTURE_WIDTH = 4096;    // the height is half of it; lowered for a G
 const STAR_COUNT = 3000;            // all above the horizon
 const HORIZON_GLOW_DEGREES = 7;     // a faint glow this high above the horizon (light pollution, airglow)
 const STAR_EXTINCTION_DEGREES = 15; // stars dim towards the horizon, below this elevation
-// The ground below the star field's horizon: a fixed dark colour. Over the star field the ground's floor is this colour
+// The ground below the star field's horizon is the theme's well colour. Over the star field the ground's floor is that colour
 // nearly solid, so the grid's fade into the distance meets it without a seam; over a picture the floor stays faint.
-const GROUND_COLOR = '#0b1114';
-const GROUND_FLOOR_SOLID = 'rgba(11, 17, 20, 0.92)';
-const GROUND_FLOOR_FAINT = 'rgba(16, 24, 28, 0.45)';
+const GROUND_FLOOR_SOLID_ALPHA = 0.92;
+const GROUND_FLOOR_FAINT_ALPHA = 0.45;
 const STAR_SEED = 0x50494E54;       // fixed, so the sky is the same on every load and in every view
+
+// ----- The colour theme (wwwroot/theme.js sets the CSS variables; the scene follows them) -----
+const themeProbe = document.createElement('span');
+themeProbe.style.display = 'none';
+let themeSwatch = null;
+
+/** A CSS variable's colour as { r, g, b } bytes, whatever form it is written in (hex, color-mix and so on). */
+function themeColour(name) {
+    try {
+        if (!themeProbe.isConnected) document.documentElement.appendChild(themeProbe);
+        themeProbe.style.color = `var(${name})`;
+        if (!themeSwatch) {
+            const c = document.createElement('canvas');
+            c.width = c.height = 1;
+            themeSwatch = c.getContext('2d', { willReadFrequently: true });
+        }
+        themeSwatch.clearRect(0, 0, 1, 1);
+        themeSwatch.fillStyle = getComputedStyle(themeProbe).color;
+        themeSwatch.fillRect(0, 0, 1, 1);
+        const [r, g, b] = themeSwatch.getImageData(0, 0, 1, 1).data;
+        return { r, g, b };
+    } catch {
+        return { r: 7, g: 11, b: 14 };
+    }
+}
+
+/** The colours the scene is drawn in: the page's own palette, so Day, Dusk, Night and Custom carry into the 3D view. */
+function themePalette() {
+    return {
+        theme: document.documentElement.dataset.theme || 'dark',
+        sky: themeColour('--sky'), panel: themeColour('--panel'), raised: themeColour('--panel-raised'),
+        well: themeColour('--well'), line: themeColour('--line'), accent: themeColour('--green'),
+        red: themeColour('--red'), text: themeColour('--moon')
+    };
+}
+
+const rgba = (c, a = 1) => `rgba(${c.r}, ${c.g}, ${c.b}, ${a})`;
+const hexOf = c => '#' + [c.r, c.g, c.b].map(v => v.toString(16).padStart(2, '0')).join('');
+const color4 = c => window.BABYLON.Color4.FromHexString(hexOf(c) + 'ff');
+const isDarkColour = c => (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) < 128;
+
+// Night shows red only, Dusk amber only (rods barely respond to red, so the screen doesn't spoil dark adaptation): the
+// whole picture, mount included, is turned into brightness in that one colour. sRGB so the maths is on the values as drawn.
+const LOOK_FILTERS = {
+    night: { id: 'gs-look-night', green: 0, blue: 0 },
+    dusk: { id: 'gs-look-dusk', green: 0.69, blue: 0.4 }
+};
+
+function ensureLookFilters() {
+    if (document.getElementById('gs-look-filters')) return;
+    const gain = [0.4, 0.85, 0.2];
+    const row = k => [...gain.map(v => (v * k).toFixed(3)), 0, 0].join(' ');
+    const filters = Object.values(LOOK_FILTERS).map(f =>
+        `<filter id="${f.id}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="` +
+        `${row(1)} ${row(f.green)} ${row(f.blue)} 0 0 0 1 0"/></filter>`).join('');
+    const holder = document.createElement('div');
+    holder.id = 'gs-look-filters';
+    holder.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+    holder.setAttribute('aria-hidden', 'true');
+    holder.innerHTML = `<svg width="0" height="0" focusable="false">${filters}</svg>`;
+    document.body.appendChild(holder);
+}
 
 /** A small seeded random number generator (mulberry32): the same seed always gives the same numbers, 0 up to 1. */
 function seededRandom(seed) {
@@ -232,12 +293,12 @@ function seededRandom(seed) {
 
 /**
  * A night sky on an equirectangular texture: the top half is black with randomly placed stars, the bottom half is the
- * ground (GROUND_COLOR), and the picture's middle row is the horizon. Stars are many faint ones, fewer medium and very
+ * ground (the theme's well colour), and the picture's middle row is the horizon. Stars are many faint ones, fewer medium and very
  * few bright ones (the brightness is a random number cubed), each with a slight warm or cool tint, dimmed towards the
  * horizon. They are spread evenly over the sky, not over the flat picture (which would crowd them at the zenith), and
  * each is stretched sideways by the picture's own stretch there, so it comes out round on the sky.
  */
-function buildStarTexture(scene) {
+function buildStarTexture(scene, palette) {
     const B = window.BABYLON;
     const maxSize = scene.getEngine().getCaps().maxTextureSize || STAR_TEXTURE_WIDTH;
     const width = Math.min(STAR_TEXTURE_WIDTH, maxSize), height = width / 2;
@@ -245,12 +306,12 @@ function buildStarTexture(scene) {
     const ctx = texture.getContext();
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, width, height / 2);
-    ctx.fillStyle = GROUND_COLOR;
+    ctx.fillStyle = rgba(palette.well);
     ctx.fillRect(0, height / 2, width, height / 2);
     const glow = height * HORIZON_GLOW_DEGREES / 180;
     const haze = ctx.createLinearGradient(0, height / 2 - glow, 0, height / 2);
-    haze.addColorStop(0, 'rgba(34, 58, 66, 0)');
-    haze.addColorStop(1, 'rgba(34, 58, 66, 0.85)');
+    haze.addColorStop(0, rgba(palette.line, 0));
+    haze.addColorStop(1, rgba(palette.line, 0.85));
     ctx.fillStyle = haze;
     ctx.fillRect(0, height / 2 - glow, width, glow);
 
@@ -331,6 +392,7 @@ class TelescopeViewer {
 
         // No preserveDrawingBuffer or stencil: nothing reads frames back or uses stencil effects.
         // The pixel density is set in resize(), capped at MAX_PIXEL_RATIO.
+        this.palette = themePalette();
         this.engine = new B.Engine(canvas, true, { antialias: true, preserveDrawingBuffer: false, stencil: false }, false);
         this.scene = this.createScene();
         this.engine.runRenderLoop(() => this.renderFrame());
@@ -368,6 +430,34 @@ class TelescopeViewer {
 
         // Camera: start from the server's saved view (saved / reset from the back of the card).
         this.setCamera(options.camera);
+
+        // The theme can change while the view is open (the header switch, the custom colour editor).
+        this.onThemeChange = () => this.applyTheme();
+        window.addEventListener('gsthemechange', this.onThemeChange);
+        this.applyLook();
+    }
+
+    /** The scene's colours again, after a theme change: the sky, ground, grid, letters, compass and the Night / Dusk tint. */
+    applyTheme() {
+        if (this.scene.isDisposed) return;
+        this.palette = themePalette();
+        this.hemi.groundColor = window.BABYLON.Color3.FromHexString(hexOf(this.palette.raised));
+        this.paintGrid(this.groundSolid);
+        this.paintCardinals();
+        this.setHemisphere(this.northern);
+        const spec = this.backgroundSpec;
+        const panorama = spec && !(typeof spec === 'object' && (spec.flat || spec.generated));
+        if (panorama) this.scene.clearColor = color4(this.palette.sky);
+        else this.setBackground(spec); // a plain sky, the star field (drawn in the theme's ground) or the user's picture
+        this.applyLook();
+        this.requestRender();
+    }
+
+    /** Night and Dusk tint the whole picture to one colour; the other themes draw it as it is. */
+    applyLook() {
+        const look = LOOK_FILTERS[this.palette.theme];
+        if (look) ensureLookFilters();
+        this.canvas.style.filter = look ? `url(#${look.id})` : '';
     }
 
     /** Asks for a frame to be drawn (the scene changed). */
@@ -671,7 +761,7 @@ class TelescopeViewer {
         const B = window.BABYLON;
         const scene = new B.Scene(this.engine);
         scene.useRightHandedSystem = true; // same handedness as Helix / WPF 3D
-        scene.clearColor = B.Color4.FromHexString('#070b0eff');
+        scene.clearColor = color4(this.palette.sky);
 
         this.camera = new B.ArcRotateCamera('Camera', rad(DEFAULT_CAMERA.alpha), rad(DEFAULT_CAMERA.beta),
             DEFAULT_CAMERA.radius, new B.Vector3(DEFAULT_CAMERA.targetX, DEFAULT_CAMERA.targetY, DEFAULT_CAMERA.targetZ), scene);
@@ -687,11 +777,11 @@ class TelescopeViewer {
         this.camera.onAfterCheckInputsObservable.add(() => this.keepCameraAboveGround());
 
         // Lighting
-        const hemi = new B.HemisphericLight('hemisphericLight', new B.Vector3(0, 1, 0), scene);
+        const hemi = this.hemi = new B.HemisphericLight('hemisphericLight', new B.Vector3(0, 1, 0), scene);
         hemi.intensity = 0.75;
         hemi.diffuse = B.Color3.FromHexString(this.secondaryColor);
         hemi.specular = new B.Color3(0.2, 0.2, 0.2);
-        hemi.groundColor = B.Color3.FromHexString('#172226');
+        hemi.groundColor = B.Color3.FromHexString(hexOf(this.palette.raised));
 
         const dir = new B.DirectionalLight('directionalLight', new B.Vector3(-1, -2, -1), scene);
         dir.position = new B.Vector3(10, 20, 10);
@@ -765,18 +855,20 @@ class TelescopeViewer {
             ctx.fillRect(0, pos - width / 2, px, width);
         };
         // Painted again when the floor changes (setGroundFloor).
-        this.paintGrid = floor => {
+        this.paintGrid = solid => {
+            const p = this.palette;
             ctx.clearRect(0, 0, px, px);
-            ctx.fillStyle = floor; // a floor, so the mount stands on something
+            // A floor, so the mount stands on something.
+            ctx.fillStyle = solid ? rgba(p.well, GROUND_FLOOR_SOLID_ALPHA) : rgba(p.panel, GROUND_FLOOR_FAINT_ALPHA);
             ctx.fillRect(0, 0, px, px);
-            for (let i = 1; i < GRID_MAJOR_EVERY; i++) line(i * step, 2, 'rgba(82, 183, 136, 0.28)');
+            for (let i = 1; i < GRID_MAJOR_EVERY; i++) line(i * step, 2, rgba(p.accent, 0.28));
             // Major lines straddle the tile edges, so each tile draws half of them.
-            line(0, 6, 'rgba(82, 183, 136, 0.65)');
-            line(px, 6, 'rgba(82, 183, 136, 0.65)');
+            line(0, 6, rgba(p.accent, 0.65));
+            line(px, 6, rgba(p.accent, 0.65));
             grid.update();
         };
-        this.paintGrid(GROUND_FLOOR_FAINT);
         this.groundSolid = false;
+        this.paintGrid(false);
         grid.hasAlpha = true;
         grid.wrapU = grid.wrapV = B.Texture.WRAP_ADDRESSMODE;
         grid.uScale = grid.vScale = GRID_SIZE / (GRID_CELL * GRID_MAJOR_EVERY);
@@ -848,7 +940,7 @@ class TelescopeViewer {
     setGroundFloor(solid) {
         if (this.groundSolid === !!solid) return;
         this.groundSolid = !!solid;
-        this.paintGrid(solid ? GROUND_FLOOR_SOLID : GROUND_FLOOR_FAINT);
+        this.paintGrid(this.groundSolid);
         this.requestRender();
     }
 
@@ -867,17 +959,7 @@ class TelescopeViewer {
         return CARDINALS.map(c => {
             const px = 256;
             const texture = new B.DynamicTexture(`Cardinal${c.letter}`, { width: px, height: px }, scene, true);
-            const ctx = texture.getContext();
-            ctx.clearRect(0, 0, px, px);
-            ctx.font = `600 ${Math.round(px * 0.8)}px Barlow, "Segoe UI", system-ui, sans-serif`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.lineWidth = px * 0.06;
-            ctx.strokeStyle = 'rgba(7, 11, 14, 0.85)'; // a dark edge, so a letter reads over a light background
-            ctx.strokeText(c.letter, px / 2, px * 0.54);
-            ctx.fillStyle = c.color;
-            ctx.fillText(c.letter, px / 2, px * 0.54);
-            texture.update();
+            this.paintCardinal(texture, c, px);
             texture.hasAlpha = true;
 
             const material = new B.StandardMaterial(`Cardinal${c.letter}`, scene);
@@ -898,8 +980,27 @@ class TelescopeViewer {
             plane.billboardMode = B.TransformNode.BILLBOARDMODE_Y; // (BABYLON.Mesh isn't in the trimmed build)
             plane.isPickable = false;
             plane.setEnabled(false);
-            return { ...c, plane };
+            return { ...c, plane, texture };
         });
+    }
+
+    /** One letter, in the theme's colours: north in its red, the others in its text colour, edged in the sky colour. */
+    paintCardinal(texture, c, px = 256) {
+        const ctx = texture.getContext();
+        ctx.clearRect(0, 0, px, px);
+        ctx.font = `600 ${Math.round(px * 0.8)}px Barlow, "Segoe UI", system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = px * 0.06;
+        ctx.strokeStyle = rgba(this.palette.sky, 0.85); // an edge, so a letter reads over a background of either kind
+        ctx.strokeText(c.letter, px / 2, px * 0.54);
+        ctx.fillStyle = rgba(this.palette[c.role]);
+        ctx.fillText(c.letter, px / 2, px * 0.54);
+        texture.update();
+    }
+
+    paintCardinals() {
+        for (const c of this.cardinals) this.paintCardinal(c.texture, c);
     }
 
     /** Puts each letter at its bearing for the compass shown (north and south compasses are turned 180°). */
@@ -1323,6 +1424,7 @@ class TelescopeViewer {
     setBackground(url) {
         const B = window.BABYLON;
         const request = ++this.backgroundRequest;
+        this.backgroundSpec = url; // kept, so a theme change can draw it again
         const material = this.skybox.material;
         // The user's own picture ({ url, flat }): shown flat behind the scene, dimmed a little like the panoramas,
         // rather than wrapped round the sky, which would stretch an ordinary photo.
@@ -1330,11 +1432,11 @@ class TelescopeViewer {
         const generated = url && typeof url === 'object' ? url.generated : null;
         if (url && typeof url === 'object') url = url.url;
         this.canvas.style.backgroundImage = '';
-        this.scene.clearColor = B.Color4.FromHexString(flat ? '#00000000' : '#070b0eff');
+        this.scene.clearColor = flat ? B.Color4.FromHexString('#00000000') : color4(this.palette.sky);
         if (flat) {
             const href = new URL(url, document.baseURI).href;
             this.canvas.style.background =
-                `linear-gradient(rgba(7, 11, 14, .45), rgba(7, 11, 14, .45)), url("${href}") center / cover no-repeat, #070b0e`;
+                `linear-gradient(${rgba(this.palette.sky, 0.45)}, ${rgba(this.palette.sky, 0.45)}), url("${href}") center / cover no-repeat, ${rgba(this.palette.sky)}`;
             const old = material.reflectionTexture;
             material.reflectionTexture = null;
             this.skybox.setEnabled(false);
@@ -1354,7 +1456,7 @@ class TelescopeViewer {
         };
 
         if (generated === 'stars') {
-            const stars = buildStarTexture(this.scene);
+            const stars = buildStarTexture(this.scene, this.palette);
             stars.coordinatesMode = B.Texture.FIXED_EQUIRECTANGULAR_MODE;
             swap(stars, true);
             return;
@@ -1394,19 +1496,19 @@ class TelescopeViewer {
         const image = new Image();
         image.onload = () => {
             if (this.scene.isDisposed || request !== this.compassRequest) return;
-            // The compass image is dark markings on a transparent background. Draw it inverted
-            // (light markings) over the panel color, so it reads as a dark disc.
+            // The compass image is dark markings on a transparent background. Over a dark panel colour draw it inverted
+            // (light markings), so it reads as a dark disc; over a light one (Day) draw it as it is.
             const size = 1024;
             const texture = new B.DynamicTexture('CompassTexture', { width: size, height: size }, this.scene, true);
             const ctx = texture.getContext();
-            ctx.fillStyle = '#10181c';
+            ctx.fillStyle = rgba(this.palette.panel);
             ctx.fillRect(0, 0, size, size);
             // The right-handed scene shows the cap texture mirrored; draw it mirrored so the
             // letters read correctly and E / W are on the right sides.
             ctx.save();
             ctx.translate(size, 0);
             ctx.scale(-1, 1);
-            ctx.filter = 'invert(1)';
+            ctx.filter = isDarkColour(this.palette.panel) ? 'invert(1)' : 'none';
             ctx.drawImage(image, 0, 0, size, size);
             ctx.restore();
             texture.update();
@@ -1423,6 +1525,7 @@ class TelescopeViewer {
 
     dispose() {
         viewers.delete(this);
+        window.removeEventListener('gsthemechange', this.onThemeChange);
         this.setHeadingElement(null);
         this.resizeObserver.disconnect();
         if (this.insetObserver) this.insetObserver.disconnect();

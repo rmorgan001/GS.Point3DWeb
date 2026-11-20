@@ -73,7 +73,8 @@
     }
 
     function get() {
-        return stored('gsTheme') || (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'day' : 'dark');
+        // Dark unless the visitor has picked another: the operating system's light or dark setting isn't followed.
+        return stored('gsTheme') || 'dark';
     }
 
     function set(name) {

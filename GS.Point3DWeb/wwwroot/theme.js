@@ -65,6 +65,8 @@
         } catch { /* nothing to change */ }
     }
 
+    let previewTimer = 0;
+
     // Tells what is drawn outside the page's CSS (the 3D view's canvas) to take the colours again.
     function changed() {
         window.dispatchEvent(new Event('gsthemechange'));
@@ -92,6 +94,16 @@
         get,
         set,
         getCustom,
+        // A colour being dragged in the editor's picker: shown now, in the page's CSS only. Nothing is kept or sent to the server
+        // until the picker settles (its change event). The 3D view repaints a moment after the dragging pauses, not on every step.
+        preview: (key, value) => {
+            if (root.dataset.theme !== 'custom' || !CUSTOM.includes(key) || !/^#[0-9a-fA-F]{6}$/.test(value)) return;
+            root.style.setProperty('--c-' + key, value);
+            if (key === 'bg') root.style.colorScheme = isLight(value) ? 'light' : 'dark';
+            syncWindowColour();
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(changed, 150);
+        },
         // Keeps the colours and, if the custom theme is on, shows them now.
         setCustom: colours => {
             try { localStorage.setItem('gsCustomTheme', JSON.stringify(colours)); } catch { /* not remembered */ }

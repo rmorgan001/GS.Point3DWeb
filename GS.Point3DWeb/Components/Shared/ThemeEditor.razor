@@ -43,7 +43,8 @@
         var label = ThemeColours.Label(key);
         <div class="theme-row">
             <span>@label</span>
-            <input type="color" value="@hex" aria-label="@label" @oninput="e => ChangeAsync(key, e.Value?.ToString())" />
+            @* Dragging in the picker previews in the browser alone (theme.js); the server hears of it once, when the picker settles. *@
+            <input type="color" value="@hex" aria-label="@label" oninput="@($"gsTheme.preview('{key}', this.value)")" @onchange="e => ChangeAsync(key, e.Value?.ToString())" />
             <span class="theme-hex">@hex</span>
             @if (key != "bg")
             {

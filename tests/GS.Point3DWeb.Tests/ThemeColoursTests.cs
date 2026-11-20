@@ -39,6 +39,11 @@ public class ThemeColoursTests
         Assert.Null(ThemeColours.Parse("#12345"));
         Assert.Null(ThemeColours.Parse("123456"));
         Assert.Equal((0x12, 0xab, 0xef), ThemeColours.Parse("#12ABef"));
+        // int.TryParse with HexNumber alone would let these through.
+        Assert.Null(ThemeColours.Parse("# 1 2 3"));
+        Assert.Null(ThemeColours.Parse("#12 45 "));
+        Assert.Null(ThemeColours.Parse("#+1+2+3"));
+        Assert.Null(ThemeColours.Parse("#12345g"));
     }
 
     [Fact]

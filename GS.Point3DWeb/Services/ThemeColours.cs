@@ -58,10 +58,14 @@ public static class ThemeColours
     private static IReadOnlyDictionary<string, string> Palette(string bg, string text, string accent, string warn, string error, string fail, string info)
         => new Dictionary<string, string> { ["bg"] = bg, ["text"] = text, ["accent"] = accent, ["warn"] = warn, ["error"] = error, ["fail"] = fail, ["info"] = info };
 
+    private static readonly System.Buffers.SearchValues<char> HexDigits = System.Buffers.SearchValues.Create("0123456789abcdefABCDEF");
+
     /// <summary>"#rrggbb" (any case) as its three channels; null if it isn't one.</summary>
     public static (int R, int G, int B)? Parse(string? hex)
     {
         if (hex is not { Length: 7 } || hex[0] != '#') return null;
+        // Checked as hex digits first: HexNumber alone also lets spaces through ("# 1 2 3").
+        if (hex.AsSpan(1).IndexOfAnyExcept(HexDigits) >= 0) return null;
         return int.TryParse(hex.AsSpan(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r)
                && int.TryParse(hex.AsSpan(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g)
                && int.TryParse(hex.AsSpan(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b)

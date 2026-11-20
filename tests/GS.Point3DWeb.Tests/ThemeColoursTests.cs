@@ -82,6 +82,25 @@ public class ThemeColoursTests
     }
 
     [Theory]
+    [InlineData("2")]
+    [InlineData("\"1\"")]
+    [InlineData("null")]
+    public void A_palette_from_another_version_is_refused(string version)
+    {
+        var text = ThemeColours.Export(ThemeColours.Presets["dusk"]).Replace("\"gsTheme\":1", $"\"gsTheme\":{version}");
+        Assert.False(ThemeColours.TryImport(text, out _, out var error));
+        Assert.False(string.IsNullOrEmpty(error));
+    }
+
+    [Fact]
+    public void A_palette_without_a_version_is_still_read()
+    {
+        var text = ThemeColours.Export(ThemeColours.Presets["dusk"]).Replace("\"gsTheme\":1,", "");
+        Assert.True(ThemeColours.TryImport(text, out var colours, out var error), error);
+        Assert.Equal(ThemeColours.Presets["dusk"].OrderBy(p => p.Key), colours.OrderBy(p => p.Key));
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("not json")]
     [InlineData("[1,2,3]")]

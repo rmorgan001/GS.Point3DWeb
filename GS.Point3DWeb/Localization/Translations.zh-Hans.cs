@@ -55,6 +55,7 @@ internal static partial class Translations
         ["Info"] = "信息",
         ["Paste a palette first."] = "请先粘贴一个配色。",
         ["That isn't a palette: it should be the text Export gave."] = "这不是配色：应为“导出”给出的文字。",
+        ["That palette is from a different version of the app, so its colours can't be read."] = "该配色来自应用的其他版本，无法读取其中的颜色。",
         ["The palette has no {0} colour ({1})."] = "配色缺少{0}颜色（{1}）。",
         ["The {0} colour \"{1}\" isn't a colour like #1a2b3c."] = "{0}颜色“{1}”不是像 #1a2b3c 这样的颜色。",
         ["3D Model"] = "3D 模型",

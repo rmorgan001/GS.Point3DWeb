@@ -58,6 +58,9 @@ public static class ThemeColours
     private static IReadOnlyDictionary<string, string> Palette(string bg, string text, string accent, string warn, string error, string fail, string info)
         => new Dictionary<string, string> { ["bg"] = bg, ["text"] = text, ["accent"] = accent, ["warn"] = warn, ["error"] = error, ["fail"] = fail, ["info"] = info };
 
+    /// <summary>The palette text format Export writes and TryImport reads.</summary>
+    private const int Version = 1;
+
     private static readonly System.Buffers.SearchValues<char> HexDigits = System.Buffers.SearchValues.Create("0123456789abcdefABCDEF");
 
     /// <summary>"#rrggbb" (any case) as its three channels; null if it isn't one.</summary>
@@ -101,7 +104,7 @@ public static class ThemeColours
     /// <summary>The palette as text to keep or paste into another browser (or another project): one line of JSON.</summary>
     public static string Export(IReadOnlyDictionary<string, string> colours)
     {
-        var ordered = new Dictionary<string, object> { ["gsTheme"] = 1 };
+        var ordered = new Dictionary<string, object> { ["gsTheme"] = Version };
         foreach (var key in Keys) ordered[key] = colours.TryGetValue(key, out var v) ? v.ToLowerInvariant() : "";
         return JsonSerializer.Serialize(ordered);
     }
@@ -124,6 +127,12 @@ public static class ThemeColours
             return false;
         }
         if (root.ValueKind != JsonValueKind.Object) { error = L.T("That isn't a palette: it should be the text Export gave."); return false; }
+        // Palettes that carry a version must carry the one Export writes; one without it (made by hand, or by another tool) is read as it is.
+        if (root.TryGetProperty("gsTheme", out var version) && !(version.ValueKind == JsonValueKind.Number && version.TryGetInt32(out var number) && number == Version))
+        {
+            error = L.T("That palette is from a different version of the app, so its colours can't be read.");
+            return false;
+        }
         foreach (var key in Keys)
         {
             if (!root.TryGetProperty(key, out var v) || v.ValueKind != JsonValueKind.String)

@@ -55,6 +55,7 @@ internal static partial class Translations
         ["Info"] = "Info",
         ["Paste a palette first."] = "Pegue primero una paleta.",
         ["That isn't a palette: it should be the text Export gave."] = "Eso no es una paleta: debe ser el texto que dio Exportar.",
+        ["That palette is from a different version of the app, so its colours can't be read."] = "Esa paleta es de otra versión de la aplicación, por lo que no se pueden leer sus colores.",
         ["The palette has no {0} colour ({1})."] = "La paleta no tiene el color {0} ({1}).",
         ["The {0} colour \"{1}\" isn't a colour like #1a2b3c."] = "El color {0} «{1}» no es un color como #1a2b3c.",
         ["3D Model"] = "Modelo 3D",

@@ -70,6 +70,10 @@
     }
 
     function set(name) {
+        // Custom with no colours to show (the site data was cleared) would leave every colour undefined: use the default look.
+        if (name === 'custom' && !getCustom()) name = 'dark';
+        // A name that isn't a theme, or Custom with no usable palette (cleared or hand-edited storage), would leave no colours at all.
+        if (!['dark', 'day', 'dusk', 'night', 'custom'].includes(name) || (name === 'custom' && !getCustom())) name = 'dark';
         try { localStorage.setItem('gsTheme', name); } catch { /* not remembered */ }
         clearCustom();
         if (name === 'dark') delete root.dataset.theme;

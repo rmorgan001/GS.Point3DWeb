@@ -20,15 +20,17 @@
 @inject ThemeService Theme
 
 @* Day / Dark / Dusk / Night / Custom: Dark is the default look; Dusk is dim amber and Night is red only, for dark-adapted eyes
-   at the telescope; Custom is the user's own colours (a double click opens the editor). Remembered by this browser
+   at the telescope; Custom is the user's own colours (the pencil beside it, or a double click on Custom, opens the editor). Remembered by this browser
    (wwwroot/theme.js, app.css). *@
 <div class="theme-switch" role="group" aria-label="@L.T("Colour theme")">
     <button type="button" aria-pressed="@Pressed("day")" title="@L.T("Light, for daylight")" @onclick="@(() => Pick("day"))">@L.T("Day")</button>
     <button type="button" aria-pressed="@Pressed("dark")" title="@L.T("The default dark look")" @onclick="@(() => Pick("dark"))">@L.T("Dark")</button>
     <button type="button" aria-pressed="@Pressed("dusk")" title="@L.T("Dim amber, while your eyes adapt")" @onclick="@(() => Pick("dusk"))">@L.T("Dusk")</button>
     <button type="button" aria-pressed="@Pressed("night")" title="@L.T("Red only, to keep your night vision")" @onclick="@(() => Pick("night"))">@L.T("Night")</button>
-    <button type="button" aria-pressed="@Pressed("custom")" title="@L.T("Your own colours: double-click to change them")"
+    <button type="button" aria-pressed="@Pressed("custom")" title="@L.T("Your own colours")"
             @onclick="@(() => Pick("custom"))" @ondblclick="() => _editing = !_editing">@L.T("Custom")</button>
+    <button type="button" class="theme-edit" aria-expanded="@(_editing ? "true" : "false")" aria-label="@L.T("Change your own colours")"
+            title="@L.T("Change your own colours")" @onclick="() => _editing = !_editing">✎</button>
 </div>
 
 @if (_editing)

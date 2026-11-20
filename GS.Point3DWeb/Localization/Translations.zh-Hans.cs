@@ -31,7 +31,7 @@ internal static partial class Translations
         ["Red only, to keep your night vision"] = "仅红色，以保持夜视能力",
         ["Night"] = "夜间",
         ["Custom"] = "自定义",
-        ["Your own colours: double-click to change them"] = "您自己的颜色：双击进行更改",
+        ["Change your own colours"] = "更改您自己的颜色",
         ["Your own colours"] = "您自己的颜色",
         ["Change a colour and the page changes with it. Panels, lines and hover shades are worked out from these colours. Kept by this browser; use Export to take the palette elsewhere."] = "更改一种颜色，页面会随之变化。面板、线条和悬停色调由这些颜色推算而来。由此浏览器保存；使用“导出”可将配色带到别处。",
         ["Start from"] = "起始于",

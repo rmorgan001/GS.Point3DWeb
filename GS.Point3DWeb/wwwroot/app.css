@@ -657,6 +657,7 @@ h1:focus {
 }
 .theme-switch button:hover { color: var(--moon); background: var(--panel-raised); }
 .theme-switch button[aria-pressed="true"] { background: var(--green); color: var(--green-ink); font-weight: 600; }
+.theme-switch .theme-edit { padding-inline: .5rem; border-left: 1px solid var(--line-strong); }
 
 /* The colour editor: a panel under the header, not a dialog, so the page shows through and the colours can be judged. */
 .theme-pop {

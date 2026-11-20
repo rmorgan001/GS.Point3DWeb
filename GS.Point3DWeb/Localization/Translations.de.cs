@@ -31,7 +31,7 @@ internal static partial class Translations
         ["Red only, to keep your night vision"] = "Nur Rot, damit die Nachtsicht erhalten bleibt",
         ["Night"] = "Nacht",
         ["Custom"] = "Eigene",
-        ["Your own colours: double-click to change them"] = "Ihre eigenen Farben: Doppelklick zum Ändern",
+        ["Change your own colours"] = "Eigene Farben ändern",
         ["Your own colours"] = "Ihre eigenen Farben",
         ["Change a colour and the page changes with it. Panels, lines and hover shades are worked out from these colours. Kept by this browser; use Export to take the palette elsewhere."] = "Ändern Sie eine Farbe, und die Seite ändert sich mit. Flächen, Linien und Hover-Töne werden aus diesen Farben berechnet. Wird in diesem Browser gespeichert; mit „Exportieren“ nehmen Sie die Palette woanders hin mit.",
         ["Start from"] = "Ausgehen von",

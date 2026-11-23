@@ -82,9 +82,24 @@ public static class BackgroundImages
         if (KindOf(copy.GetBuffer().AsSpan(0, (int)Math.Min(copy.Length, 16))) is not { } extension) return false;
 
         Directory.CreateDirectory(Folder);
-        Delete(serverId);
         var path = Path.Combine(Folder, serverId + extension);
-        await File.WriteAllBytesAsync(path, copy.ToArray(), token);
+        // Written aside and moved in, so a failed write keeps the old picture.
+        var temp = path + ".tmp";
+        try
+        {
+            await File.WriteAllBytesAsync(temp, copy.ToArray(), token);
+            File.Move(temp, path, overwrite: true);
+            // A picture of another type has a different name: removed once the new one is in place.
+            foreach (var kind in Kinds)
+            {
+                var other = Path.Combine(Folder, serverId + kind.Extension);
+                if (other != path && File.Exists(other)) File.Delete(other);
+            }
+        }
+        finally
+        {
+            if (File.Exists(temp)) File.Delete(temp);
+        }
         return true;
     }
 

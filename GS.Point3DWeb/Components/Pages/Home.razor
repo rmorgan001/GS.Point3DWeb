@@ -372,6 +372,8 @@
     public async ValueTask DisposeAsync()
     {
         _disposed = true;
+        // Blazor calls only DisposeAsync when both interfaces exist: detach and dispose the view model here.
+        base.Dispose();
         // Only a page that became interactive gave the browser a callback. The prerendered copy is disposed too,
         // and calling JavaScript from it throws (under the debugger, that stopped the app on every page load).
         if (_visibilityCallback is not null)

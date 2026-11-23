@@ -547,7 +547,7 @@
             // JS call limit, so it gets its own.
             var result = await _module.InvokeAsync<string>("loadModel", ModelLoadTimeout, [_viewer, ViewModel.ModelUrl, ViewModel.MountInfo]);
             if (result == "Superseded") return; // a newer load replaced this one (model3d.js)
-            if (result.Contains("Error", StringComparison.OrdinalIgnoreCase))
+            if (result.StartsWith("Error", StringComparison.OrdinalIgnoreCase))
             {
                 ViewModel.StatusText = L.T("Failed to load model: {0}", result);
                 LoadFailed(key);

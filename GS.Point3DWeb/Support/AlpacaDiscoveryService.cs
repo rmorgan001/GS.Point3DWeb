@@ -70,7 +70,7 @@ namespace GS.Alpaca.Support
                     telescopes.Add(new AlpacaTelescopeDevice
                     {
                         DeviceName = device.GetProperty("DeviceName").GetString(),
-                        DeviceUrl = $"http://{server.HostName}:{server.Port}/api/v1/telescope/{deviceNumber}/".ToLower()
+                        DeviceUrl = $"http://{server.HostName}:{server.Port}/api/v1/telescope/{deviceNumber}/".ToLowerInvariant()
                     });
                 }
             }

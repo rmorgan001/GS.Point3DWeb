@@ -50,6 +50,10 @@ namespace GS.Alpaca.Support
         /// <summary>Alpaca's NotImplemented error (0x400).</summary>
         public const int NotImplementedError = 0x400;
 
+        /// <summary>
+        /// The last transaction ID. Assigning it counts one more from the current value rather than storing the
+        /// assigned one (the callers write <c>ClientTransactionId++</c>); it starts again from 0 near the 32-bit limit.
+        /// </summary>
         public double ClientTransactionId
         {
             get;
@@ -85,7 +89,7 @@ namespace GS.Alpaca.Support
             // Only the method name is lower-cased: the server path may be case-sensitive.
             var url = BuildUrl(method.ToLowerInvariant());
             ClientTransactionId++;
-            url += $"?ClientID={ClientId}&ClientTransactionID={ClientTransactionId}";
+            url += $"?ClientID={ClientId}&ClientTransactionID={ClientTransactionId.ToString(CultureInfo.InvariantCulture)}";
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             return await SendAsync(request, token);
         }
@@ -140,7 +144,6 @@ namespace GS.Alpaca.Support
             var alpacaResponse = await GetAsync(method, token);
             if (alpacaResponse == null)
             {
-                //todo log null response
                 return null;
             }
             alpacaResponse.MethodName = method;
@@ -179,12 +182,10 @@ namespace GS.Alpaca.Support
             var alpacaResponse = await GetAsync(method, token);
             if (alpacaResponse == null)
             {
-                //todo log null response
                 return null;
             }
             alpacaResponse.MethodName = method;
             alpacaResponse.MethodType = "Get";
-            //todo log any errors in response 
             return alpacaResponse;
         }
 
@@ -284,12 +285,10 @@ namespace GS.Alpaca.Support
             var alpacaResponse = await PutAsync(method, token, ConnectTimeout, ("Connected", "true"));
             if (alpacaResponse == null)
             {
-                //todo log null response
                 return null;
             }
             alpacaResponse.MethodName = method;
             alpacaResponse.MethodType = "Put, Connected, true";
-            //todo log any errors in response 
             // Keep ErrorNumber / ErrorMessage: they say why the server would not connect.
             return alpacaResponse;
         }

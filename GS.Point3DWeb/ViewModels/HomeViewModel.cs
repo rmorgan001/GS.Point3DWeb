@@ -276,7 +276,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         // A new address is a different device: disconnect the old one rather than leave this app
         // connected to it. Best effort; the old address may no longer answer. A COM driver is released
         // even if it doesn't report connected any more: this server may still hold it.
-        if (urlChanged && (wasConnected || AlpacaServer.IsComUrl(oldUrl)))
+        if (urlChanged && (wasConnected || AlpacaServer.IsComUrl(oldUrl)) && !IsHeldByAnotherEntry(oldUrl, server))
         {
             try
             {
@@ -293,6 +293,14 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// Whether another entry in the list is connected to the same device (two entries may share an Alpaca address):
+    /// disconnecting the device for a removed or re-addressed entry would then cut that one off.
+    /// </summary>
+    private bool IsHeldByAnotherEntry(string url, AlpacaServer self)
+        => !AlpacaServer.IsComUrl(url)
+           && AlpacaServers.Any(s => !ReferenceEquals(s, self) && s.ConnectRequested && AlpacaServer.SameUrl(s.Url, url));
 
     // ===== Toolbar commands =====
 
@@ -525,7 +533,7 @@ public partial class HomeViewModel : ViewModelBase, IDisposable
         // Alpaca device this app connected is disconnected too, as when a server's address is changed:
         // once the server is gone from the list nothing could disconnect it any more. A COM connect still
         // under way for it releases what it connects itself (AlpacaServer.Removed).
-        if (connection.IsCom || connection.ConnectRequested)
+        if ((connection.IsCom || connection.ConnectRequested) && !IsHeldByAnotherEntry(connection.Url, connection))
         {
             try
             {

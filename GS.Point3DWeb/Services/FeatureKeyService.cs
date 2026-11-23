@@ -156,7 +156,7 @@ public sealed class FeatureKeyService
             return new FeatureKeyInfo(name, issued, expires);
         }
         catch (Exception ex) when (ex is FormatException or JsonException or CryptographicException
-                                       or KeyNotFoundException or InvalidOperationException)
+                                       or KeyNotFoundException or InvalidOperationException or ArgumentException)
         {
             error = L.T("This key isn't valid.");
             return null;

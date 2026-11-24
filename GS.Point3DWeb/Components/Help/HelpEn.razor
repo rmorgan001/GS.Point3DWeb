@@ -96,7 +96,7 @@
         <ul>
             <li><strong>Server Name</strong>: the name shown in the list and on its views.</li>
             <li><strong>Polling (seconds)</strong>: how often the mount is asked for its position,
-                0.5 to 5 seconds. Shorter is smoother; longer puts less load on the server.</li>
+                0.5 to 5 seconds. The model glides from one position to the next over the polling interval, so it is always about one interval behind the mount. Shorter keeps it closer to live (0.5 is best); longer puts less load on the server but the model lags more.</li>
             <li><strong>Url</strong>: the Alpaca address, or <code>ascom:&lt;ProgID&gt;</code>.</li>
             <li><strong>User Name</strong> and <strong>Password</strong>: only for an Alpaca server that
                 asks for them.</li>
@@ -207,7 +207,7 @@
         <ul>
             <li><strong>Model color</strong>: one of seven preset colours, or any custom colour.</li>
             <li><strong>Ground grid</strong>: a grid on the ground under the mount.</li>
-            <li><strong>Compass heading</strong>: a small dial in a corner of the model showing which way the camera faces, as a compass bearing (0° north, 90° east); its red tip points north. Off by default. Click it to turn the view, and every other view of the same server (in other tabs too), to face north.</li>
+            <li><strong>Compass heading</strong>: a small dial in a corner of the model showing which way the camera faces, as a compass bearing (0° north, 90° east); its red tip points north. Off by default. Click it to turn the view, and every other view of the same server (in other tabs too), to face north (south, for a mount in the southern hemisphere).</li>
             <li><strong>Distant N E S W</strong>: large N, E, S and W letters standing on the ground far out from the mount, in line with the compass under it (N in red). Off by default. Beside it, choose their size: Small, Medium, Large (the default) or Extra large.</li>
             <li><strong>Background</strong>: a picture of the North America nebula (the default), the Heart nebula, the Rosette nebula, the Whirlpool
                 galaxy (M51) or the Triangulum galaxy (M33), a <strong>Star field</strong> (a black sky of randomly placed stars, many faint and a few bright), or a plain dark sky. <strong>Your picture…</strong> uses one of your own (JPEG, PNG or WebP, up to 15 MB), shown flat behind the scene; <strong>Choose another picture…</strong> replaces it.</li>

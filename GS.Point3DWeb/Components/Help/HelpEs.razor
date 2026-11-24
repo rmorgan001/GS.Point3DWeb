@@ -96,7 +96,7 @@
         <ul>
             <li><strong>Nombre del servidor</strong>: el nombre que aparece en la lista y en sus vistas.</li>
             <li><strong>Sondeo (segundos)</strong>: cada cuánto se pregunta a la montura su posición, de 0,5 a
-                5 segundos. Más corto es más fluido; más largo carga menos el servidor.</li>
+                5 segundos. El modelo se desliza de una posición a la siguiente durante el intervalo de sondeo, por lo que siempre va un intervalo por detrás de la montura. Más corto lo mantiene más cerca del tiempo real (0,5 es lo mejor); más largo carga menos el servidor, pero el modelo se retrasa más.</li>
             <li><strong>URL</strong>: la dirección Alpaca, o <code>ascom:&lt;ProgID&gt;</code>.</li>
             <li><strong>Nombre de usuario</strong> y <strong>Contraseña</strong>: solo para un servidor Alpaca
                 que los pida.</li>
@@ -213,7 +213,7 @@
             <li><strong>Color del modelo</strong>: uno de siete colores predefinidos, o cualquier color
                 personalizado.</li>
             <li><strong>Cuadrícula del suelo</strong>: una cuadrícula en el suelo bajo la montura.</li>
-            <li><strong>Rumbo de la brújula</strong>: un pequeño indicador en una esquina del modelo que muestra hacia dónde mira la cámara, como rumbo de brújula (0° norte, 90° este); su punta roja señala el norte. Desactivado por defecto. Al hacer clic, la vista y todas las demás vistas de la misma montura (también en otras pestañas) giran hacia el norte.</li>
+            <li><strong>Rumbo de la brújula</strong>: un pequeño indicador en una esquina del modelo que muestra hacia dónde mira la cámara, como rumbo de brújula (0° norte, 90° este); su punta roja señala el norte. Desactivado por defecto. Al hacer clic, la vista y todas las demás vistas de la misma montura (también en otras pestañas) giran hacia el norte (hacia el sur, en una montura del hemisferio sur).</li>
             <li><strong>N E S O a lo lejos</strong>: grandes letras N, E, S y W (como en la brújula) de pie en el suelo, lejos de la montura, alineadas con la brújula bajo ella (la N en rojo). Desactivado por defecto. Al lado se elige su tamaño: Pequeño, Mediano, Grande (el predeterminado) o Muy grande.</li>
             <li><strong>Fondo</strong>: una imagen de la nebulosa Norteamérica (la predeterminada), la nebulosa del Corazón, la nebulosa Roseta, la galaxia
                 del Remolino (M51) o la galaxia del Triángulo (M33), un <strong>Campo de estrellas</strong> (un cielo negro con estrellas colocadas al azar, muchas débiles y pocas brillantes) o un cielo oscuro liso. <strong>Su imagen…</strong> usa una imagen propia (JPEG, PNG o WebP, hasta 15 MB), mostrada plana detrás de la escena; <strong>Elegir otra imagen…</strong> la sustituye.</li>

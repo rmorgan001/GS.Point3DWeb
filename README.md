@@ -12,7 +12,8 @@ pointing from any browser.
 ## Features
 
 - **Live 3D model:** follows the mount's axes, using the same model transform as GSServer.
-  Supports German equatorial, fork (polar) and Alt-Az mounts in either hemisphere.
+  Supports German equatorial, fork (polar) and Alt-Az mounts in either hemisphere. The compass
+  heading dial turns the view to face north, or south for a southern-hemisphere mount.
 - **Telescope models:** reflector, refractor, Schmidt-Cassegrain, Ritchey-Chrétien (tube or
   truss), dual telescope and a default model, in any colour, with optional sky backgrounds and
   a ground grid.
@@ -37,7 +38,9 @@ pointing from any browser.
     address.
   - ASCOM COM drivers, chosen from the drivers installed on the computer running the app
     (Windows only).
-- **Saved camera views:** per mount, plus each mount's own polling interval (0.5–5 s).
+- **Saved camera views:** per mount, plus each mount's own polling interval (0.5–5 s). The model
+  glides between positions over the polling interval, so it trails the mount by about one interval:
+  0.5 s keeps it closest to live.
 - **Languages:** English, Deutsch, Español, Français, Italiano and 中文.
 - **Works offline:** fonts and the 3D engine are bundled, so no internet connection is needed.
 - **Logging:** a daily log file and a built-in log viewer, opened with **Log** in the top

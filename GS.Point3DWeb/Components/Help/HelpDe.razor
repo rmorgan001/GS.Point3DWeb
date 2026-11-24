@@ -101,7 +101,7 @@
         <ul>
             <li><strong>Servername</strong>: der Name in der Liste und auf seinen Ansichten.</li>
             <li><strong>Abfrage (Sekunden)</strong>: wie oft die Montierung nach ihrer Position gefragt wird,
-                0,5 bis 5 Sekunden. Kürzer läuft flüssiger; länger belastet den Server weniger.</li>
+                0,5 bis 5 Sekunden. Das Modell gleitet über das Abfrageintervall von einer Position zur nächsten und hinkt der Montierung daher etwa ein Intervall hinterher. Kürzer bleibt näher an der Echtzeit (0,5 ist am besten); länger belastet den Server weniger, das Modell hinkt aber stärker hinterher.</li>
             <li><strong>URL</strong>: die Alpaca-Adresse oder <code>ascom:&lt;ProgID&gt;</code>.</li>
             <li><strong>Benutzername</strong> und <strong>Passwort</strong>: nur für einen Alpaca-Server, der
                 danach fragt.</li>
@@ -222,7 +222,7 @@
             <li><strong>Modellfarbe</strong>: eine von sieben vorgegebenen Farben oder eine beliebige eigene
                 Farbe.</li>
             <li><strong>Bodenraster</strong>: ein Raster auf dem Boden unter der Montierung.</li>
-            <li><strong>Kompasskurs</strong>: eine kleine Anzeige in einer Ecke des Modells, die zeigt, in welche Richtung die Kamera blickt, als Kompasspeilung (0° Norden, 90° Osten); die rote Spitze zeigt nach Norden. Standardmäßig aus. Ein Klick darauf dreht die Ansicht und alle anderen Ansichten derselben Montierung (auch in anderen Tabs) nach Norden.</li>
+            <li><strong>Kompasskurs</strong>: eine kleine Anzeige in einer Ecke des Modells, die zeigt, in welche Richtung die Kamera blickt, als Kompasspeilung (0° Norden, 90° Osten); die rote Spitze zeigt nach Norden. Standardmäßig aus. Ein Klick darauf dreht die Ansicht und alle anderen Ansichten derselben Montierung (auch in anderen Tabs) nach Norden (bei einer Montierung auf der Südhalbkugel nach Süden).</li>
             <li><strong>N O S W in der Ferne</strong>: große Buchstaben N, E, S und W (wie auf dem Kompass), die weit draußen auf dem Boden stehen, ausgerichtet am Kompass unter der Montierung (N in Rot). Standardmäßig aus. Daneben wählen Sie ihre Größe: Klein, Mittel, Groß (Standard) oder Sehr groß.</li>
             <li><strong>Hintergrund</strong>: ein Bild des Nordamerikanebels (Standard), des Herznebels, des Rosettennebels, der
                 Whirlpool-Galaxie (M51) oder der Dreiecksgalaxie (M33), ein <strong>Sternenfeld</strong> (ein schwarzer Himmel mit zufällig verteilten Sternen, viele schwach, wenige hell) oder ein einfacher dunkler Himmel. <strong>Eigenes Bild…</strong> verwendet ein eigenes Bild (JPEG, PNG oder WebP, bis 15 MB), flach hinter der Szene; <strong>Anderes Bild wählen…</strong> ersetzt es.</li>

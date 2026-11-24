@@ -197,7 +197,9 @@ const INTERACTION_RENDER_MS = 1000;
 
 // A new position glides from the last one over the time since the previous update (so it moves at the
 // mount's own pace), but at most this long, so the model is never more than this far behind the mount.
-const MAX_GLIDE_MS = 1000;
+// This is the longest polling interval (AlpacaServer.MaxPollSeconds, 5 s) plus a second for a slow reply, so
+// the glide fills the whole interval at any polling setting; only a stalled connection gets cut short.
+const MAX_GLIDE_MS = 6000;
 // Updates closer together than this, or after the page was hidden, jump instead of gliding.
 const MIN_GLIDE_MS = 50;
 // Moves smaller than this (degrees, on every axis) jump too: tracking moves the axes a few
@@ -522,11 +524,12 @@ class TelescopeViewer {
     }
 
     /**
-     * Turns the camera about the mount until it faces north, so north is at the top of the screen. The tilt,
-     * distance and target stay. It swings the short way round, unless the viewer prefers reduced motion.
+     * Turns the camera about the mount until it faces the pole its polar axis points to: north in the northern
+     * hemisphere, south in the southern one (this.northern follows the mount's latitude, read on connecting).
+     * The tilt, distance and target stay. It swings the short way round, unless the viewer prefers reduced motion.
      */
     faceNorth() {
-        const north = directionOf(0, this.northern);
+        const north = directionOf(this.northern ? 0 : 180, this.northern);
         // The camera faces (-cos alpha, -sin alpha); make that north.
         const target = Math.atan2(-north.z, -north.x);
         const from = this.camera.alpha;

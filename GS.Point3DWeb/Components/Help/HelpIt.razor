@@ -97,7 +97,7 @@
         <ul>
             <li><strong>Nome server</strong>: il nome mostrato nell'elenco e nelle sue viste.</li>
             <li><strong>Polling (secondi)</strong>: ogni quanto si chiede alla montatura la sua posizione, da
-                0,5 a 5 secondi. Più breve è più fluido; più lungo carica meno il server.</li>
+                0,5 a 5 secondi. Il modello scivola da una posizione alla successiva durante l'intervallo di polling, quindi resta sempre indietro di circa un intervallo rispetto alla montatura. Più breve lo tiene più vicino al tempo reale (0,5 è il migliore); più lungo carica meno il server, ma il modello è più in ritardo.</li>
             <li><strong>URL</strong>: l'indirizzo Alpaca, oppure <code>ascom:&lt;ProgID&gt;</code>.</li>
             <li><strong>Nome utente</strong> e <strong>Password</strong>: solo per un server Alpaca che li
                 richiede.</li>
@@ -217,7 +217,7 @@
             <li><strong>Colore del modello</strong>: uno di sette colori predefiniti, oppure qualsiasi colore
                 personalizzato.</li>
             <li><strong>Griglia del terreno</strong>: una griglia sul terreno sotto la montatura.</li>
-            <li><strong>Direzione bussola</strong>: un piccolo quadrante in un angolo del modello che mostra dove è rivolta la fotocamera, come rilevamento della bussola (0° nord, 90° est); la punta rossa indica il nord. Disattivato per impostazione predefinita. Facendo clic, la vista e tutte le altre viste della stessa montatura (anche in altre schede) ruotano verso nord.</li>
+            <li><strong>Direzione bussola</strong>: un piccolo quadrante in un angolo del modello che mostra dove è rivolta la fotocamera, come rilevamento della bussola (0° nord, 90° est); la punta rossa indica il nord. Disattivato per impostazione predefinita. Facendo clic, la vista e tutte le altre viste della stessa montatura (anche in altre schede) ruotano verso nord (verso sud, per una montatura dell'emisfero sud).</li>
             <li><strong>N E S O in lontananza</strong>: grandi lettere N, E, S e W (come sulla bussola) in piedi sul terreno, lontano dalla montatura, allineate con la bussola sotto di essa (la N in rosso). Disattivato per impostazione predefinita. Accanto se ne sceglie la dimensione: Piccolo, Medio, Grande (predefinito) o Molto grande.</li>
             <li><strong>Sfondo</strong>: un'immagine della nebulosa Nord America (predefinita), della nebulosa Cuore, della nebulosa Rosetta, della
                 galassia Vortice (M51) o della galassia del Triangolo (M33), un <strong>Campo di stelle</strong> (un cielo nero con stelle sparse a caso, molte deboli e poche brillanti) oppure un cielo scuro

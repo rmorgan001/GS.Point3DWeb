@@ -153,7 +153,7 @@ internal static partial class Translations
         ["Green"] = "绿色",
         ["Compass heading"] = "罗盘方位",
         ["Show which way the camera is facing, with a needle pointing north"] = "显示相机朝向，并用指针指向北方",
-        ["Which way the camera is facing (compass bearing); the red tip points north. Click to turn the view to face north."] = "相机朝向（罗盘方位角）；红色指针尖指向北方。点击可将视图转向北方。",
+        ["Which way the camera is facing (compass bearing); the red tip points north. Click to turn the view to face north (south in the southern hemisphere)."] = "相机朝向（罗盘方位角）；红色指针尖指向北方。点击可将视图转向北方（南半球则转向南方）。",
         ["Distant N E S W"] = "远处的东南西北",
         ["Show large N, E, S and W letters on the ground in the distance"] = "在远处地面上显示大的 N、E、S、W 字母",
         ["Size of the distant N E S W letters"] = "远处东南西北字母的大小",

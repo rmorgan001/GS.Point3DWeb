@@ -153,7 +153,7 @@ internal static partial class Translations
         ["Green"] = "Verde",
         ["Compass heading"] = "Rumbo de la brújula",
         ["Show which way the camera is facing, with a needle pointing north"] = "Mostrar hacia dónde mira la cámara, con una aguja que apunta al norte",
-        ["Which way the camera is facing (compass bearing); the red tip points north. Click to turn the view to face north."] = "Hacia dónde mira la cámara (rumbo de la brújula); la punta roja señala el norte. Haga clic para girar la vista hacia el norte.",
+        ["Which way the camera is facing (compass bearing); the red tip points north. Click to turn the view to face north (south in the southern hemisphere)."] = "Hacia dónde mira la cámara (rumbo de la brújula); la punta roja señala el norte. Haga clic para girar la vista hacia el norte (hacia el sur en el hemisferio sur).",
         ["Distant N E S W"] = "N E S O a lo lejos",
         ["Show large N, E, S and W letters on the ground in the distance"] = "Mostrar letras grandes N, E, S y O en el suelo a lo lejos",
         ["Size of the distant N E S W letters"] = "Tamaño de las letras N E S O a lo lejos",
